@@ -14,7 +14,7 @@
     "react-dom": "^19",
     "@supabase/supabase-js": "^2.45.0",
     "@supabase/ssr": "^0.5.1",
-    "lucide-react": "^0.395.0",
+    "lucide-react": "^0.511.0",
     "date-fns": "^3.6.0",
     "papaparse": "^5.4.1",
     "clsx": "^2.1.1",
