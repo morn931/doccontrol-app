@@ -1,0 +1,392 @@
+'use client'
+import { useState, useEffect, use } from 'react'
+import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle } from 'lucide-react'
+import Link from 'next/link'
+import { format } from 'date-fns'
+import { outcomeColorClass } from '@/lib/utils/outcome-codes'
+import type { ReviewOutcomeCode } from '@/lib/types/database'
+
+const DISCIPLINES  = ['Electrical','Instrumentation','Automation','Mechanical','Civil','Commercial','Not sure']
+const DOC_TYPES    = ['Specification','Drawing','Calculation','Datasheet','RFI','Contract Notice','Change Request','Variation/VO','Delay Notice','Claim','Commercial Letter','Not sure']
+const TOPICS       = ['Technical','SHERQ','Contractual','Not sure']
+
+const STATUS_COLORS: Record<string, string> = {
+  intake_received:              'bg-blue-100 text-blue-800',
+  metadata_pending:             'bg-yellow-100 text-yellow-800',
+  ready_for_reviewer_assignment:'bg-indigo-100 text-indigo-800',
+  review_ready_to_start:        'bg-purple-100 text-purple-800',
+  review_in_progress:           'bg-orange-100 text-orange-800',
+  review_complete:              'bg-teal-100 text-teal-800',
+  transmittal_generated:        'bg-cyan-100 text-cyan-800',
+  returned_to_vendor:           'bg-green-100 text-green-800',
+  rejected_before_review:       'bg-red-100 text-red-800',
+  cancelled:                    'bg-gray-100 text-gray-600',
+  failed:                       'bg-red-200 text-red-900',
+}
+const STATUS_LABELS: Record<string, string> = {
+  intake_received:              'Received',
+  metadata_pending:             'Metadata Pending',
+  ready_for_reviewer_assignment:'Ready to Assign',
+  review_ready_to_start:        'Ready to Start',
+  review_in_progress:           'In Review',
+  review_complete:              'Review Complete',
+  transmittal_generated:        'Transmittal Generated',
+  returned_to_vendor:           'Returned to Vendor',
+  rejected_before_review:       'Rejected',
+  cancelled:                    'Cancelled',
+  failed:                       'Failed',
+}
+
+function reviewerDisplayName(email: string): string {
+  return email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
+
+export default function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)   // Next.js 15: unwrap params Promise with React.use()
+
+  const [batch, setBatch]           = useState<any>(null)
+  const [reviewTasks, setReviewTasks] = useState<any[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [showReject, setShowReject] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejecting, setRejecting]   = useState(false)
+  const [rejectError, setRejectError] = useState('')
+  const [editingDv, setEditingDv]   = useState<string | null>(null)
+  const [editForm, setEditForm]     = useState<any>({})
+  const [saving, setSaving]         = useState(false)
+
+  useEffect(() => {
+    loadBatch()
+  }, [id])
+
+  async function loadBatch() {
+    setLoading(true)
+    const res = await fetch(`/api/batches/${id}`)
+    if (res.ok) {
+      const data = await res.json()
+      setBatch(data)
+      // Load review tasks separately
+      const rtRes = await fetch(`/api/review-tasks?batchId=${id}`)
+      if (rtRes.ok) setReviewTasks(await rtRes.json())
+    }
+    setLoading(false)
+  }
+
+  async function handleReject() {
+    if (!rejectReason.trim()) { setRejectError('Please enter a rejection reason'); return }
+    setRejecting(true); setRejectError('')
+    const res = await fetch(`/api/batches/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rejectReason }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setRejectError(data.error ?? 'Failed'); setRejecting(false) }
+    else { setShowReject(false); setRejectReason(''); loadBatch() }
+    setRejecting(false)
+  }
+
+  async function handleSaveMetadata(dvId: string) {
+    setSaving(true)
+    const res = await fetch(`/api/documents/${dvId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editForm),
+    })
+    if (res.ok) { setEditingDv(null); loadBatch() }
+    setSaving(false)
+  }
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-700" />
+    </div>
+  )
+  if (!batch) return <div className="card p-8 text-center text-gray-400">Batch not found.</div>
+
+  const docVersions = batch.document_versions ?? []
+  const statusColor = STATUS_COLORS[batch.status] ?? 'bg-gray-100 text-gray-600'
+  const statusLabel = STATUS_LABELS[batch.status] ?? batch.status
+  const canReject = ['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status)
+  const canEdit   = ['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status)
+
+  // Unique reviewers
+  const reviewerMap = new Map<string, { email: string; minSeq: number; statuses: string[] }>()
+  reviewTasks.forEach((t: any) => {
+    const key = t.reviewer_email
+    if (!reviewerMap.has(key)) reviewerMap.set(key, { email: key, minSeq: t.sequence_number, statuses: [t.status] })
+    else { const e = reviewerMap.get(key)!; if (t.sequence_number < e.minSeq) e.minSeq = t.sequence_number; e.statuses.push(t.status) }
+  })
+  const uniqueReviewers = [...reviewerMap.values()].sort((a, b) => a.minSeq - b.minSeq)
+  const docTitles = [...new Set(docVersions.map((dv: any) => dv.doc_name ?? dv.file_name).filter(Boolean))]
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      {/* Back */}
+      <div className="flex items-center gap-3">
+        <Link href="/batches" className="btn-secondary text-xs py-1.5 px-3">
+          <ArrowLeft className="h-3.5 w-3.5" /> Batches
+        </Link>
+      </div>
+
+      {/* Header */}
+      <div className="card p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl font-bold text-gray-900">
+                {batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package'}
+              </h1>
+              <span className={`px-2.5 py-1 rounded-full text-sm font-medium ${statusColor}`}>{statusLabel}</span>
+            </div>
+
+            {docTitles.slice(0, 3).map((t: any, i: number) => (
+              <p key={i} className="text-sm text-gray-600 font-medium mt-1">{t}</p>
+            ))}
+            {docTitles.length > 3 && <p className="text-xs text-gray-400 mt-0.5">+{docTitles.length - 3} more</p>}
+
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
+              <span><span className="font-medium text-gray-700">Package:</span> {batch.packages?.package_code ?? '—'}</span>
+              <span><span className="font-medium text-gray-700">Received:</span> {format(new Date(batch.received_at), 'd MMM yyyy')}</span>
+              <span><span className="font-medium text-gray-700">Documents:</span> {docVersions.length}</span>
+              {batch.vendor_email && <span><span className="font-medium text-gray-700">Vendor email:</span> {batch.vendor_email}</span>}
+            </div>
+
+            {uniqueReviewers.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2 items-center">
+                <span className="text-xs font-medium text-gray-500">Reviewers:</span>
+                {uniqueReviewers.map((r, i) => {
+                  const allDone  = r.statuses.every(s => s === 'completed')
+                  const anyActive = r.statuses.some(s => ['sent','in_progress','opened'].includes(s))
+                  return (
+                    <span key={r.email} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>
+                      <span className="w-4 h-4 rounded-full bg-white bg-opacity-60 flex items-center justify-center font-bold text-xs">{i+1}</span>
+                      {reviewerDisplayName(r.email)}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+
+            <p className="mt-3 text-xs text-gray-400 font-mono">{batch.batch_guid}</p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2 shrink-0">
+            {canReject && (
+              <button onClick={() => setShowReject(true)} className="btn-danger text-sm">
+                <XCircle className="h-4 w-4" /> Reject Batch
+              </button>
+            )}
+            {['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status) && (
+              <Link href={`/batches/${id}/assign`} className="btn-primary text-sm">
+                <Users className="h-4 w-4" /> Assign Reviewers
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {batch.comments && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-blue-800 border border-blue-100">
+            <p className="font-medium mb-1">Controller Notes</p>
+            <p>{batch.comments}</p>
+          </div>
+        )}
+        {batch.reject_reason && (
+          <div className="mt-4 p-3 bg-red-50 rounded-md text-sm text-red-800 border border-red-100">
+            <p className="font-medium mb-1 flex items-center gap-1"><AlertCircle className="h-4 w-4" /> Rejection Reason</p>
+            <p>{batch.reject_reason}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Reject modal */}
+      {showReject && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <XCircle className="h-5 w-5 text-red-500" /> Reject Batch Before Review
+              </h2>
+              <button onClick={() => { setShowReject(false); setRejectReason(''); setRejectError('') }}>
+                <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              The vendor will be notified by email. Provide a clear reason so they can correct and resubmit.
+            </p>
+            <label className="label">Rejection Reason <span className="text-red-500">*</span></label>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              rows={4}
+              className="input resize-none"
+              placeholder="e.g. Wrong document type on cover page. Title block does not match SDDR. Please correct and resubmit."
+            />
+            {rejectError && <p className="text-sm text-red-600 mt-2">{rejectError}</p>}
+            <div className="flex gap-3 mt-4">
+              <button onClick={handleReject} disabled={rejecting} className="btn-danger flex-1 justify-center">
+                {rejecting ? 'Rejecting…' : 'Confirm Rejection'}
+              </button>
+              <button onClick={() => { setShowReject(false); setRejectReason('') }} className="btn-secondary flex-1 justify-center">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Documents */}
+      <div className="card">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+          <FileText className="h-4 w-4 text-gray-500" />
+          <h2 className="font-semibold text-gray-900">Documents ({docVersions.length})</h2>
+          {uniqueReviewers.length > 0 && (
+            <div className="ml-auto flex flex-wrap gap-1.5">
+              {uniqueReviewers.map((r, i) => {
+                const allDone = r.statuses.every(s => s === 'completed')
+                const anyActive = r.statuses.some(s => ['sent','in_progress','opened'].includes(s))
+                return (
+                  <span key={r.email} className={`px-2 py-0.5 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`} title={r.email}>
+                    {i+1}. {reviewerDisplayName(r.email)}
+                  </span>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="divide-y divide-gray-50">
+          {docVersions.length === 0 ? (
+            <div className="px-6 py-8 text-center text-gray-400 text-sm">No documents linked yet.</div>
+          ) : docVersions.map((dv: any) => (
+            <div key={dv.id} className="px-6 py-4">
+              {editingDv === dv.id ? (
+                // ── Edit mode ──────────────────────────────────────────────
+                <div className="space-y-3">
+                  <p className="font-mono text-sm font-semibold text-gray-900">{dv.file_name}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label text-xs">Document Title</label>
+                      <input value={editForm.doc_name ?? ''} onChange={e => setEditForm({...editForm, doc_name: e.target.value})} className="input text-sm" />
+                    </div>
+                    <div>
+                      <label className="label text-xs">Discipline</label>
+                      <select value={editForm.discipline ?? ''} onChange={e => setEditForm({...editForm, discipline: e.target.value})} className="input text-sm">
+                        <option value="">—</option>
+                        {DISCIPLINES.map(d => <option key={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label text-xs">Document Type</label>
+                      <select value={editForm.document_type ?? ''} onChange={e => setEditForm({...editForm, document_type: e.target.value})} className="input text-sm">
+                        <option value="">—</option>
+                        {DOC_TYPES.map(d => <option key={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label text-xs">Topic</label>
+                      <select value={editForm.topic ?? ''} onChange={e => setEditForm({...editForm, topic: e.target.value})} className="input text-sm">
+                        <option value="">—</option>
+                        {TOPICS.map(d => <option key={d}>{d}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {dv.ai_text && (
+                    <div className="p-3 bg-blue-50 rounded text-xs text-blue-700 max-h-32 overflow-auto">
+                      <strong>AI Output:</strong><br />
+                      <pre className="whitespace-pre-wrap font-sans">{dv.ai_text}</pre>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => handleSaveMetadata(dv.id)} disabled={saving} className="btn-primary text-xs py-1.5">
+                      <Save className="h-3.5 w-3.5" /> {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button onClick={() => setEditingDv(null)} className="btn-secondary text-xs py-1.5">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                // ── View mode ──────────────────────────────────────────────
+                <div className="flex items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-semibold text-gray-900">{dv.file_name}</span>
+                      {dv.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {dv.revision}</span>}
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                        dv.ai_metadata_source === 'manually_overridden' ? 'bg-purple-100 text-purple-700' :
+                        dv.ai_metadata_source === 'manually_confirmed'  ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-500'
+                      }`}>
+                        {dv.ai_metadata_source === 'manually_overridden' ? 'Manual' : dv.ai_metadata_source === 'manually_confirmed' ? 'AI (confirmed)' : 'AI'}
+                      </span>
+                    </div>
+                    {dv.doc_name && dv.doc_name !== dv.file_name && <p className="text-sm text-gray-700 font-medium mt-0.5">{dv.doc_name}</p>}
+                    <div className="flex flex-wrap gap-x-3 text-xs text-gray-400 mt-0.5">
+                      {dv.discipline    && <span>{dv.discipline}</span>}
+                      {dv.document_type && <span>· {dv.document_type}</span>}
+                      {dv.topic         && <span>· {dv.topic}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {canEdit && (
+                      <button onClick={() => { setEditingDv(dv.id); setEditForm({ doc_name: dv.doc_name, discipline: dv.discipline, document_type: dv.document_type, topic: dv.topic }) }}
+                        className="btn-secondary text-xs py-1.5 px-3">
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </button>
+                    )}
+                    {dv.central_file_url && (
+                      <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3">
+                        <ExternalLink className="h-3.5 w-3.5" /> Open
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Review sequence */}
+      {reviewTasks.length > 0 && (
+        <div className="card">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-500" />
+            <h2 className="font-semibold text-gray-900">Review Sequence</h2>
+            <span className="ml-auto text-xs text-gray-400">{reviewTasks.length} task{reviewTasks.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {reviewTasks.map((task: any) => (
+              <div key={task.id} className="px-6 py-3 flex items-center gap-4">
+                <div className="w-7 h-7 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-bold text-xs shrink-0">
+                  {task.sequence_number}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-gray-900">{reviewerDisplayName(task.reviewer_email)}</p>
+                  <p className="text-xs text-gray-400">{task.reviewer_email}</p>
+                  {task.comment && <p className="text-xs text-gray-500 mt-0.5 italic">"{task.comment}"</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {task.review_outcome_code && (
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${outcomeColorClass(task.review_outcome_code as ReviewOutcomeCode)}`}>
+                      {task.review_outcome_code}
+                    </span>
+                  )}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    task.status === 'completed'   ? 'bg-green-100 text-green-700' :
+                    task.status === 'sent'        ? 'bg-blue-100 text-blue-700' :
+                    task.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
+                    task.status === 'overdue'     ? 'bg-red-100 text-red-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {task.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
