@@ -1,37 +1,29 @@
 /**
  * POST /api/intake/webhook
- * Receives new file upload notifications from SharePoint watcher Logic Apps.
- * Authenticated by X-Intake-Secret header.
  *
- * Body (compatible with existing Small Flow Logic App format):
- * {
- *   vendorKey: string,
- *   files: [{siteUrl, listId, fileServerRelativeUrl, fileName, itemUniqueId}],
- *   return: {siteUrl, libraryPath, listId, controllerEmail}
- * }
+ * Two modes:
  *
- * Pipeline:
- * 1. Create batch record (idempotent — returns existing if already processed)
- * 2. For each file: copy to DocumentControl SharePoint library
- * 3. Run Azure Document Intelligence OCR on each file
- * 4. Run Azure OpenAI classification on extracted text
- * 5. Store metadata on document_version records
- * 6. Send controller notification email with AI summary
+ * MODE A — Enriched payload from la-intake-core (source = "la-intake-core")
+ *   la-intake-core has already:
+ *   - Copied the file to the DocumentControl bucket
+ *   - Run OCR and AI classification
+ *   - Created the Approver Picks row in SharePoint
+ *   - Emailed the controller
+ *   The webhook only needs to create database records.
+ *   No file copy, no OCR, no AI, no duplicate email.
+ *
+ * MODE B — Direct webhook call (no source field, future standalone operation)
+ *   Webhook handles everything: file copy, OCR, AI, DB records, email.
+ *   Used when la-intake-core is fully retired.
  */
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import { copyFileToDocControl, sendEmail, getGraphToken } from '@/lib/services/graph'
-import { extractDocumentText } from '@/lib/services/document-intelligence'
-import { classifyDocument } from '@/lib/services/openai'
-import { newBatchEmail } from '@/lib/services/email-templates'
 import { parseDocumentFileName } from '@/lib/utils/document-number-parser'
 
-const DC_SITE_URL = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
-
 export async function POST(req: Request) {
-  // ─── Auth check ────────────────────────────────────────────────────────────
+  // ─── Auth ─────────────────────────────────────────────────────────────────
   const secret = req.headers.get('x-intake-secret')
   if (secret !== process.env.INTAKE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
@@ -41,12 +33,13 @@ export async function POST(req: Request) {
   try { body = await req.json() }
   catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const { vendorKey, files, return: returnInfo } = body
+  const { vendorKey, files, return: returnInfo, source } = body
   if (!vendorKey || !files?.length) {
     return NextResponse.json({ error: 'vendorKey and files are required' }, { status: 400 })
   }
 
   const db = createServiceClient()
+  const isFromLaIntakeCore = source === 'la-intake-core'
 
   // ─── Look up vendor / package ─────────────────────────────────────────────
   const { data: pkg } = await db
@@ -58,22 +51,33 @@ export async function POST(req: Request) {
   const packageName = (pkg as any)?.package_name ?? vendorKey
   const vendorName  = (pkg as any)?.vendors?.name ?? vendorKey
 
-  // ─── Idempotency: check if this batch already exists ──────────────────────
-  // Use first file's itemUniqueId as the dedup key
-  const firstFileUniqueId = files[0]?.itemUniqueId
-  if (firstFileUniqueId) {
+  // ─── Idempotency: skip if batch already exists ────────────────────────────
+  const incomingBatchGuid = body.batchGuid ?? null
+  if (incomingBatchGuid) {
     const { data: existing } = await db
+      .from('batches')
+      .select('id')
+      .eq('batch_guid', incomingBatchGuid)
+      .single()
+    if (existing) {
+      return NextResponse.json({ success: true, batchId: existing.id, duplicate: true }, { status: 200 })
+    }
+  }
+
+  // Also check by first file's itemUniqueId
+  if (!incomingBatchGuid && files[0]?.itemUniqueId) {
+    const { data: existingDv } = await db
       .from('document_versions')
       .select('batch_id')
-      .eq('doc_unique_id', firstFileUniqueId)
+      .eq('doc_unique_id', files[0].itemUniqueId)
       .single()
-    if (existing?.batch_id) {
-      return NextResponse.json({ success: true, batchId: existing.batch_id, duplicate: true }, { status: 200 })
+    if (existingDv?.batch_id) {
+      return NextResponse.json({ success: true, batchId: existingDv.batch_id, duplicate: true }, { status: 200 })
     }
   }
 
   // ─── Create batch record ──────────────────────────────────────────────────
-  const batchGuid = randomUUID()
+  const batchGuid = incomingBatchGuid ?? randomUUID()
   const { data: batch, error: batchErr } = await db
     .from('batches')
     .insert({
@@ -95,172 +99,122 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to create batch' }, { status: 500 })
   }
 
-  // ─── Process each file ────────────────────────────────────────────────────
-  const auditErrors: string[] = []
-  const processedDocs: Array<{
-    fileName: string
-    docVersionId: string
-    aiSummary: string
-    discipline: string
-    docType: string
-  }> = []
+  // ─── MODE A: Enriched payload from la-intake-core ─────────────────────────
+  if (isFromLaIntakeCore) {
+    const {
+      docUniqueId, docUrl, aiText, docName,
+      discipline, documentType, topic, batchDocumentIds
+    } = body
 
-  // Target library path in DocumentControl (e.g. /K137  220kV  33kV Overhead Lines 2)
-  const targetLibrary = returnInfo?.libraryPath ?? `/${vendorKey}`
+    // la-intake-core processes the FIRST file with full AI. Additional files
+    // in the batch get basic properties only. Create one document_version per file.
+    const docIds = batchDocumentIds?.split(',').map((s: string) => s.trim()) ?? []
 
-  for (const file of files) {
-    try {
-      // 1. Copy file to DocumentControl package library.
-      //    The central_file_url is the DocumentControl location — this is the file
-      //    all reviewers open and annotate (same file, sequential review).
-      //    Set the expected URL immediately so reviewers can open it even before copy completes.
-      const libraryName = targetLibrary.replace(/^\//, '') // strip leading slash
-      const expectedDocControlUrl = `${DC_SITE_URL}/${encodeURIComponent(libraryName)}/${encodeURIComponent(file.fileName)}`
-      let centralFileUrl: string | null = expectedDocControlUrl
-      let driveItemId: string | null = null
-      try {
-        const copied = await copyFileToDocControl(
-          file.siteUrl,
-          file.fileServerRelativeUrl,
-          targetLibrary,
-          file.fileName
-        )
-        centralFileUrl = copied.webUrl   // use actual webUrl returned by Graph if copy succeeded
-        driveItemId    = copied.driveItemId
-      } catch (copyErr: any) {
-        auditErrors.push(`File copy failed for ${file.fileName}: ${copyErr.message}`)
-        // centralFileUrl still points to the expected DocumentControl location
-        // The file will be there once the copy succeeds or is retried
-      }
-
-      // 2. Extract text via Document Intelligence (use the central URL if available)
-      let extractedText = ''
-      let aiText = ''
-      let discipline = ''
-      let documentType = ''
-      let topic = ''
-      let docName = file.fileName.replace(/\.[^.]+$/, '')
-      let summary = ''
-
-      if (centralFileUrl) {
-        try {
-          // Generate a short-lived download URL via Graph
-          const token = await getGraphToken()
-          const dlUrl = `${DC_SITE_URL}/_layouts/15/download.aspx?SourceUrl=${encodeURIComponent(centralFileUrl)}`
-          const diResult = await extractDocumentText(centralFileUrl)
-          extractedText = diResult.extractedText
-
-          // 3. AI classification
-          const classification = await classifyDocument(
-            extractedText,
-            file.fileName,
-            vendorName,
-            packageName
-          )
-          docName      = classification.docName
-          discipline   = classification.discipline
-          documentType = classification.documentType
-          topic        = classification.topic
-          summary      = classification.summary
-          aiText       = classification.rawAiText
-        } catch (aiErr: any) {
-          auditErrors.push(`AI processing failed for ${file.fileName}: ${aiErr.message}`)
-        }
-      }
-
-      // 4. Parse document number / revision from filename
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
       const parsed = parseDocumentFileName(file.fileName)
 
-      // 5. Create document_version record
-      const { data: dv } = await db.from('document_versions').insert({
-        batch_id:         batch.id,
-        file_name:        file.fileName,
-        revision:         parsed.revision,
-        revision_sort:    parsed.revisionSort,
-        source_site_url:  file.siteUrl,
-        source_file_url:  file.fileServerRelativeUrl,
-        central_file_url: centralFileUrl,
-        doc_unique_id:    file.itemUniqueId,
-        storage_provider: 'sharepoint',
-        ai_text:          aiText || null,
-        extracted_text:   extractedText || null,
-        doc_name:         docName,
-        discipline:       discipline || null,
-        document_type:    documentType || null,
-        topic:            topic || null,
-        ai_metadata_source: aiText ? 'ai' : 'ai',
-        status:           'uploaded',
-        is_latest:        true,
-      }).select().single()
+      // For the first file: use the enriched AI data and docUrl from la-intake-core
+      // For additional files: construct the expected DocumentControl URL
+      const isFirst = i === 0
+      const fileDocUrl = isFirst
+        ? docUrl
+        : (returnInfo?.siteUrl && returnInfo?.libraryPath
+            ? `${returnInfo.siteUrl}${returnInfo.libraryPath}/${encodeURIComponent(file.fileName)}`
+            : null)
 
-      if (dv) {
-        processedDocs.push({
-          fileName:    file.fileName,
-          docVersionId: dv.id,
-          aiSummary:   summary,
-          discipline,
-          docType:     documentType,
-        })
-      }
-    } catch (fileErr: any) {
-      auditErrors.push(`Error processing ${file.fileName}: ${fileErr.message}`)
+      // DocUniqueId from la-intake-core for first file; construct for others
+      const fileDocUniqueId = isFirst
+        ? docUniqueId
+        : (docIds[i] ? `${vendorKey.toUpperCase().replace(/-/g,'')}-${docIds[i]}` : null)
+
+      await db.from('document_versions').upsert({
+        batch_id:          batch.id,
+        file_name:         file.fileName,
+        revision:          parsed.revision,
+        revision_sort:     parsed.revisionSort ?? parsed.revision,
+        source_site_url:   file.siteUrl,
+        source_file_url:   file.fileServerRelativeUrl,
+        central_file_url:  fileDocUrl,  // DocumentControl bucket URL — ready for review
+        doc_unique_id:     fileDocUniqueId ?? file.itemUniqueId,
+        storage_provider:  'sharepoint',
+        // AI metadata — only set for first file (others share the batch AI summary)
+        ai_text:           isFirst ? (aiText ?? null) : null,
+        doc_name:          isFirst ? (docName ?? null) : null,
+        discipline:        isFirst ? (discipline ?? null) : null,
+        document_type:     isFirst ? (documentType ?? null) : null,
+        topic:             isFirst ? (topic ?? null) : null,
+        ai_metadata_source: 'ai',
+        status:            'uploaded',
+        is_latest:         true,
+      }, { onConflict: 'doc_unique_id', ignoreDuplicates: false })
     }
+
+    // Audit event
+    await db.from('audit_events').insert({
+      entity_type: 'batch',
+      entity_id:   batch.id,
+      event_type:  'intake_received_from_la_intake_core',
+      actor_email: 'system_la_intake_core',
+      event_data:  { vendorKey, fileCount: files.length, batchGuid, docUniqueId, docUrl },
+    })
+
+    // Update batch status to metadata_pending (AI is already done)
+    await db.from('batches').update({
+      status:     'metadata_pending',
+      updated_at: new Date().toISOString(),
+    }).eq('id', batch.id)
+
+    return NextResponse.json({
+      success:  true,
+      batchId:  batch.id,
+      batchGuid,
+      mode:     'la-intake-core',
+    }, { status: 201 })
   }
 
-  // ─── Update batch status ──────────────────────────────────────────────────
-  await db.from('batches').update({
-    status:     processedDocs.length > 0 ? 'metadata_pending' : 'failed',
-    updated_at: new Date().toISOString(),
-  }).eq('id', batch.id)
+  // ─── MODE B: Direct webhook (standalone, no la-intake-core) ───────────────
+  // File copy + OCR + AI handled here. Used when la-intake-core is retired.
+  // For parallel operation, this path should not be triggered — la-intake-core
+  // handles K108 and all other packages, then calls this webhook with enriched data.
 
-  // ─── Send controller notification email ───────────────────────────────────
-  const controllerEmails = (returnInfo?.controllerEmail ?? '')
-    .split(/[;,]/).map((e: string) => e.trim()).filter(Boolean)
+  // Set central_file_url to the expected DocumentControl location immediately
+  // (la-intake-core will have placed the file there before calling us)
+  const auditErrors: string[] = []
 
-  if (controllerEmails.length > 0) {
-    try {
-      const firstDoc = processedDocs[0]
-      const html = newBatchEmail({
-        batchId:     batchGuid,
-        batchDbId:   batch.id,
-        packageName,
-        vendorCode:  vendorKey,
-        vendorEmail: (pkg as any)?.vendors?.primary_contact_email ?? '',
-        fileNames:   files.map((f: any) => f.fileName),
-        aiSummary:   firstDoc?.aiSummary ?? '',
-        discipline:  firstDoc?.discipline ?? '',
-        docType:     firstDoc?.docType ?? '',
-      })
-      await sendEmail({
-        to:       controllerEmails,
-        subject:  `[Doc Control] New batch received: ${packageName} (${files.length} file${files.length !== 1 ? 's' : ''})`,
-        htmlBody: html,
-      })
-    } catch (emailErr: any) {
-      auditErrors.push(`Controller email failed: ${emailErr.message}`)
-    }
+  for (const file of files) {
+    const parsed = parseDocumentFileName(file.fileName)
+    const expectedDocControlUrl = returnInfo?.siteUrl && returnInfo?.libraryPath
+      ? `${returnInfo.siteUrl}${returnInfo.libraryPath}/${encodeURIComponent(file.fileName)}`
+      : null
+
+    await db.from('document_versions').insert({
+      batch_id:          batch.id,
+      file_name:         file.fileName,
+      revision:          parsed.revision,
+      revision_sort:     parsed.revisionSort ?? parsed.revision,
+      source_site_url:   file.siteUrl,
+      source_file_url:   file.fileServerRelativeUrl,
+      central_file_url:  expectedDocControlUrl,
+      doc_unique_id:     file.itemUniqueId,
+      storage_provider:  'sharepoint',
+      status:            'uploaded',
+      is_latest:         true,
+    })
   }
 
-  // ─── Audit event ─────────────────────────────────────────────────────────
   await db.from('audit_events').insert({
     entity_type: 'batch',
     entity_id:   batch.id,
-    event_type:  'intake_received',
+    event_type:  'intake_received_direct',
     actor_email: 'system_webhook',
-    event_data:  {
-      vendorKey,
-      fileCount: files.length,
-      batchGuid,
-      processedCount: processedDocs.length,
-      errors: auditErrors,
-    },
+    event_data:  { vendorKey, fileCount: files.length, batchGuid, errors: auditErrors },
   })
 
   return NextResponse.json({
-    success:        true,
-    batchId:        batch.id,
+    success:  true,
+    batchId:  batch.id,
     batchGuid,
-    filesProcessed: processedDocs.length,
-    errors:         auditErrors.length > 0 ? auditErrors : undefined,
+    mode:     'direct',
   }, { status: 201 })
 }
