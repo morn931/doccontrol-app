@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/services/graph'
 import { reviewAssignedEmail } from '@/lib/services/email-templates'
-import { createApprovalListRow, markApprovalListRowSent } from '@/lib/services/sharepoint-lists'
+import { createApprovalListRow, markApprovalListRowSent, updateApproverPicksReviewers } from '@/lib/services/sharepoint-lists'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -73,6 +73,17 @@ Reviewer Instructions: ${instructions}`.trim()
       : (batch as any).comments,
     updated_at: new Date().toISOString(),
   }).eq('id', batchId)
+
+  // ─── SharePoint write-back: update Approver Picks with reviewer names ───────
+  // This makes DocControlAPP show the correct reviewers in the ApproverEmail column
+  try {
+    const sortedEmails = [...reviewers]
+      .sort((a: any, b: any) => a.sequenceNumber - b.sequenceNumber)
+      .map((r: any) => r.email)
+    await updateApproverPicksReviewers(batch.batch_guid, sortedEmails, dueDate ?? null)
+  } catch (e: any) {
+    console.error('Approver Picks write-back failed:', e.message)
+  }
 
   // ─── SharePoint write-back: create Document Approval List rows ──────────────
   // Non-blocking — if this fails, new app still works correctly
