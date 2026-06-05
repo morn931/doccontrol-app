@@ -110,8 +110,13 @@ export async function POST(req: Request) {
 
   for (const file of files) {
     try {
-      // 1. Copy file to DocumentControl
-      let centralFileUrl: string | null = null
+      // 1. Copy file to DocumentControl package library.
+      //    The central_file_url is the DocumentControl location — this is the file
+      //    all reviewers open and annotate (same file, sequential review).
+      //    Set the expected URL immediately so reviewers can open it even before copy completes.
+      const libraryName = targetLibrary.replace(/^\//, '') // strip leading slash
+      const expectedDocControlUrl = `${DC_SITE_URL}/${encodeURIComponent(libraryName)}/${encodeURIComponent(file.fileName)}`
+      let centralFileUrl: string | null = expectedDocControlUrl
       let driveItemId: string | null = null
       try {
         const copied = await copyFileToDocControl(
@@ -120,11 +125,12 @@ export async function POST(req: Request) {
           targetLibrary,
           file.fileName
         )
-        centralFileUrl = copied.webUrl
+        centralFileUrl = copied.webUrl   // use actual webUrl returned by Graph if copy succeeded
         driveItemId    = copied.driveItemId
       } catch (copyErr: any) {
         auditErrors.push(`File copy failed for ${file.fileName}: ${copyErr.message}`)
-        // Continue — still create a placeholder document_version
+        // centralFileUrl still points to the expected DocumentControl location
+        // The file will be there once the copy succeeds or is retried
       }
 
       // 2. Extract text via Document Intelligence (use the central URL if available)

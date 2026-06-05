@@ -86,9 +86,36 @@ export async function getFileMetadata(siteUrl: string, serverRelativeUrl: string
   return res.json()
 }
 
-/** 
- * Copy a file from a vendor SharePoint site to the DocumentControl site.
- * Returns the new item's metadata (id, webUrl, eTag).
+/**
+ * Find a document library drive by name within a SharePoint site.
+ * Each library in SharePoint is a separate "drive" in Graph API.
+ * The targetLibraryPath is the library name (e.g. "/K108  Battery Energy Storage System").
+ */
+async function getLibraryDriveId(siteId: string, libraryName: string): Promise<string> {
+  const res = await graphFetch(`/sites/${siteId}/drives`)
+  if (!res.ok) throw new Error(`Failed to list drives: ${await res.text()}`)
+  const data = await res.json()
+  const normalize = (s: string) => s.replace(/^\//, '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const target = normalize(libraryName)
+  const drive  = data.value?.find((d: any) =>
+    normalize(d.name) === target || normalize(d.webUrl?.split('/').pop() ?? '') === target
+  )
+  if (!drive) {
+    const names = data.value?.map((d: any) => d.name).join(', ')
+    throw new Error(`Library "${libraryName}" not found. Available: ${names}`)
+  }
+  return drive.id
+}
+
+/**
+ * Copy a file from a vendor SharePoint site to the correct DocumentControl library.
+ *
+ * IMPORTANT: In DocumentControl, each package has its own document library
+ * (e.g. "K108  Battery Energy Storage System"). These are separate drives in Graph API,
+ * NOT folders inside the default Shared Documents drive.
+ *
+ * The targetLibraryPath is the library name as it appears in SharePoint
+ * (e.g. "/K108  Battery Energy Storage System" — note double space).
  */
 export async function copyFileToDocControl(
   sourceSiteUrl: string,
@@ -96,20 +123,22 @@ export async function copyFileToDocControl(
   targetLibraryPath: string,
   fileName: string
 ): Promise<{ id: string; webUrl: string; driveItemId: string }> {
-  const sourceSiteId   = await getSiteId(sourceSiteUrl)
-  const targetSiteId   = await getSiteId(DOCCONTROL_SITE_URL)
-  const targetDriveId  = await getDriveId(targetSiteId)
+  const sourceSiteId = await getSiteId(sourceSiteUrl)
+  const targetSiteId = await getSiteId(DOCCONTROL_SITE_URL)
 
-  // Get source item ID — ensure path starts with / and encode each segment
+  // Get the SOURCE file — path is relative to the vendor library root
   const normalizedPath = sourceRelativeUrl.startsWith('/') ? sourceRelativeUrl : `/${sourceRelativeUrl}`
-  const encodedPath = normalizedPath.split('/').map(s => encodeURIComponent(s)).join('/')
+  const encodedPath    = normalizedPath.split('/').map(s => encodeURIComponent(s)).join('/')
   const srcRes = await graphFetch(`/sites/${sourceSiteId}/drive/root:${encodedPath}`)
   if (!srcRes.ok) throw new Error(`Source file not found [${encodedPath}]: ${await srcRes.text()}`)
   const srcItem = await srcRes.json()
 
-  // Copy to target
+  // Get the TARGET library drive — each package library is its own drive
+  const targetDriveId = await getLibraryDriveId(targetSiteId, targetLibraryPath)
+
+  // Copy to root of the target library drive
   const copyBody = {
-    parentReference: { driveId: targetDriveId, path: `/root:${targetLibraryPath}` },
+    parentReference: { driveId: targetDriveId, itemId: 'root' },
     name: fileName,
   }
   const copyRes = await graphFetch(
@@ -120,23 +149,23 @@ export async function copyFileToDocControl(
     throw new Error(`Failed to copy file: ${await copyRes.text()}`)
   }
 
-  // Poll for completion (copy is async)
+  // Poll the async copy operation for completion
   const monitorUrl = copyRes.headers.get('Location')
   if (monitorUrl) {
     for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 2000))
-      const pollRes = await fetch(monitorUrl)
+      await new Promise(r => setTimeout(r, 3000))
+      const pollRes  = await fetch(monitorUrl)
       const pollData = await pollRes.json()
       if (pollData.status === 'completed') {
         return { id: pollData.resourceId, webUrl: pollData.resourceLocation, driveItemId: pollData.resourceId }
       }
-      if (pollData.status === 'failed') throw new Error(`Copy failed: ${JSON.stringify(pollData)}`)
+      if (pollData.status === 'failed') throw new Error(`Copy operation failed: ${JSON.stringify(pollData)}`)
     }
   }
 
-  // Fallback: find the file in the target
-  const findRes = await graphFetch(`/sites/${targetSiteId}/drive/root:${targetLibraryPath}/${fileName}`)
-  if (!findRes.ok) throw new Error('Could not verify file was copied')
+  // Fallback: look up the file in the target library by name
+  const findRes = await graphFetch(`/sites/${targetSiteId}/drives/${targetDriveId}/root:/${encodeURIComponent(fileName)}`)
+  if (!findRes.ok) throw new Error(`Could not verify copied file in target library: ${await findRes.text()}`)
   const found = await findRes.json()
   return { id: found.id, webUrl: found.webUrl, driveItemId: found.id }
 }
