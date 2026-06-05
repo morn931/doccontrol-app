@@ -1,20 +1,18 @@
 /**
  * SharePoint List Service — Document Approval List (Agent) write-back
  *
- * Keeps the old DocControlAPP in sync so both systems show the same review state.
- * ALL writes set TriggerNext = false so va-sequential_next never fires.
- * The new app owns all email routing.
+ * Keeps DocControlAPP in sync with reviews done in the new app.
+ * One row per document per reviewer, matching the old system structure.
+ * TriggerNext is always false — new app owns email routing.
  *
- * List IDs (DocumentControl site):
+ * List ID (DocumentControl site):
  *   Document Approval List (Agent): 9711d630-daee-426e-b621-d941fc18c01f
- *   Approver Picks (Agent):         b5978f12-495c-49b6-bff4-3392a8d2a681
  */
 
 import { getSiteId, graphFetch } from './graph'
 
-const DOCCONTROL_SITE   = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
-const APPROVAL_LIST_ID  = '9711d630-daee-426e-b621-d941fc18c01f'
-const PICKS_LIST_ID     = 'b5978f12-495c-49b6-bff4-3392a8d2a681'
+const DOCCONTROL_SITE  = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
+const APPROVAL_LIST_ID = '9711d630-daee-426e-b621-d941fc18c01f'
 
 let _siteId: string | null = null
 async function getDocControlSiteId(): Promise<string> {
@@ -23,17 +21,17 @@ async function getDocControlSiteId(): Promise<string> {
   return _siteId
 }
 
-// ─── CREATE: Document Approval List row ─────────────────────────────────────
+// ─── CREATE: one Document Approval List row per reviewer per document ─────────
 export interface ApprovalListRowData {
-  title:          string   // document file name
-  approverEmail:  string
+  fileName:       string   // document file name → Title
+  approverEmail:  string   // text email address
   sequenceNumber: number
-  batchId:        string   // batch GUID
-  docUniqueId:    string   // e.g. K108-BATTERYENERGYSTORAGESYSTEM-123
-  docUrl:         string   // DocumentControl URL (the bucket file)
-  dueDate?:       string | null
-  vendorSite?:    string | null
+  batchGuid:      string   // batch GUID → BatchID
+  docUniqueId:    string   // e.g. K108-BATTERYENERGYSTORAGESYSTEM-33
+  docUrl:         string   // DocumentControl bucket URL
   libraryName?:   string | null
+  vendorSite?:    string | null
+  dueDate?:       string | null
   docName?:       string | null
   discipline?:    string | null
   documentType?:  string | null
@@ -41,75 +39,58 @@ export interface ApprovalListRowData {
   aiText?:        string | null
 }
 
-export async function createApprovalListRow(data: ApprovalListRowData): Promise<number | null> {
+export async function createApprovalListRow(data: ApprovalListRowData): Promise<{ ok: boolean; error?: string }> {
   try {
     const siteId = await getDocControlSiteId()
-    const body = {
-      fields: {
-        Title:            data.title,
-        ApproverEmail:    data.approverEmail,
-        SequenceNumber:   data.sequenceNumber,
-        BatchID:          data.batchId,
-        DocUniqueId:      data.docUniqueId,
-        DocUrl:           data.docUrl,
-        ReviewComplete:   false,
-        TriggerNext:      false,   // CRITICAL — prevents va-sequential_next from firing
-        SentToNextReviewer: false,
-        ApprovalStatus:   'Pending',
-        ...(data.dueDate     && { DueDate:      data.dueDate }),
-        ...(data.vendorSite  && { VendorSite:   data.vendorSite }),
-        ...(data.libraryName && { LibraryName:  data.libraryName }),
-        ...(data.docName     && { DocName:      data.docName }),
-        ...(data.discipline  && { Discipline:   data.discipline }),
-        ...(data.documentType && { DocumentType: data.documentType }),
-        ...(data.topic       && { Topic:        data.topic }),
-        ...(data.aiText      && { AIText:        data.aiText.slice(0, 2000) }), // truncate for SP column limit
-      }
+
+    // Only write fields we know are safe (text, Yes/No, Number, Date)
+    // Skip Choice fields (ApprovalStatus) and Person/Group fields (Approver)
+    // to avoid type mismatch errors
+    const fields: Record<string, any> = {
+      Title:           data.fileName,
+      ApproverEmail:   data.approverEmail,
+      SequenceNumber:  data.sequenceNumber,
+      BatchID:         data.batchGuid,
+      DocUniqueId:     data.docUniqueId,
+      DocUrl:          data.docUrl,
+      ReviewComplete:  false,
+      TriggerNext:     false,
     }
+
+    // Optional fields — only set if we have values
+    if (data.libraryName) fields.LibraryName  = data.libraryName.replace(/^\//, '') // strip leading slash
+    if (data.vendorSite)  fields.VendorSite   = data.vendorSite
+    if (data.dueDate)     fields.DueDate      = data.dueDate
+    if (data.docName)     fields.DocName      = data.docName.slice(0, 255)
+    if (data.discipline)  fields.Discipline   = data.discipline.slice(0, 255)
+    if (data.documentType) fields.DocumentType = data.documentType.slice(0, 255)
+    if (data.topic)       fields.Topic        = data.topic.slice(0, 255)
+    if (data.aiText)      fields.AIText       = data.aiText.slice(0, 3000)
+
     const res = await graphFetch(
       `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items`,
-      { method: 'POST', body: JSON.stringify(body) }
+      { method: 'POST', body: JSON.stringify({ fields }) }
     )
+
     if (!res.ok) {
-      console.error('DAL createRow failed:', await res.text())
-      return null
+      const errText = await res.text()
+      console.error('DAL createRow failed:', res.status, errText)
+      return { ok: false, error: `${res.status}: ${errText.slice(0, 200)}` }
     }
-    const created = await res.json()
-    return created.id ?? null
+
+    return { ok: true }
   } catch (e: any) {
     console.error('DAL createRow error:', e.message)
-    return null
+    return { ok: false, error: e.message }
   }
 }
 
-// ─── FIND: Get SharePoint item ID for a review row ───────────────────────────
-export async function findApprovalListItemId(
-  docUniqueId: string,
-  approverEmail: string,
-  sequenceNumber: number
-): Promise<string | null> {
-  try {
-    const siteId = await getDocControlSiteId()
-    const filter = `fields/DocUniqueId eq '${docUniqueId}' and fields/ApproverEmail eq '${approverEmail}' and fields/SequenceNumber eq ${sequenceNumber}`
-    const res = await graphFetch(
-      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items?$expand=fields($select=id,DocUniqueId,ApproverEmail,SequenceNumber)&$filter=${encodeURIComponent(filter)}&$top=1`
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.value?.[0]?.id ?? null
-  } catch {
-    return null
-  }
-}
-
-// ─── UPDATE: Mark review complete ────────────────────────────────────────────
+// ─── UPDATE: mark review complete ────────────────────────────────────────────
 export interface ReviewCompletionData {
-  reviewOutcomeCode:   string
-  reviewOutcomeText?:  string
-  comment?:            string
-  dateCompleted:       string
-  isManagerOverride?:  boolean
-  markupSummary?:      string
+  reviewOutcomeCode: string
+  comment?:          string
+  dateCompleted:     string
+  markupSummary?:    string
 }
 
 export async function markApprovalListRowComplete(
@@ -117,108 +98,82 @@ export async function markApprovalListRowComplete(
   approverEmail:  string,
   sequenceNumber: number,
   data:           ReviewCompletionData
-): Promise<boolean> {
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const siteId = await getDocControlSiteId()
-    const itemId = await findApprovalListItemId(docUniqueId, approverEmail, sequenceNumber)
-    if (!itemId) {
+
+    // Find row by DocUniqueId + ApproverEmail + SequenceNumber
+    // Scan recent items — Graph API $filter on custom SP columns is unreliable
+    const scanRes = await graphFetch(
+      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items?$expand=fields($select=DocUniqueId,ApproverEmail,SequenceNumber)&$orderby=id desc&$top=200`
+    )
+    if (!scanRes.ok) return { ok: false, error: await scanRes.text() }
+
+    const scanData = await scanRes.json()
+    const found = scanData.value?.find((i: any) =>
+      i.fields?.DocUniqueId   === docUniqueId &&
+      i.fields?.ApproverEmail === approverEmail &&
+      Number(i.fields?.SequenceNumber) === sequenceNumber
+    )
+
+    if (!found) {
       console.warn(`DAL row not found: ${docUniqueId} / ${approverEmail} / ${sequenceNumber}`)
-      return false
+      return { ok: false, error: 'Row not found' }
     }
 
     const fields: Record<string, any> = {
       ReviewComplete:        true,
       ReviewOutcomeCode:     data.reviewOutcomeCode,
-      ReviewOutcomeText:     data.reviewOutcomeText ?? data.reviewOutcomeCode,
+      ReviewOutcomeText:     data.reviewOutcomeCode,
       Comment:               data.comment ?? '',
       DateCompleted:         data.dateCompleted,
       ReviewerDateCompleted: data.dateCompleted,
-      TriggerNext:           false,   // CRITICAL — new app owns routing
-      TriggerNextStamp:      '',      // clear any existing stamp
-      ApprovalStatus:        'Completed',
-      ...(data.isManagerOverride && { ManagerOverride: true }),
-      ...(data.markupSummary     && { MarkupSummary: data.markupSummary }),
+      TriggerNext:           false,  // CRITICAL — new app handles routing
     }
+    if (data.markupSummary) fields.MarkupSummary = data.markupSummary
 
-    const res = await graphFetch(
-      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items/${itemId}/fields`,
+    const patchRes = await graphFetch(
+      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items/${found.id}/fields`,
       { method: 'PATCH', body: JSON.stringify(fields) }
     )
-    if (!res.ok) {
-      console.error('DAL updateRow failed:', await res.text())
-      return false
+    if (!patchRes.ok) {
+      const errText = await patchRes.text()
+      console.error('DAL updateRow failed:', errText)
+      return { ok: false, error: errText.slice(0, 200) }
     }
-    return true
+    return { ok: true }
   } catch (e: any) {
     console.error('DAL markComplete error:', e.message)
-    return false
+    return { ok: false, error: e.message }
   }
 }
 
-// ─── UPDATE: Mark reviewer email sent ────────────────────────────────────────
+// ─── UPDATE: mark reviewer email sent ────────────────────────────────────────
 export async function markApprovalListRowSent(
   docUniqueId:    string,
   approverEmail:  string,
   sequenceNumber: number,
   dateSent:       string
-): Promise<boolean> {
+): Promise<void> {
   try {
     const siteId = await getDocControlSiteId()
-    const itemId = await findApprovalListItemId(docUniqueId, approverEmail, sequenceNumber)
-    if (!itemId) return false
-
-    const res = await graphFetch(
-      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items/${itemId}/fields`,
-      { method: 'PATCH', body: JSON.stringify({
-        DateSent:           dateSent,
-        ReviewerDateSent:   dateSent,
-        ApprovalStatus:     'Pending',
-      })}
+    const scanRes = await graphFetch(
+      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items?$expand=fields($select=DocUniqueId,ApproverEmail,SequenceNumber)&$orderby=id desc&$top=200`
     )
-    return res.ok
-  } catch {
-    return false
-  }
-}
-
-// ─── UPDATE: Approver Picks row — set reviewers after assignment in new app ──
-export async function updateApproverPicksReviewers(
-  spItemId:       string | null,
-  batchGuid:      string,
-  reviewerEmails: string[],
-  dueDate?:       string | null
-): Promise<boolean> {
-  try {
-    const siteId = await getDocControlSiteId()
-    let itemId = spItemId
-
-    if (!itemId) {
-      // Graph API $filter on custom SP columns is unreliable — scan recent items instead
-      const scanRes = await graphFetch(
-        `/sites/${siteId}/lists/${PICKS_LIST_ID}/items?$expand=fields($select=BatchID)&$orderby=id desc&$top=100`
-      )
-      if (!scanRes.ok) { console.error('Approver Picks scan failed:', await scanRes.text()); return false }
-      const scanData = await scanRes.json()
-      const found = scanData.value?.find((i: any) => i.fields?.BatchID === batchGuid)
-      if (!found) { console.warn(`Approver Picks row not found for BatchID: ${batchGuid}`); return false }
-      itemId = found.id
-    }
-
-    const patchRes = await graphFetch(
-      `/sites/${siteId}/lists/${PICKS_LIST_ID}/items/${itemId}/fields`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({
-          ApproverEmail: reviewerEmails.join('; '),
-          ReadyToStart:  true,
-          ...(dueDate && { DueDate: dueDate }),
-        })
-      }
+    if (!scanRes.ok) return
+    const scanData = await scanRes.json()
+    const found = scanData.value?.find((i: any) =>
+      i.fields?.DocUniqueId   === docUniqueId &&
+      i.fields?.ApproverEmail === approverEmail &&
+      Number(i.fields?.SequenceNumber) === sequenceNumber
     )
-    if (!patchRes.ok) { console.error('Approver Picks PATCH failed:', await patchRes.text()); return false }
-    return true
+    if (!found) return
+
+    await graphFetch(
+      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items/${found.id}/fields`,
+      { method: 'PATCH', body: JSON.stringify({ DateSent: dateSent, ReviewerDateSent: dateSent }) }
+    )
   } catch (e: any) {
-    console.error('updateApproverPicksReviewers error:', e.message)
-    return false
+    console.error('DAL markSent error:', e.message)
   }
 }

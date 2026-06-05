@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/services/graph'
 import { reviewAssignedEmail } from '@/lib/services/email-templates'
-import { createApprovalListRow, markApprovalListRowSent, updateApproverPicksReviewers } from '@/lib/services/sharepoint-lists'
+import { createApprovalListRow } from '@/lib/services/sharepoint-lists'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -24,12 +24,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const db = createServiceClient()
 
-  // Get batch + document_versions (include doc_unique_id and ai metadata for SharePoint write-back)
   const { data: batch } = await db.from('batches')
     .select(`id, batch_guid, status, vendor_id, package_id, target_library, controller_email,
-             packages(package_name, package_code),
-             vendors(name),
-             sp_approver_picks_id,
+             packages(package_name, package_code), vendors(name),
              document_versions(id, file_name, doc_name, doc_unique_id, central_file_url,
                               discipline, document_type, topic, ai_text)`)
     .eq('id', batchId).single()
@@ -45,7 +42,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const packageName = (batch.packages as any)?.package_name ?? 'Unknown'
   const vendorName  = (batch.vendors as any)?.name ?? 'Unknown'
 
-  // Create review_tasks in database
+  // ─── Create review_tasks in database ──────────────────────────────────────
+  // One row per document per reviewer, sequence as chosen by controller
   const taskInserts: any[] = []
   for (const dv of docVersions) {
     for (const reviewer of reviewers) {
@@ -75,78 +73,52 @@ Reviewer Instructions: ${instructions}`.trim()
     updated_at: new Date().toISOString(),
   }).eq('id', batchId)
 
-  // ─── SharePoint write-back: update Approver Picks with reviewer names ───────
-  // This makes DocControlAPP show the correct reviewers in the ApproverEmail column
-  try {
-    const sortedEmails = [...reviewers]
-      .sort((a: any, b: any) => a.sequenceNumber - b.sequenceNumber)
-      .map((r: any) => r.email)
-    await updateApproverPicksReviewers(
-      (batch as any).sp_approver_picks_id ?? null,  // use stored SP item ID when available
-      batch.batch_guid,                              // fallback: scan by BatchID
-      sortedEmails,
-      dueDate ?? null
-    )
-  } catch (e: any) {
-    console.error('Approver Picks write-back failed:', e.message)
-  }
+  // ─── SharePoint write-back: create Document Approval List rows ─────────────
+  // One row per reviewer per document — matches old system structure exactly.
+  // Non-blocking: new app workflow continues even if SP write fails.
+  const spErrors: string[] = []
+  const sortedReviewers = [...reviewers].sort((a: any, b: any) => a.sequenceNumber - b.sequenceNumber)
 
-  // ─── SharePoint write-back: create Document Approval List rows ──────────────
-  // Non-blocking — if this fails, new app still works correctly
-  const spWriteErrors: string[] = []
   for (const dv of docVersions) {
-    for (const reviewer of reviewers) {
-      try {
-        await createApprovalListRow({
-          title:        dv.file_name,
-          approverEmail: reviewer.email,
-          sequenceNumber: reviewer.sequenceNumber,
-          batchId:       batch.batch_guid,
-          docUniqueId:   dv.doc_unique_id ?? '',
-          docUrl:        dv.central_file_url ?? '',
-          dueDate:       dueDate ?? null,
-          vendorSite:    vendorName,
-          libraryName:   (batch as any).target_library ?? null,
-          docName:       dv.doc_name ?? null,
-          discipline:    dv.discipline ?? null,
-          documentType:  dv.document_type ?? null,
-          topic:         dv.topic ?? null,
-          aiText:        dv.ai_text ?? null,
-        })
-      } catch (e: any) {
-        spWriteErrors.push(`SP row create failed for ${reviewer.email}/${dv.file_name}: ${e.message}`)
-      }
+    for (const reviewer of sortedReviewers) {
+      const result = await createApprovalListRow({
+        fileName:       dv.file_name,
+        approverEmail:  reviewer.email,
+        sequenceNumber: reviewer.sequenceNumber,
+        batchGuid:      batch.batch_guid,
+        docUniqueId:    dv.doc_unique_id ?? '',
+        docUrl:         dv.central_file_url ?? '',
+        libraryName:    (batch as any).target_library ?? null,
+        vendorSite:     vendorName,
+        dueDate:        dueDate ?? null,
+        docName:        dv.doc_name ?? null,
+        discipline:     dv.discipline ?? null,
+        documentType:   dv.document_type ?? null,
+        topic:          dv.topic ?? null,
+        aiText:         dv.ai_text ?? null,
+      })
+      if (!result.ok) spErrors.push(`${reviewer.email}/${dv.file_name}: ${result.error}`)
     }
   }
 
-  // Send email to first reviewer (lowest sequence) for each document
+  // ─── Send email to first reviewer for each document ────────────────────────
   const firstSeq = Math.min(...reviewers.map((r: any) => r.sequenceNumber))
   const firstReviewers = reviewers.filter((r: any) => r.sequenceNumber === firstSeq)
   const totalReviewers = reviewers.length
 
   for (const dv of docVersions) {
     for (const reviewer of firstReviewers) {
-      // Mark task as sent
       await db.from('review_tasks').update({
         status:     'sent',
         date_sent:  new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      })
-      .eq('batch_id', batchId)
-      .eq('document_version_id', dv.id)
-      .eq('reviewer_email', reviewer.email)
-      .eq('sequence_number', firstSeq)
+      }).eq('batch_id', batchId).eq('document_version_id', dv.id)
+        .eq('reviewer_email', reviewer.email).eq('sequence_number', firstSeq)
 
-      // Get task ID for email link
       const { data: task } = await db.from('review_tasks')
-        .select('id')
-        .eq('batch_id', batchId)
-        .eq('document_version_id', dv.id)
-        .eq('reviewer_email', reviewer.email)
-        .eq('sequence_number', firstSeq)
-        .single()
+        .select('id').eq('batch_id', batchId).eq('document_version_id', dv.id)
+        .eq('reviewer_email', reviewer.email).eq('sequence_number', firstSeq).single()
 
-      // Send reviewer email
       try {
         const html = reviewAssignedEmail({
           reviewerName:    reviewer.name || reviewer.email,
@@ -165,51 +137,31 @@ Reviewer Instructions: ${instructions}`.trim()
           subject:  `[Review Required] ${dv.doc_name ?? dv.file_name} — ${packageName}`,
           htmlBody: html,
         })
-
-        // Log notification
         await db.from('notification_logs').insert({
-          batch_id:       batchId,
-          review_task_id: task?.id ?? null,
-          to_email:       reviewer.email,
-          subject:        `[Review Required] ${dv.file_name}`,
-          template:       'review_assigned',
-          status:         'sent',
-          sent_at:        new Date().toISOString(),
+          batch_id: batchId, review_task_id: task?.id ?? null,
+          to_email: reviewer.email, template: 'review_assigned', status: 'sent',
+          subject: `[Review Required] ${dv.file_name}`, sent_at: new Date().toISOString(),
         })
-
-        // SharePoint write-back: mark row as sent
-        if (dv.doc_unique_id) {
-          await markApprovalListRowSent(
-            dv.doc_unique_id, reviewer.email, firstSeq, new Date().toISOString()
-          )
-        }
       } catch (emailErr: any) {
         await db.from('notification_logs').insert({
-          batch_id:       batchId,
-          review_task_id: task?.id ?? null,
-          to_email:       reviewer.email,
-          subject:        `[Review Required] ${dv.file_name}`,
-          template:       'review_assigned',
-          status:         'failed',
-          error_message:  emailErr.message,
+          batch_id: batchId, review_task_id: task?.id ?? null,
+          to_email: reviewer.email, template: 'review_assigned', status: 'failed',
+          subject: `[Review Required] ${dv.file_name}`, error_message: emailErr.message,
         })
       }
     }
   }
 
-  // Audit
   await db.from('audit_events').insert({
     entity_type: 'batch', entity_id: batchId,
-    event_type:  'review_started', actor_email: profile?.email,
-    event_data:  {
-      reviewers, dueDate, documentCount: docVersions.length,
-      spWriteErrors: spWriteErrors.length > 0 ? spWriteErrors : undefined,
-    },
+    event_type: 'review_started', actor_email: profile?.email,
+    event_data: { reviewers, dueDate, documentCount: docVersions.length, spErrors },
   })
 
   return NextResponse.json({
     success:      true,
     tasksCreated: taskInserts.length,
-    spSyncErrors: spWriteErrors.length > 0 ? spWriteErrors : undefined,
+    // Return SP errors in response so controller can see if sync failed
+    spSyncErrors: spErrors.length > 0 ? spErrors : undefined,
   })
 }
