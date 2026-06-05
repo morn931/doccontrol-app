@@ -170,10 +170,19 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
               className="input mb-3" autoFocus
             />
             <div className="max-h-48 overflow-y-auto space-y-1">
-              {filteredUsers.length === 0 && (
-                <p className="text-sm text-gray-400 py-2">
-                  {emailSearch ? `No users found for "${emailSearch}"` : 'No more users available'}
-                </p>
+              {/* Allow adding any email address directly even if not in users table */}
+              {filteredUsers.length === 0 && emailSearch.includes('@') && (
+                <button onClick={() => addReviewer(emailSearch.trim(), emailSearch.trim())}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-navy-50 text-left transition-colors border border-dashed border-navy-300">
+                  <div className="w-8 h-8 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-semibold text-sm shrink-0">+</div>
+                  <div>
+                    <p className="text-sm font-medium text-navy-700">Add "{emailSearch.trim()}"</p>
+                    <p className="text-xs text-gray-400">Not in user list — add directly by email</p>
+                  </div>
+                </button>
+              )}
+              {filteredUsers.length === 0 && !emailSearch.includes('@') && emailSearch && (
+                <p className="text-sm text-gray-400 py-2">No users found. Type a full email address to add directly.</p>
               )}
               {filteredUsers.map(u => (
                 <button key={u.email} onClick={() => addReviewer(u.email, u.full_name ?? u.email)}
