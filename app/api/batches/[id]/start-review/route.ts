@@ -29,6 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .select(`id, batch_guid, status, vendor_id, package_id, target_library, controller_email,
              packages(package_name, package_code),
              vendors(name),
+             sp_approver_picks_id,
              document_versions(id, file_name, doc_name, doc_unique_id, central_file_url,
                               discipline, document_type, topic, ai_text)`)
     .eq('id', batchId).single()
@@ -80,7 +81,12 @@ Reviewer Instructions: ${instructions}`.trim()
     const sortedEmails = [...reviewers]
       .sort((a: any, b: any) => a.sequenceNumber - b.sequenceNumber)
       .map((r: any) => r.email)
-    await updateApproverPicksReviewers(batch.batch_guid, sortedEmails, dueDate ?? null)
+    await updateApproverPicksReviewers(
+      (batch as any).sp_approver_picks_id ?? null,  // use stored SP item ID when available
+      batch.batch_guid,                              // fallback: scan by BatchID
+      sortedEmails,
+      dueDate ?? null
+    )
   } catch (e: any) {
     console.error('Approver Picks write-back failed:', e.message)
   }

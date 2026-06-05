@@ -103,8 +103,17 @@ export async function POST(req: Request) {
   if (isFromLaIntakeCore) {
     const {
       docUniqueId, docUrl, aiText, docName,
-      discipline, documentType, topic, batchDocumentIds
+      discipline, documentType, topic, batchDocumentIds,
+      approverPicksId  // SharePoint item ID of the Approver Picks row
     } = body
+
+    // Store the SharePoint Approver Picks item ID so start-review can update it directly
+    if (approverPicksId) {
+      await db.from('batches').update({
+        sp_approver_picks_id: String(approverPicksId),
+        updated_at: new Date().toISOString(),
+      }).eq('id', batch.id)
+    }
 
     // la-intake-core processes the FIRST file with full AI. Additional files
     // in the batch get basic properties only. Create one document_version per file.

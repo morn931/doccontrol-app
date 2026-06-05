@@ -182,49 +182,40 @@ export async function markApprovalListRowSent(
 }
 
 // ─── UPDATE: Approver Picks row — set reviewers after assignment in new app ──
-/**
- * When the controller assigns reviewers in the new app, update the Approver Picks
- * row in SharePoint so DocControlAPP shows the correct reviewer names.
- * Finds the row by BatchID (batch_guid from our database).
- */
 export async function updateApproverPicksReviewers(
-  batchGuid:     string,
-  reviewerEmails: string[],  // all reviewer emails in sequence order
-  dueDate?:      string | null
+  spItemId:       string | null,
+  batchGuid:      string,
+  reviewerEmails: string[],
+  dueDate?:       string | null
 ): Promise<boolean> {
   try {
     const siteId = await getDocControlSiteId()
+    let itemId = spItemId
 
-    // Find the Approver Picks row by BatchID
-    const filter = `fields/BatchID eq '${batchGuid}'`
-    const findRes = await graphFetch(
-      `/sites/${siteId}/lists/${PICKS_LIST_ID}/items?$expand=fields($select=id,BatchID,ApproverEmail)&$filter=${encodeURIComponent(filter)}&$top=1`
-    )
-    if (!findRes.ok) return false
-    const findData = await findRes.json()
-    const itemId = findData.value?.[0]?.id
     if (!itemId) {
-      console.warn(`Approver Picks row not found for BatchID: ${batchGuid}`)
-      return false
+      // Graph API $filter on custom SP columns is unreliable — scan recent items instead
+      const scanRes = await graphFetch(
+        `/sites/${siteId}/lists/${PICKS_LIST_ID}/items?$expand=fields($select=BatchID)&$orderby=id desc&$top=100`
+      )
+      if (!scanRes.ok) { console.error('Approver Picks scan failed:', await scanRes.text()); return false }
+      const scanData = await scanRes.json()
+      const found = scanData.value?.find((i: any) => i.fields?.BatchID === batchGuid)
+      if (!found) { console.warn(`Approver Picks row not found for BatchID: ${batchGuid}`); return false }
+      itemId = found.id
     }
 
-    // Update with reviewer emails (semicolon separated, matching old DocControlAPP format)
-    const approverEmailStr = reviewerEmails.join('; ')
     const patchRes = await graphFetch(
       `/sites/${siteId}/lists/${PICKS_LIST_ID}/items/${itemId}/fields`,
       {
         method: 'PATCH',
         body: JSON.stringify({
-          ApproverEmail: approverEmailStr,
-          ReadyToStart:  true,   // triggers visibility in DocControlAPP
+          ApproverEmail: reviewerEmails.join('; '),
+          ReadyToStart:  true,
           ...(dueDate && { DueDate: dueDate }),
         })
       }
     )
-    if (!patchRes.ok) {
-      console.error('Approver Picks update failed:', await patchRes.text())
-      return false
-    }
+    if (!patchRes.ok) { console.error('Approver Picks PATCH failed:', await patchRes.text()); return false }
     return true
   } catch (e: any) {
     console.error('updateApproverPicksReviewers error:', e.message)
