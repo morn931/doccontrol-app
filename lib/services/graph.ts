@@ -100,9 +100,11 @@ export async function copyFileToDocControl(
   const targetSiteId   = await getSiteId(DOCCONTROL_SITE_URL)
   const targetDriveId  = await getDriveId(targetSiteId)
 
-  // Get source item ID
-  const srcRes = await graphFetch(`/sites/${sourceSiteId}/drive/root:${sourceRelativeUrl}`)
-  if (!srcRes.ok) throw new Error(`Source file not found: ${sourceRelativeUrl}`)
+  // Get source item ID — ensure path starts with / and encode each segment
+  const normalizedPath = sourceRelativeUrl.startsWith('/') ? sourceRelativeUrl : `/${sourceRelativeUrl}`
+  const encodedPath = normalizedPath.split('/').map(s => encodeURIComponent(s)).join('/')
+  const srcRes = await graphFetch(`/sites/${sourceSiteId}/drive/root:${encodedPath}`)
+  if (!srcRes.ok) throw new Error(`Source file not found [${encodedPath}]: ${await srcRes.text()}`)
   const srcItem = await srcRes.json()
 
   // Copy to target
