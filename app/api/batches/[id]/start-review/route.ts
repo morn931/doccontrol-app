@@ -61,6 +61,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { error: insertErr } = await db.from('review_tasks').insert(taskInserts)
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
 
+  // Fetch inserted task IDs so we can store SP list item IDs after creation
+  const { data: insertedTasks } = await db.from('review_tasks')
+    .select('id, document_version_id, reviewer_email, sequence_number')
+    .eq('batch_id', batchId)
+  const taskLookup: Record<string, string> = {}
+  for (const t of insertedTasks ?? []) {
+    taskLookup[`${t.document_version_id}:${t.reviewer_email}:${t.sequence_number}`] = t.id
+  }
+
   // Update batch status
   await db.from('batches').update({
     status:     'review_in_progress',
@@ -97,7 +106,15 @@ Reviewer Instructions: ${instructions}`.trim()
         topic:          dv.topic ?? null,
         aiText:         dv.ai_text ?? null,
       })
-      if (!result.ok) spErrors.push(`${reviewer.email}/${dv.file_name}: ${result.error}`)
+      if (!result.ok) {
+        spErrors.push(`${reviewer.email}/${dv.file_name}: ${result.error}`)
+      } else if (result.itemId) {
+        // Store SP list item ID so submit route can PATCH directly (no scan needed)
+        const taskId = taskLookup[`${dv.id}:${reviewer.email}:${reviewer.sequenceNumber}`]
+        if (taskId) {
+          await db.from('review_tasks').update({ sp_dal_item_id: result.itemId }).eq('id', taskId)
+        }
+      }
     }
   }
 

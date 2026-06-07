@@ -84,7 +84,7 @@ export interface ApprovalListRowData {
   aiText?:        string | null
 }
 
-export async function createApprovalListRow(data: ApprovalListRowData): Promise<{ ok: boolean; error?: string }> {
+export async function createApprovalListRow(data: ApprovalListRowData): Promise<{ ok: boolean; itemId?: string; error?: string }> {
   try {
     const siteId = await getDocControlSiteId()
 
@@ -148,7 +148,7 @@ export async function createApprovalListRow(data: ApprovalListRowData): Promise<
       console.warn(`Approver not set for ${data.approverEmail}: lookupId=${approverLookupId} itemId=${newItemId}`)
     }
 
-    return { ok: true }
+    return { ok: true, itemId: newItemId ? String(newItemId) : undefined }
   } catch (e: any) {
     console.error('DAL createRow error:', e.message)
     return { ok: false, error: e.message }
@@ -167,28 +167,41 @@ export async function markApprovalListRowComplete(
   docUniqueId:    string,
   approverEmail:  string,
   sequenceNumber: number,
-  data:           ReviewCompletionData
+  data:           ReviewCompletionData,
+  spItemId?:      string   // stored SP list item ID — avoids unreliable scan
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const siteId = await getDocControlSiteId()
 
-    // Find row by DocUniqueId + ApproverEmail + SequenceNumber
-    // Scan recent items — Graph API $filter on custom SP columns is unreliable
-    const scanRes = await graphFetch(
-      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items?$expand=fields($select=DocUniqueId,ApproverEmail,SequenceNumber)&$orderby=id desc&$top=200`
-    )
-    if (!scanRes.ok) return { ok: false, error: await scanRes.text() }
+    // Prefer direct item ID PATCH (fast, reliable).
+    // Fall back to scan when item ID isn't stored (e.g. rows created before this change).
+    let targetId: string | undefined = spItemId
 
-    const scanData = await scanRes.json()
-    const found = scanData.value?.find((i: any) =>
-      i.fields?.DocUniqueId   === docUniqueId &&
-      i.fields?.ApproverEmail === approverEmail &&
-      Number(i.fields?.SequenceNumber) === sequenceNumber
-    )
+    if (!targetId) {
+      // Scan recent items and match by ApproverEmail + SequenceNumber.
+      // Also try DocUniqueId when available; skip that check when it's empty.
+      const scanRes = await graphFetch(
+        `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items?$expand=fields($select=DocUniqueId,ApproverEmail,SequenceNumber,Title)&$orderby=id desc&$top=200`
+      )
+      if (!scanRes.ok) return { ok: false, error: await scanRes.text() }
 
-    if (!found) {
-      console.warn(`DAL row not found: ${docUniqueId} / ${approverEmail} / ${sequenceNumber}`)
-      return { ok: false, error: 'Row not found' }
+      const scanData = await scanRes.json()
+      const found = scanData.value?.find((i: any) => {
+        const spDocId    = i.fields?.DocUniqueId ?? ''
+        const emailMatch = i.fields?.ApproverEmail === approverEmail
+        const seqMatch   = Number(i.fields?.SequenceNumber) === sequenceNumber
+        const idMatch    = docUniqueId ? spDocId === docUniqueId : true
+        return emailMatch && seqMatch && idMatch
+      })
+
+      if (!found) {
+        console.warn(`DAL row not found (scan): ${docUniqueId} / ${approverEmail} / seq${sequenceNumber}`)
+        return { ok: false, error: 'Row not found' }
+      }
+      targetId = String(found.id)
+      console.log(`DAL row found via scan: item=${targetId}`)
+    } else {
+      console.log(`DAL row direct PATCH: item=${targetId}`)
     }
 
     const fields: Record<string, any> = {
@@ -203,14 +216,15 @@ export async function markApprovalListRowComplete(
     if (data.markupSummary) fields.MarkupSummary = data.markupSummary
 
     const patchRes = await graphFetch(
-      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items/${found.id}/fields`,
+      `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items/${targetId}/fields`,
       { method: 'PATCH', body: JSON.stringify(fields) }
     )
     if (!patchRes.ok) {
       const errText = await patchRes.text()
-      console.error('DAL updateRow failed:', errText)
-      return { ok: false, error: errText.slice(0, 200) }
+      console.error('DAL updateRow failed:', patchRes.status, errText)
+      return { ok: false, error: `${patchRes.status}: ${errText.slice(0, 200)}` }
     }
+    console.log(`DAL markComplete OK: item=${targetId} outcome=${data.reviewOutcomeCode}`)
     return { ok: true }
   } catch (e: any) {
     console.error('DAL markComplete error:', e.message)

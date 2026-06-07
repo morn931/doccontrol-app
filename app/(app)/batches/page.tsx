@@ -7,13 +7,45 @@ import type { BatchStatus } from '@/lib/types/database'
 
 interface SearchParams { status?: string; q?: string }
 
+function getBatchContextLine(batch: any): string | null {
+  const status = batch.status as BatchStatus
+  if (status === 'intake_received' || status === 'metadata_pending') {
+    return 'Document control action needed'
+  }
+  if (status === 'ready_for_reviewer_assignment') {
+    return 'Awaiting reviewer assignment'
+  }
+  if (status === 'review_ready_to_start') {
+    return 'Awaiting document controller to start review'
+  }
+  if (status === 'review_in_progress') {
+    const tasks: any[] = batch.review_tasks ?? []
+    const active = tasks.filter((t: any) => ['sent', 'opened', 'in_progress'].includes(t.status))
+    if (!active.length) return null
+    const minSeq = Math.min(...active.map((t: any) => t.sequence_number))
+    const names = [...new Set(
+      active
+        .filter((t: any) => t.sequence_number === minSeq)
+        .map((t: any) => (t.reviewer_email as string).split('@')[0])
+    )] as string[]
+    if (names.length === 1) return `Being reviewed by ${names[0]}`
+    if (names.length === 2) return `Being reviewed by ${names[0]} and ${names[1]}`
+    return `Being reviewed by ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  }
+  if (status === 'review_complete') return 'Ready to generate transmittal'
+  if (status === 'transmittal_generated') return 'Transmittal generated — awaiting return'
+  if (status === 'returned_to_vendor') return 'Returned to vendor'
+  return null
+}
+
 async function getBatches(params: SearchParams) {
   const db = createServiceClient()
   let query = db
     .from('batches')
     .select(`id, batch_guid, status, file_count, received_at, rejected_at,
              comments, vendor_email,
-             vendors(name, code), packages(package_code, package_name)`)
+             vendors(name, code), packages(package_code, package_name),
+             review_tasks(reviewer_email, sequence_number, status)`)
     .order('received_at', { ascending: false })
     .limit(100)
 
@@ -104,6 +136,9 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                   <span>· Received {formatDistanceToNow(new Date(batch.received_at), { addSuffix: true })}</span>
                   {batch.vendor_email && <span>· {batch.vendor_email}</span>}
                 </div>
+                {getBatchContextLine(batch) && (
+                  <p className="text-xs text-indigo-500 mt-1">{getBatchContextLine(batch)}</p>
+                )}
                 {batch.comments && (
                   <p className="text-xs text-gray-400 mt-1 truncate">{batch.comments}</p>
                 )}

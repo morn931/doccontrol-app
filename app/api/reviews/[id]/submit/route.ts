@@ -28,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Fetch review task with document context
   const { data: task } = await db.from('review_tasks')
-    .select(`*, document_versions(
+    .select(`*, sp_dal_item_id, document_versions(
       id, file_name, doc_name, central_file_url, doc_unique_id,
       batches(id, batch_guid, controller_email, packages(package_name, package_code))
     )`)
@@ -64,23 +64,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }).eq('id', taskId)
 
   // ─── SharePoint write-back: update Document Approval List row ──────────────
-  // Non-blocking — failure here does not affect new app workflow
-  if (docUniqueId && !needMoreReview) {
+  // Non-blocking — failure here does not affect new app workflow.
+  // Uses stored sp_dal_item_id for a direct PATCH (no scan needed).
+  if (!needMoreReview) {
     try {
-      await markApprovalListRowComplete(
+      const spResult = await markApprovalListRowComplete(
         docUniqueId,
         task.reviewer_email,
         task.sequence_number,
         {
-          reviewOutcomeCode:  outcomeCode,
-          reviewOutcomeText:  outcomeCode,
-          comment:            comment ?? '',
-          dateCompleted:      completedAt,
-          isManagerOverride:  task.is_manager_override,
-        }
+          reviewOutcomeCode: outcomeCode,
+          comment:           comment ?? '',
+          dateCompleted:     completedAt,
+        },
+        task.sp_dal_item_id ?? undefined
       )
+      if (!spResult.ok) console.error('SP write-back failed on submit:', spResult.error)
     } catch (e: any) {
-      console.error('SP write-back failed on submit:', e.message)
+      console.error('SP write-back exception on submit:', e.message)
     }
   }
 
