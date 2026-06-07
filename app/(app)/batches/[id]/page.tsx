@@ -99,15 +99,29 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   async function handleGeneratePreview() {
     setGeneratingPreview(true)
     setTransmittalError('')
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 30_000)
     try {
-      const res = await fetch(`/api/batches/${id}/generate-transmittal`)
+      const res = await fetch(`/api/batches/${id}/generate-transmittal`, { signal: controller.signal })
       const data = await res.json()
-      if (!res.ok) { setTransmittalError(data.error ?? 'Failed to load transmittal'); return }
+      if (!res.ok) {
+        setTransmittalError(data.error ?? 'Failed to load transmittal')
+        return
+      }
+      if (!data.preview) {
+        setTransmittalError('No preview data returned — check Vercel function logs')
+        return
+      }
       setTransmittalPreview(data.preview)
       setTransmittalSent(null)
       setPastEmails(data.pastEmails ?? [])
       if (!ccEmails.length && data.defaultCc) setCcEmails([data.defaultCc])
+    } catch (e: any) {
+      setTransmittalError(
+        e.name === 'AbortError' ? 'Request timed out after 30s — check Vercel logs' : (e.message ?? 'Unexpected error')
+      )
     } finally {
+      clearTimeout(timer)
       setGeneratingPreview(false)
     }
   }
@@ -255,7 +269,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 }
               </button>
             )}
-            {transmittalError && <p className="text-xs text-red-600 max-w-[200px]">{transmittalError}</p>}
           </div>
         </div>
 
@@ -272,6 +285,15 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      {/* Transmittal error banner */}
+      {transmittalError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{transmittalError}</span>
+          <button onClick={() => setTransmittalError('')} className="ml-auto shrink-0"><X className="h-4 w-4" /></button>
+        </div>
+      )}
 
       {/* Reject modal */}
       {showReject && (
