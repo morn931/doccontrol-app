@@ -125,6 +125,60 @@ export function reviewAssignedEmail(params: {
   `)
 }
 
+/**
+ * Batch review assignment email — ONE email per reviewer listing ALL documents.
+ * Replaces the per-document email for the initial reviewer notification.
+ * Link opens the first document's review workspace (batch tabs let reviewer navigate the rest).
+ */
+export function batchReviewAssignedEmail(params: {
+  reviewerName:   string
+  firstTaskId:    string
+  packageName:    string
+  documents:      Array<{ fileName: string; docTitle: string; taskId: string }>
+  dueDate:        string | null
+  sequencePos:    number
+  totalReviewers: number
+  instructions:   string
+}): string {
+  const reviewUrl = `${APP_URL}/reviews/${params.firstTaskId}`
+  const dueLine = params.dueDate
+    ? `<tr><td>Due Date</td><td><strong style="color:#DC2626;">${new Date(params.dueDate).toLocaleDateString('en-ZA', { day:'numeric', month:'long', year:'numeric' })}</strong></td></tr>`
+    : ''
+
+  const docRows = params.documents.map((d, i) =>
+    `<tr style="border-top:1px solid #E5E7EB;">
+      <td style="padding:6px 8px;font-size:13px;color:#6B7280;font-weight:600;width:32px;">${i + 1}.</td>
+      <td style="padding:6px 8px;font-size:13px;color:#374151;">
+        <span style="font-family:monospace;font-size:12px;">${d.fileName}</span>
+        ${d.docTitle && d.docTitle !== d.fileName ? `<br><span style="font-size:12px;color:#6B7280;">${d.docTitle}</span>` : ''}
+      </td>
+    </tr>`
+  ).join('')
+
+  return layout(`Review Required: ${params.packageName} — ${params.documents.length} document${params.documents.length !== 1 ? 's' : ''}`, `
+    <p>Dear ${params.reviewerName},</p>
+    <p>You have been assigned a batch of <strong>${params.documents.length} document${params.documents.length !== 1 ? 's' : ''}</strong> for review.
+    Please review each document individually and submit your outcome for all of them.</p>
+    <div class="meta"><table>
+      <tr><td>Package</td><td>${params.packageName}</td></tr>
+      <tr><td>Documents</td><td>${params.documents.length} document${params.documents.length !== 1 ? 's' : ''}</td></tr>
+      <tr><td>Reviewer Position</td><td>${params.sequencePos} of ${params.totalReviewers}</td></tr>
+      ${dueLine}
+    </table></div>
+    <div class="meta" style="margin-top:12px;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151;">Documents to review:</p>
+      <table style="width:100%;border-collapse:collapse;">${docRows}</table>
+    </div>
+    ${params.instructions ? `<div class="summary"><strong>Instructions from Document Controller:</strong><br>${params.instructions}</div>` : ''}
+    <p><a href="${reviewUrl}" class="btn">Open Review Workspace</a></p>
+    <p style="font-size:13px;color:#6B7280;">
+      In the review workspace you can navigate between all documents in the batch using the tabs at the top.
+      Review each document individually — the batch is only considered complete once all documents are reviewed.
+      ${params.totalReviewers > 1 ? 'Once all documents are reviewed, the batch will be forwarded to the next reviewer.' : 'Your review is the final review for this batch.'}
+    </p>
+  `)
+}
+
 export function reviewCompleteEmail(params: {
   batchId:          string
   packageName:      string

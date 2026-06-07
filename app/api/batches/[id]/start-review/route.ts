@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/services/graph'
-import { reviewAssignedEmail } from '@/lib/services/email-templates'
+import { batchReviewAssignedEmail } from '@/lib/services/email-templates'
 import { createApprovalListRow } from '@/lib/services/sharepoint-lists'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -101,54 +101,68 @@ Reviewer Instructions: ${instructions}`.trim()
     }
   }
 
-  // ─── Send email to first reviewer for each document ────────────────────────
+  // ─── Send ONE batch email per first reviewer (all documents listed) ──────────
   const firstSeq = Math.min(...reviewers.map((r: any) => r.sequenceNumber))
   const firstReviewers = reviewers.filter((r: any) => r.sequenceNumber === firstSeq)
   const totalReviewers = reviewers.length
+  const sentAt = new Date().toISOString()
 
+  // Mark all first-reviewer tasks as 'sent'
   for (const dv of docVersions) {
     for (const reviewer of firstReviewers) {
       await db.from('review_tasks').update({
-        status:     'sent',
-        date_sent:  new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        status: 'sent', date_sent: sentAt, updated_at: sentAt,
       }).eq('batch_id', batchId).eq('document_version_id', dv.id)
         .eq('reviewer_email', reviewer.email).eq('sequence_number', firstSeq)
+    }
+  }
 
-      const { data: task } = await db.from('review_tasks')
-        .select('id').eq('batch_id', batchId).eq('document_version_id', dv.id)
-        .eq('reviewer_email', reviewer.email).eq('sequence_number', firstSeq).single()
+  // Send ONE email per reviewer with all documents listed
+  for (const reviewer of firstReviewers) {
+    // Collect all tasks for this reviewer so we have the task IDs
+    const { data: reviewerTasks } = await db.from('review_tasks')
+      .select('id, document_version_id')
+      .eq('batch_id', batchId).eq('reviewer_email', reviewer.email).eq('sequence_number', firstSeq)
 
-      try {
-        const html = reviewAssignedEmail({
-          reviewerName:    reviewer.name || reviewer.email,
-          reviewTaskId:    task?.id ?? '',
-          packageName,
-          fileName:        dv.file_name,
-          docTitle:        dv.doc_name ?? dv.file_name,
-          dueDate:         dueDate ?? null,
-          sequencePos:     firstSeq,
-          totalReviewers,
-          instructions:    instructions ?? '',
-          isManagerOverride: false,
-        })
-        await sendEmail({
-          to:       reviewer.email,
-          subject:  `[Review Required] ${dv.doc_name ?? dv.file_name} — ${packageName}`,
-          htmlBody: html,
-        })
-        await db.from('notification_logs').insert({
-          batch_id: batchId, review_task_id: task?.id ?? null,
-          to_email: reviewer.email, template: 'review_assigned', status: 'sent',
-          subject: `[Review Required] ${dv.file_name}`, sent_at: new Date().toISOString(),
-        })
-      } catch (emailErr: any) {
-        await db.from('notification_logs').insert({
-          batch_id: batchId, review_task_id: task?.id ?? null,
-          to_email: reviewer.email, template: 'review_assigned', status: 'failed',
-          subject: `[Review Required] ${dv.file_name}`, error_message: emailErr.message,
-        })
-      }
+    const tasksByDvId = Object.fromEntries((reviewerTasks ?? []).map((t: any) => [t.document_version_id, t.id]))
+
+    const documents = docVersions.map((dv: any) => ({
+      fileName: dv.file_name,
+      docTitle: dv.doc_name ?? dv.file_name,
+      taskId:   tasksByDvId[dv.id] ?? '',
+    }))
+
+    const firstTaskId = documents.find(d => d.taskId)?.taskId ?? ''
+
+    try {
+      const html = batchReviewAssignedEmail({
+        reviewerName:   reviewer.name || reviewer.email,
+        firstTaskId,
+        packageName,
+        documents,
+        dueDate:        dueDate ?? null,
+        sequencePos:    firstSeq,
+        totalReviewers,
+        instructions:   instructions ?? '',
+      })
+      await sendEmail({
+        to:       reviewer.email,
+        subject:  `[Review Required] ${packageName} — ${documents.length} document${documents.length !== 1 ? 's' : ''}`,
+        htmlBody: html,
+      })
+      await db.from('notification_logs').insert({
+        batch_id: batchId, review_task_id: firstTaskId || null,
+        to_email: reviewer.email, template: 'review_assigned', status: 'sent',
+        subject:  `[Review Required] ${packageName} — ${documents.length} documents`,
+        sent_at:  sentAt,
+      })
+    } catch (emailErr: any) {
+      await db.from('notification_logs').insert({
+        batch_id: batchId, review_task_id: firstTaskId || null,
+        to_email: reviewer.email, template: 'review_assigned', status: 'failed',
+        subject:  `[Review Required] ${packageName} — ${documents.length} documents`,
+        error_message: emailErr.message,
+      })
     }
   }
 

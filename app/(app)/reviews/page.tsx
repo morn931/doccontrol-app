@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
-import { ClipboardCheck, Clock, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ClipboardCheck, Clock, CheckCircle, AlertTriangle, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
@@ -12,7 +12,6 @@ export default async function ReviewsPage() {
 
   const db = createServiceClient()
 
-  // Get current user's profile
   const { data: profile } = await db
     .from('users')
     .select('email')
@@ -25,7 +24,7 @@ export default async function ReviewsPage() {
     .from('review_tasks')
     .select(`
       id, status, sequence_number, date_sent, date_completed, due_date,
-      review_outcome_code, comment, is_manager_override,
+      review_outcome_code, comment, is_manager_override, batch_id, document_version_id,
       document_versions(
         id, file_name, doc_name, revision, discipline,
         documents!document_versions_document_id_fkey(id, normalized_document_number)
@@ -34,64 +33,118 @@ export default async function ReviewsPage() {
     `)
     .eq('reviewer_email', email)
     .order('date_sent', { ascending: false })
-    .limit(100)
+    .limit(200)
 
-  const pending   = tasks?.filter(t => ['pending','sent','opened','in_progress'].includes(t.status)) ?? []
-  const overdue   = pending.filter(t => t.due_date && isPast(new Date(t.due_date)))
-  const completed = tasks?.filter(t => t.status === 'completed') ?? []
+  // Group tasks by batch_id — the batch is the unit of work
+  const batchMap = new Map<string, { tasks: any[]; batch: any }>()
+  for (const task of tasks ?? []) {
+    const key = task.batch_id ?? 'no-batch'
+    if (!batchMap.has(key)) {
+      batchMap.set(key, { tasks: [], batch: (task as any).batches })
+    }
+    batchMap.get(key)!.tasks.push(task)
+  }
 
-  function TaskCard({ task }: { task: any }) {
-    const dv   = task.document_versions as any
-    const batch = task.batches as any
-    const isOverdue = task.due_date && isPast(new Date(task.due_date)) && task.status !== 'completed'
+  // Classify each batch group
+  const pendingBatches: { key: string; tasks: any[]; batch: any; firstPendingTaskId: string; allComplete: boolean }[] = []
+  const completedBatches: { key: string; tasks: any[]; batch: any; firstPendingTaskId: string; allComplete: boolean }[] = []
+
+  for (const [key, { tasks: bTasks, batch }] of batchMap) {
+    const pending = bTasks.filter(t => ['pending','sent','opened','in_progress'].includes(t.status))
+    const allComplete = pending.length === 0
+    const firstPending = bTasks.find(t => ['in_progress','sent','opened','pending'].includes(t.status)) ?? bTasks[0]
+    const entry = { key, tasks: bTasks, batch, firstPendingTaskId: firstPending?.id ?? bTasks[0]?.id, allComplete }
+    if (allComplete) completedBatches.push(entry)
+    else pendingBatches.push(entry)
+  }
+
+  const overdueCount = pendingBatches.filter(b =>
+    b.tasks.some(t => t.due_date && isPast(new Date(t.due_date)) && !['completed'].includes(t.status))
+  ).length
+
+  function BatchCard({ entry }: { entry: typeof pendingBatches[0] }) {
+    const { tasks: bTasks, batch, firstPendingTaskId, allComplete } = entry
+    const pending   = bTasks.filter(t => ['pending','sent','opened','in_progress'].includes(t.status))
+    const completed = bTasks.filter(t => t.status === 'completed')
+    const inProgress = bTasks.some(t => t.status === 'in_progress')
+    const isOverdue = !allComplete && bTasks.some(t => t.due_date && isPast(new Date(t.due_date)))
+    const seqNum    = bTasks[0]?.sequence_number ?? 1
+    const dueDates  = bTasks.map(t => t.due_date).filter(Boolean).sort()
+    const earliestDue = dueDates[0] ?? null
+    const latestSent  = [...bTasks].sort((a, b) => new Date(b.date_sent ?? 0).getTime() - new Date(a.date_sent ?? 0).getTime())[0]?.date_sent
+    const docCount  = bTasks.length
+
+    // For completed batches — pick worst outcome
+    const outcomes = completed.map(t => t.review_outcome_code).filter(Boolean)
+    const severity: Record<string, number> = { A1:1, D1:2, B1:3, B2:4, C1:5, Q1:6, V1:7, S1:8 }
+    const worstOutcome = outcomes.sort((a, b) => (severity[b] ?? 0) - (severity[a] ?? 0))[0]
 
     return (
-      <Link href={`/reviews/${task.id}`}
+      <Link href={`/reviews/${firstPendingTaskId}`}
         className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
         <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-          task.status === 'completed'   ? 'bg-green-100 text-green-700' :
-          isOverdue                     ? 'bg-red-100 text-red-700' :
-          task.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
+          allComplete   ? 'bg-green-100 text-green-700' :
+          isOverdue     ? 'bg-red-100 text-red-700' :
+          inProgress    ? 'bg-orange-100 text-orange-700' :
           'bg-navy-100 text-navy-700'
         }`}>
-          {task.sequence_number}
+          {seqNum}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-mono text-sm font-semibold text-gray-900">
-              {dv?.documents?.normalized_document_number ?? dv?.file_name ?? 'Unknown'}
+            <span className="font-semibold text-gray-900">
+              {batch?.packages?.package_name ?? batch?.packages?.package_code ?? 'Unknown Package'}
             </span>
-            {dv?.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {dv.revision}</span>}
-            {task.is_manager_override && (
-              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-semibold">Manager Override</span>
-            )}
-            {task.review_outcome_code && (
-              <span className={`px-2 py-0.5 rounded text-xs font-bold ${outcomeColorClass(task.review_outcome_code as ReviewOutcomeCode)}`}>
-                {task.review_outcome_code}
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+              <FileText className="h-3 w-3" />
+              {docCount} doc{docCount !== 1 ? 's' : ''}
+            </span>
+            {worstOutcome && (
+              <span className={`px-2 py-0.5 rounded text-xs font-bold ${outcomeColorClass(worstOutcome as ReviewOutcomeCode)}`}>
+                {worstOutcome}
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-600 mt-0.5">{dv?.doc_name ?? dv?.file_name}</p>
-          <div className="flex flex-wrap gap-x-3 text-xs text-gray-400 mt-0.5">
+          {/* Document list */}
+          <div className="mt-1 space-y-0.5">
+            {bTasks.slice(0, 4).map((t: any) => {
+              const dv = t.document_versions as any
+              const label = dv?.documents?.normalized_document_number ?? dv?.file_name ?? 'Unknown'
+              return (
+                <div key={t.id} className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    t.status === 'completed'   ? 'bg-green-500' :
+                    t.status === 'in_progress' ? 'bg-orange-400' :
+                    'bg-gray-300'
+                  }`} />
+                  <span className="font-mono">{label}</span>
+                  {dv?.revision && <span className="px-1 bg-navy-50 text-navy-600 rounded font-mono">Rev {dv.revision}</span>}
+                </div>
+              )
+            })}
+            {bTasks.length > 4 && (
+              <div className="text-xs text-gray-400 pl-3">+{bTasks.length - 4} more</div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-x-3 text-xs text-gray-400 mt-1">
             {batch?.vendors?.name && <span>{batch.vendors.name}</span>}
-            {batch?.packages?.package_name && <span>· {batch.packages.package_name}</span>}
-            {task.date_sent && <span>· Sent {formatDistanceToNow(new Date(task.date_sent), { addSuffix: true })}</span>}
-            {task.due_date && (
+            {latestSent && <span>· Sent {formatDistanceToNow(new Date(latestSent), { addSuffix: true })}</span>}
+            {earliestDue && (
               <span className={isOverdue ? 'text-red-600 font-semibold' : ''}>
-                · Due {format(new Date(task.due_date), 'd MMM yyyy')}
+                · Due {format(new Date(earliestDue), 'd MMM yyyy')}
                 {isOverdue && ' ⚠️ OVERDUE'}
               </span>
             )}
+            {!allComplete && <span>· {completed.length}/{docCount} reviewed</span>}
           </div>
         </div>
         <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
-          task.status === 'completed'   ? 'bg-green-100 text-green-700' :
-          isOverdue                     ? 'bg-red-100 text-red-700' :
-          task.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
-          task.status === 'sent'        ? 'bg-blue-100 text-blue-700' :
-          'bg-gray-100 text-gray-600'
+          allComplete ? 'bg-green-100 text-green-700' :
+          isOverdue   ? 'bg-red-100 text-red-700' :
+          inProgress  ? 'bg-orange-100 text-orange-700' :
+          'bg-blue-100 text-blue-700'
         }`}>
-          {isOverdue ? 'Overdue' : task.status}
+          {allComplete ? 'completed' : isOverdue ? 'overdue' : inProgress ? 'in progress' : 'sent'}
         </span>
       </Link>
     )
@@ -101,52 +154,52 @@ export default async function ReviewsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">My Reviews</h1>
-        <p className="text-gray-500 text-sm mt-1">Your assigned document review tasks</p>
+        <p className="text-gray-500 text-sm mt-1">Your assigned document batches for review</p>
       </div>
 
-      {overdue.length > 0 && (
+      {overdueCount > 0 && (
         <div className="card border-red-200 bg-red-50 p-4 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-red-800">You have {overdue.length} overdue review{overdue.length !== 1 ? 's' : ''}</p>
+            <p className="font-semibold text-red-800">You have {overdueCount} overdue batch{overdueCount !== 1 ? 'es' : ''}</p>
             <p className="text-sm text-red-700 mt-0.5">Please complete these as soon as possible.</p>
           </div>
         </div>
       )}
 
-      {/* Pending */}
+      {/* Pending batches */}
       <div className="card">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
           <Clock className="h-4 w-4 text-orange-500" />
           <h2 className="font-semibold text-gray-900">Pending / In Progress</h2>
-          <span className="ml-auto text-sm text-gray-400">{pending.length}</span>
+          <span className="ml-auto text-sm text-gray-400">{pendingBatches.length}</span>
         </div>
-        {pending.length === 0 ? (
+        {pendingBatches.length === 0 ? (
           <div className="py-10 text-center text-gray-400">
             <CheckCircle className="h-10 w-10 mx-auto mb-2 opacity-30" />
             <p>No pending reviews. You&apos;re all caught up!</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {pending.map(task => <TaskCard key={task.id} task={task} />)}
+            {pendingBatches.map(entry => <BatchCard key={entry.key} entry={entry} />)}
           </div>
         )}
       </div>
 
-      {/* Completed */}
-      {completed.length > 0 && (
+      {/* Completed batches */}
+      {completedBatches.length > 0 && (
         <div className="card">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-green-500" />
             <h2 className="font-semibold text-gray-900">Completed</h2>
-            <span className="ml-auto text-sm text-gray-400">{completed.length}</span>
+            <span className="ml-auto text-sm text-gray-400">{completedBatches.length}</span>
           </div>
           <div className="divide-y divide-gray-50">
-            {completed.slice(0, 20).map(task => <TaskCard key={task.id} task={task} />)}
+            {completedBatches.slice(0, 20).map(entry => <BatchCard key={entry.key} entry={entry} />)}
           </div>
-          {completed.length > 20 && (
+          {completedBatches.length > 20 && (
             <div className="px-6 py-3 text-sm text-gray-400 text-center">
-              Showing 20 of {completed.length} completed reviews.
+              Showing 20 of {completedBatches.length} completed batches.
             </div>
           )}
         </div>
