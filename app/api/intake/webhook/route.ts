@@ -21,6 +21,41 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { parseDocumentFileName } from '@/lib/utils/document-number-parser'
+import { getSiteId, graphFetch } from '@/lib/services/graph'
+
+/**
+ * Fetch document metadata (DocName, Discipline, etc.) for a single file
+ * from a SharePoint document library using its filename.
+ * Used to enrich files 2+ in a multi-file batch where la-intake-core
+ * only provides AI data for the first file.
+ */
+async function fetchDocMetadataFromLibrary(
+  siteUrl: string,
+  listId: string,
+  fileName: string
+): Promise<{ docName?: string; discipline?: string; documentType?: string; topic?: string; aiText?: string } | null> {
+  try {
+    const siteId = await getSiteId(siteUrl)
+    const escaped = fileName.replace(/'/g, "''")
+    const res = await graphFetch(
+      `/sites/${siteId}/lists/${listId}/items?$filter=fields/FileLeafRef eq '${escaped}'&$expand=fields($select=DocName,Discipline,DocType,DocumentType,Topic,AIText)&$top=1`
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    const fields = data.value?.[0]?.fields
+    if (!fields) return null
+    return {
+      docName:      fields.DocName      ?? undefined,
+      discipline:   fields.Discipline   ?? undefined,
+      documentType: fields.DocumentType ?? fields.DocType ?? undefined,
+      topic:        fields.Topic        ?? undefined,
+      aiText:       fields.AIText       ?? undefined,
+    }
+  } catch (e: any) {
+    console.warn('fetchDocMetadataFromLibrary failed for', fileName, ':', e.message)
+    return null
+  }
+}
 
 export async function POST(req: Request) {
   // ─── Auth ─────────────────────────────────────────────────────────────────
@@ -137,6 +172,15 @@ export async function POST(req: Request) {
         ? docUniqueId
         : (docIds[i] ? `${vendorKey.toUpperCase().replace(/-/g,'')}-${docIds[i]}` : null)
 
+      // For files 2+: fetch their metadata from the DocumentControl library
+      // so DocName/Discipline/etc. are populated for every document, not just the first.
+      let extraMeta: Awaited<ReturnType<typeof fetchDocMetadataFromLibrary>> = null
+      if (!isFirst && returnInfo?.siteUrl && returnInfo?.listId) {
+        extraMeta = await fetchDocMetadataFromLibrary(
+          returnInfo.siteUrl, returnInfo.listId, file.fileName
+        )
+      }
+
       await db.from('document_versions').upsert({
         batch_id:          batch.id,
         file_name:         file.fileName,
@@ -144,15 +188,14 @@ export async function POST(req: Request) {
         revision_sort:     parsed.revisionSort ?? parsed.revision,
         source_site_url:   file.siteUrl,
         source_file_url:   file.fileServerRelativeUrl,
-        central_file_url:  fileDocUrl,  // DocumentControl bucket URL — ready for review
+        central_file_url:  fileDocUrl,
         doc_unique_id:     fileDocUniqueId ?? file.itemUniqueId,
         storage_provider:  'sharepoint',
-        // AI metadata — only set for first file (others share the batch AI summary)
-        ai_text:           isFirst ? (aiText ?? null) : null,
-        doc_name:          isFirst ? (docName ?? null) : null,
-        discipline:        isFirst ? (discipline ?? null) : null,
-        document_type:     isFirst ? (documentType ?? null) : null,
-        topic:             isFirst ? (topic ?? null) : null,
+        ai_text:           isFirst ? (aiText ?? null) : (extraMeta?.aiText ?? null),
+        doc_name:          isFirst ? (docName ?? null) : (extraMeta?.docName ?? null),
+        discipline:        isFirst ? (discipline ?? null) : (extraMeta?.discipline ?? null),
+        document_type:     isFirst ? (documentType ?? null) : (extraMeta?.documentType ?? null),
+        topic:             isFirst ? (topic ?? null) : (extraMeta?.topic ?? null),
         ai_metadata_source: 'ai',
         status:            'uploaded',
         is_latest:         true,
