@@ -179,6 +179,83 @@ export function batchReviewAssignedEmail(params: {
   `)
 }
 
+export function vendorTransmittalEmail(params: {
+  vendorName:         string
+  packageCode:        string
+  packageName:        string
+  transmittalNumber:  string
+  transmittalDate:    string   // formatted e.g. "7 June 2026"
+  overallCode:        string
+  overallText:        string
+  documents:          Array<{ fileName: string; docName: string | null; outcomeCode: string }>
+  vendorPortalUrl:    string   // SharePoint "To Vendor" folder link
+  controllerName:     string
+  controllerEmail:    string
+}): string {
+  const outcomeColors: Record<string, string> = {
+    A1:'#16A34A', D1:'#2563EB', B1:'#D97706', B2:'#EA580C', C1:'#DC2626', Q1:'#DC2626', V1:'#6B7280', S1:'#6B7280',
+  }
+  const color = outcomeColors[params.overallCode] ?? '#374151'
+
+  const docRows = params.documents.map((d, i) => `
+    <tr style="border-top:1px solid #E5E7EB;">
+      <td style="padding:6px 8px;font-size:13px;color:#6B7280;font-weight:600;width:24px;text-align:center;">${i+1}</td>
+      <td style="padding:6px 8px;font-size:12px;color:#374151;font-family:monospace;">${d.fileName}</td>
+      <td style="padding:6px 8px;font-size:13px;color:#374151;">${d.docName ?? ''}</td>
+      <td style="padding:6px 8px;font-size:13px;font-weight:700;color:${outcomeColors[d.outcomeCode]??'#374151'};text-align:center;">${d.outcomeCode}</td>
+    </tr>`).join('')
+
+  return layout(`Document Review Transmittal — ${params.transmittalNumber}`, `
+    <p>Dear ${params.vendorName},</p>
+    <p>Please find attached the Document Review Transmittal for <strong>${params.packageCode} — ${params.packageName}</strong>.
+    This transmittal summarises the review outcomes for the documents listed below.</p>
+
+    <div class="meta"><table>
+      <tr><td>Transmittal Number</td><td><strong>${params.transmittalNumber}</strong></td></tr>
+      <tr><td>Date</td><td>${params.transmittalDate}</td></tr>
+      <tr><td>Package</td><td>${params.packageCode} — ${params.packageName}</td></tr>
+      <tr><td>Overall Outcome</td><td><strong style="color:${color};font-size:15px;">${params.overallCode}</strong> &nbsp; ${params.overallText}</td></tr>
+    </table></div>
+
+    <div class="meta" style="margin-top:12px;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151;">Documents reviewed:</p>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="background:#F3F4F6;">
+          <th style="padding:6px 8px;font-size:12px;color:#6B7280;font-weight:600;text-align:left;width:24px;">#</th>
+          <th style="padding:6px 8px;font-size:12px;color:#6B7280;font-weight:600;text-align:left;">File Name</th>
+          <th style="padding:6px 8px;font-size:12px;color:#6B7280;font-weight:600;text-align:left;">Document Title</th>
+          <th style="padding:6px 8px;font-size:12px;color:#6B7280;font-weight:600;text-align:center;">Code</th>
+        </tr>
+        ${docRows}
+      </table>
+    </div>
+
+    <div class="summary" style="margin-top:16px;">
+      <p style="margin:0 0 6px;font-weight:600;">Marked-Up Documents</p>
+      <p style="margin:0;font-size:13px;">
+        The marked-up and reviewed documents are available for download from your vendor portal:
+        <br><br>
+        <a href="${params.vendorPortalUrl}" style="color:#1D4ED8;">${params.vendorPortalUrl}</a>
+        <br><br>
+        Documents were submitted to your portal on <strong>${params.transmittalDate}</strong>.
+      </p>
+    </div>
+
+    <p style="margin-top:16px;font-size:13px;color:#374151;">
+      Please review the attached transmittal document for full details including individual reviewer comments.
+      Action required will depend on the review code assigned to each document.
+      Contact us if you have any questions regarding the review outcomes.
+    </p>
+
+    <p style="margin-top:16px;font-size:13px;">
+      Kind regards,<br>
+      <strong>${params.controllerName}</strong><br>
+      PPE Tech — Document Control<br>
+      <a href="mailto:${params.controllerEmail}">${params.controllerEmail}</a>
+    </p>
+  `)
+}
+
 export function reviewCompleteEmail(params: {
   batchId:          string
   packageName:      string

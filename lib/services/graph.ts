@@ -206,26 +206,33 @@ export async function sendEmail(params: {
   subject: string
   htmlBody: string
   fromUserId?: string  // UPN of sender (defaults to controller)
+  attachments?: Array<{ name: string; contentType: string; content: Buffer | string }>
 }): Promise<void> {
   const toList = Array.isArray(params.to) ? params.to : [params.to]
   const ccList = params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : []
-
-  // Send as the app using /users/{from}/sendMail — requires Mail.Send permission
   const fromUser = params.fromUserId ?? process.env.CONTROLLER_EMAIL ?? 'liezlc@ppetech.co.za'
 
-  const mailBody = {
-    message: {
-      subject: params.subject,
-      body: { contentType: 'HTML', content: params.htmlBody },
-      toRecipients:  toList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
-      ccRecipients:  ccList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
-    },
-    saveToSentItems: true,
+  const message: any = {
+    subject: params.subject,
+    body: { contentType: 'HTML', content: params.htmlBody },
+    toRecipients: toList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
+    ccRecipients: ccList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
+  }
+
+  if (params.attachments?.length) {
+    message.attachments = params.attachments.map(a => ({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: a.name,
+      contentType: a.contentType,
+      contentBytes: Buffer.isBuffer(a.content)
+        ? a.content.toString('base64')
+        : Buffer.from(a.content as string, 'binary').toString('base64'),
+    }))
   }
 
   const res = await graphFetch(`/users/${fromUser}/sendMail`, {
     method: 'POST',
-    body: JSON.stringify(mailBody),
+    body: JSON.stringify({ message, saveToSentItems: true }),
   })
   if (!res.ok && res.status !== 202) {
     const err = await res.text()

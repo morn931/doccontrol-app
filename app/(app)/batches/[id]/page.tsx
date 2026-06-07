@@ -54,8 +54,14 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
   const [saving, setSaving]             = useState(false)
-  const [generatingTransmittal, setGeneratingTransmittal] = useState(false)
+  const [showTransmittalModal, setShowTransmittalModal]   = useState(false)
+  const [toEmail, setToEmail]                             = useState('')
+  const [ccEmails, setCcEmails]                           = useState<string[]>([])
+  const [newCc, setNewCc]                                 = useState('')
+  const [pastEmails, setPastEmails]                       = useState<string[]>([])
+  const [sending, setSending]                             = useState(false)
   const [transmittalError, setTransmittalError]           = useState('')
+  const [transmittalView, setTransmittalView]             = useState<any>(null)
 
   useEffect(() => {
     loadBatch()
@@ -88,27 +94,33 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     setRejecting(false)
   }
 
-  async function handleGenerateTransmittal() {
-    setGeneratingTransmittal(true)
+  async function openTransmittalModal() {
     setTransmittalError('')
+    setShowTransmittalModal(true)
+    const res = await fetch(`/api/batches/${id}/generate-transmittal`)
+    if (res.ok) {
+      const data = await res.json()
+      setPastEmails(data.pastEmails ?? [])
+      if (!ccEmails.length && data.defaultCc) setCcEmails([data.defaultCc])
+    }
+  }
+
+  async function handleSendTransmittal() {
+    if (!toEmail.trim()) { setTransmittalError('Vendor email is required'); return }
+    setSending(true); setTransmittalError('')
     try {
-      const res = await fetch(`/api/batches/${id}/generate-transmittal`, { method: 'POST' })
-      if (!res.ok) {
-        const err = await res.json()
-        setTransmittalError(err.error ?? 'Failed to generate transmittal')
-        return
-      }
-      // Trigger download
-      const blob = await res.blob()
-      const cd   = res.headers.get('Content-Disposition') ?? ''
-      const name = cd.match(/filename="?([^"]+)"?/)?.[1] ?? 'transmittal.docx'
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a')
-      a.href = url; a.download = name; a.click()
-      URL.revokeObjectURL(url)
+      const res = await fetch(`/api/batches/${id}/generate-transmittal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toEmail: toEmail.trim(), ccEmails: ccEmails.filter(Boolean) }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setTransmittalError(data.error ?? 'Failed'); return }
+      setTransmittalView(data)
+      setShowTransmittalModal(false)
       loadBatch()
     } finally {
-      setGeneratingTransmittal(false)
+      setSending(false)
     }
   }
 
@@ -210,19 +222,10 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               </Link>
             )}
             {['review_complete','transmittal_generated'].includes(batch.status) && (
-              <button
-                onClick={handleGenerateTransmittal}
-                disabled={generatingTransmittal}
-                className="btn-primary text-sm flex items-center gap-2 justify-center"
-              >
-                {generatingTransmittal
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
-                  : <><Download className="h-4 w-4" /> Generate Transmittal</>
-                }
+              <button onClick={openTransmittalModal} className="btn-primary text-sm flex items-center gap-2 justify-center">
+                <Download className="h-4 w-4" />
+                {batch.status === 'transmittal_generated' ? 'Re-send Transmittal' : 'Generate Transmittal'}
               </button>
-            )}
-            {transmittalError && (
-              <p className="text-xs text-red-600 max-w-[200px]">{transmittalError}</p>
             )}
           </div>
         </div>
@@ -387,6 +390,148 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           ))}
         </div>
       </div>
+
+      {/* Transmittal modal */}
+      {showTransmittalModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <Download className="h-5 w-5 text-blue-600" />
+                Send Transmittal — {batch.packages?.package_name ?? ''}
+              </h2>
+              <button onClick={() => { setShowTransmittalModal(false); setTransmittalError('') }}>
+                <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+
+            {/* To */}
+            <div className="mb-4">
+              <label className="label">To (Vendor Email) <span className="text-red-500">*</span></label>
+              <input
+                list="past-emails"
+                type="email"
+                value={toEmail}
+                onChange={e => setToEmail(e.target.value)}
+                className="input"
+                placeholder="vendor@company.com"
+                autoFocus
+              />
+              <datalist id="past-emails">
+                {pastEmails.map(e => <option key={e} value={e} />)}
+              </datalist>
+            </div>
+
+            {/* CC */}
+            <div className="mb-4">
+              <label className="label">CC</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {ccEmails.map((email, i) => (
+                  <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
+                    {email}
+                    <button onClick={() => setCcEmails(ccEmails.filter((_,j) => j !== i))} className="hover:text-red-500">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={newCc}
+                  onChange={e => setNewCc(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && newCc.trim()) { setCcEmails([...ccEmails, newCc.trim()]); setNewCc('') } }}
+                  className="input text-sm flex-1"
+                  placeholder="Add CC email and press Enter"
+                />
+                <button
+                  onClick={() => { if (newCc.trim()) { setCcEmails([...ccEmails, newCc.trim()]); setNewCc('') } }}
+                  className="btn-secondary text-sm px-3"
+                >+ Add</button>
+              </div>
+            </div>
+
+            {/* Info note */}
+            <div className="mb-5 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+              The transmittal PDF will be attached to the email. The vendor will be informed that
+              marked-up documents are available in their SharePoint portal as of today.
+            </div>
+
+            {transmittalError && <p className="text-sm text-red-600 mb-3">{transmittalError}</p>}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSendTransmittal}
+                disabled={sending}
+                className="btn-primary flex-1 justify-center flex items-center gap-2"
+              >
+                {sending
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating &amp; Sending…</>
+                  : <><Download className="h-4 w-4" /> Generate PDF &amp; Send Email</>
+                }
+              </button>
+              <button onClick={() => { setShowTransmittalModal(false); setTransmittalError('') }} className="btn-secondary">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Inline transmittal view */}
+      {transmittalView && (
+        <div className="card">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center">
+                <Download className="h-4 w-4 text-teal-700" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{transmittalView.transmittalNumber}</p>
+                <p className="text-xs text-gray-400">Sent to {transmittalView.toEmail} · {transmittalView.transmittalDate}</p>
+              </div>
+            </div>
+            <button onClick={() => setTransmittalView(null)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="px-6 py-4 space-y-4">
+            {transmittalView.transmittalData?.documents?.map((doc: any, i: number) => (
+              <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
+                  <span className="font-mono text-sm font-semibold text-gray-800">{doc.fileName}</span>
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                    doc.outcomeCode === 'A1' ? 'bg-green-100 text-green-800' :
+                    doc.outcomeCode === 'D1' ? 'bg-blue-100 text-blue-800' :
+                    doc.outcomeCode === 'B1' ? 'bg-yellow-100 text-yellow-800' :
+                    doc.outcomeCode === 'B2' ? 'bg-orange-100 text-orange-800' :
+                    'bg-red-100 text-red-800'
+                  }`}>{doc.outcomeCode}</span>
+                </div>
+                {doc.docName && <p className="px-4 pt-2 text-sm text-gray-700 font-medium">{doc.docName}</p>}
+                <div className="px-4 py-2 divide-y divide-gray-50">
+                  {doc.reviewers?.map((r: any, j: number) => (
+                    <div key={j} className="py-1.5 flex items-start gap-3 text-sm">
+                      <span className="font-medium text-gray-700 w-32 shrink-0">{r.name}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${
+                        r.code === 'A1' ? 'bg-green-100 text-green-800' :
+                        r.code === 'D1' ? 'bg-blue-100 text-blue-800' :
+                        r.code === 'B1' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-orange-100 text-orange-800'
+                      }`}>{r.code}</span>
+                      <span className="text-gray-500">{r.comment || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+                {doc.markupSummary && (
+                  <div className="px-4 pb-3">
+                    <p className="text-xs font-semibold text-blue-700 mb-1">AI Markup Summary</p>
+                    <p className="text-xs text-gray-600 whitespace-pre-line">{doc.markupSummary}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Review sequence */}
       {reviewTasks.length > 0 && (

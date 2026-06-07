@@ -19,7 +19,8 @@
     "papaparse": "^5.4.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.4.0",
-    "docx": "^9.5.0"
+    "docx": "^9.5.0",
+    "pdfmake": "^0.2.12"
   },
   "devDependencies": {
     "typescript": "^5",

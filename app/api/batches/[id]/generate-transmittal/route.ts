@@ -1,32 +1,24 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getMarkupSummary } from '@/lib/services/markup-extractor'
+import { sendEmail } from '@/lib/services/graph'
+import { vendorTransmittalEmail } from '@/lib/services/email-templates'
 import { OUTCOME_CODES } from '@/lib/utils/outcome-codes'
 import { format } from 'date-fns'
 
-// ─── Outcome code helpers ─────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const SEVERITY: Record<string, number> = { A1:1,D1:2,B1:3,B2:4,C1:5,Q1:6,V1:7,S1:8 }
-
 function worstCode(codes: string[]): string {
   return codes.filter(Boolean).sort((a,b) => (SEVERITY[b]??0)-(SEVERITY[a]??0))[0] ?? 'A1'
 }
-
 function outcomeText(code: string): string {
   return (OUTCOME_CODES as any)[code]?.text ?? code
 }
 
-// ─── Transmittal number generator ────────────────────────────────────────────
-
 async function nextTransmittalNumber(db: any): Promise<string> {
   const year = new Date().getFullYear()
-  // Increment the sequence atomically via RPC or manual update
-  const { data: seq } = await db
-    .from('transmittal_sequences')
-    .select('last_seq')
-    .eq('year', year)
-    .single()
-
+  const { data: seq } = await db.from('transmittal_sequences').select('last_seq').eq('year', year).single()
   let next: number
   if (!seq) {
     await db.from('transmittal_sequences').insert({ year, last_seq: 1 })
@@ -38,314 +30,161 @@ async function nextTransmittalNumber(db: any): Promise<string> {
   return `PPE-TRN-${year}-${String(next).padStart(5,'0')}`
 }
 
-// ─── DOCX builder ─────────────────────────────────────────────────────────────
+// ─── PDF builder (pdfmake with built-in Helvetica, no font files needed) ─────
 
-async function buildTransmittalDocx(data: TransmittalData): Promise<Buffer> {
-  const {
-    Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-    Header, Footer, AlignmentType, HeadingLevel, BorderStyle, WidthType,
-    ShadingType, VerticalAlign, PageBreak, PageNumber,
-  } = await import('docx')
-
-  const BLUE     = '003087'   // PPE Tech dark blue
-  const LIGHTBLUE = 'D6E4F0'
-  const GRAY     = 'F2F4F6'
-  const MIDGRAY  = 'CCCCCC'
-  const WHITE    = 'FFFFFF'
-  const NONE     = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }
-  const THIN     = { style: BorderStyle.SINGLE, size: 1, color: MIDGRAY }
-  const THICK    = { style: BorderStyle.SINGLE, size: 4, color: BLUE }
-
-  function cell(text: string, opts: {
-    bold?: boolean; color?: string; fill?: string; w: number; borders?: any; align?: (typeof AlignmentType)[keyof typeof AlignmentType]; vAlign?: (typeof VerticalAlign)[keyof typeof VerticalAlign]; span?: number
-  }) {
-    return new TableCell({
-      columnSpan: opts.span,
-      width: { size: opts.w, type: WidthType.DXA },
-      shading: opts.fill ? { fill: opts.fill, type: ShadingType.CLEAR } : undefined,
-      verticalAlign: opts.vAlign ?? VerticalAlign.CENTER,
-      borders: opts.borders ?? { top: THIN, bottom: THIN, left: THIN, right: THIN },
-      margins: { top: 80, bottom: 80, left: 120, right: 120 },
-      children: [new Paragraph({
-        alignment: opts.align ?? AlignmentType.LEFT,
-        children: [new TextRun({ text, bold: opts.bold, color: opts.color ?? '000000', font: 'Arial', size: 18 })]
-      })]
-    })
-  }
-
-  function heading(text: string) {
-    return new Paragraph({
-      spacing: { before: 240, after: 80 },
-      children: [
-        new TextRun({ text, bold: true, font: 'Arial', size: 20, color: WHITE }),
-      ],
-      shading: { fill: BLUE, type: ShadingType.CLEAR },
-      indent: { left: 120, right: 120 },
-    })
-  }
-
-  function label(text: string) {
-    return new TextRun({ text, font: 'Arial', size: 18, color: '555555' })
-  }
-
-  function value(text: string, bold = false) {
-    return new TextRun({ text, font: 'Arial', size: 18, bold, color: '111111' })
-  }
-
-  function spacer() {
-    return new Paragraph({ spacing: { before: 80, after: 80 }, children: [new TextRun('')] })
-  }
-
-  // ── Outcome badge colour (used in summary table shading) ────────────────────
-  const OUTCOME_FILL: Record<string, string> = {
-    A1:'E8F5E9', D1:'E3F2FD', B1:'FFF9C4', B2:'FFE0B2', C1:'FFCDD2', Q1:'FFCDD2', V1:'EEEEEE', S1:'EEEEEE'
-  }
-  const OUTCOME_BORDER_COLOR: Record<string, string> = {
-    A1:'388E3C', D1:'1976D2', B1:'F9A825', B2:'E65100', C1:'C62828', Q1:'C62828', V1:'757575', S1:'757575'
-  }
-
-  // ─── 1. Title block ─────────────────────────────────────────────────────────
-  const titleBlock = [
-    new Table({
-      width: { size: 9026, type: WidthType.DXA },
-      columnWidths: [6000, 3026],
-      borders: { top: THICK, bottom: THICK, left: THICK, right: THICK, insideH: NONE, insideV: NONE },
-      rows: [new TableRow({ children: [
-        new TableCell({
-          width: { size: 6000, type: WidthType.DXA },
-          shading: { fill: BLUE, type: ShadingType.CLEAR },
-          borders: { top: NONE, bottom: NONE, left: NONE, right: NONE },
-          margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          children: [
-            new Paragraph({ children: [new TextRun({ text: 'PPE TECH', bold: true, font: 'Arial', size: 32, color: WHITE })] }),
-            new Paragraph({ children: [new TextRun({ text: 'Document Control System', font: 'Arial', size: 18, color: 'AACCEE' })] }),
-          ]
-        }),
-        new TableCell({
-          width: { size: 3026, type: WidthType.DXA },
-          shading: { fill: BLUE, type: ShadingType.CLEAR },
-          borders: { top: NONE, bottom: NONE, left: NONE, right: NONE },
-          verticalAlign: VerticalAlign.CENTER,
-          margins: { top: 200, bottom: 200, left: 200, right: 200 },
-          children: [
-            new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'DOCUMENT TRANSMITTAL', bold: true, font: 'Arial', size: 22, color: WHITE })] }),
-          ]
-        }),
-      ]})]
-    }),
-    spacer(),
-  ]
-
-  // ─── 2. Transmittal info table ───────────────────────────────────────────────
-  const infoRows = [
-    ['Transmittal Number', data.transmittalNumber],
-    ['Date',              format(new Date(), 'd MMMM yyyy')],
-    ['Vendor',            data.vendorName],
-    ['Project Package',   `${data.packageCode} — ${data.packageName}`],
-    ['Number of Documents', String(data.documents.length)],
-    ['Overall Review Outcome', `${data.overallCode} — ${outcomeText(data.overallCode)}`],
-    ['Prepared By',       data.controllerEmail],
-  ]
-  const infoTable = new Table({
-    width: { size: 9026, type: WidthType.DXA },
-    columnWidths: [2800, 6226],
-    rows: infoRows.map(([lbl, val], i) => new TableRow({ children: [
-      cell(lbl, { w: 2800, fill: i % 2 === 0 ? LIGHTBLUE : WHITE, bold: true }),
-      cell(val, { w: 6226, fill: i % 2 === 0 ? GRAY : WHITE }),
-    ]}))
+async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
+  const PdfPrinter = (await import('pdfmake')).default
+  const printer = new PdfPrinter({
+    Helvetica: { normal:'Helvetica', bold:'Helvetica-Bold', italics:'Helvetica-Oblique', bolditalics:'Helvetica-BoldOblique' }
   })
 
-  // ─── 3. Document summary table ───────────────────────────────────────────────
-  const summaryHeaderRow = new TableRow({ children: [
-    cell('#',               { w: 400,  fill: BLUE, bold: true, color: WHITE, align: AlignmentType.CENTER }),
-    cell('Document Number', { w: 3200, fill: BLUE, bold: true, color: WHITE }),
-    cell('Document Title',  { w: 3226, fill: BLUE, bold: true, color: WHITE }),
-    cell('Rev', { w: 500,  fill: BLUE, bold: true, color: WHITE, align: AlignmentType.CENTER }),
-    cell('Code',{ w: 700,  fill: BLUE, bold: true, color: WHITE, align: AlignmentType.CENTER }),
-  ]})
+  const BLUE = '#003087', LGRAY = '#F2F4F6', MGRAY = '#CCCCCC', WHITE = '#FFFFFF'
+  const OUTCOME_BG: Record<string,string> = { A1:'#E8F5E9',D1:'#E3F2FD',B1:'#FFF9C4',B2:'#FFE0B2',C1:'#FFCDD2',Q1:'#FFCDD2',V1:'#EEEEEE',S1:'#EEEEEE' }
+  const OUTCOME_FG: Record<string,string> = { A1:'#1B5E20',D1:'#0D47A1',B1:'#F57F17',B2:'#BF360C',C1:'#B71C1C',Q1:'#B71C1C',V1:'#424242',S1:'#424242' }
 
-  const summaryRows = data.documents.map((doc, i) => new TableRow({ children: [
-    cell(String(i+1),             { w: 400,  align: AlignmentType.CENTER, fill: i%2===0?GRAY:WHITE }),
-    cell(doc.fileName,            { w: 3200, fill: i%2===0?GRAY:WHITE }),
-    cell(doc.docName||doc.fileName, { w: 3226, fill: i%2===0?GRAY:WHITE }),
-    cell(doc.revision||'0',       { w: 500,  align: AlignmentType.CENTER, fill: i%2===0?GRAY:WHITE }),
-    cell(doc.outcomeCode,         { w: 700,  align: AlignmentType.CENTER, fill: OUTCOME_FILL[doc.outcomeCode]||GRAY, bold: true }),
-  ]}))
+  function hdr(text: string) {
+    return { text, font:'Helvetica', fontSize:8, bold:true, color:WHITE, fillColor:BLUE, margin:[4,4,4,4] }
+  }
+  function cell(text: string, opts?: { bold?:boolean; bg?:string; fg?:string; align?:string }) {
+    return { text: text ?? '', font:'Helvetica', fontSize:8, bold:opts?.bold, color:opts?.fg??'#111111',
+             fillColor:opts?.bg, alignment:(opts?.align??'left') as any, margin:[4,3,4,3] }
+  }
 
-  const summaryTable = new Table({
-    width: { size: 9026, type: WidthType.DXA },
-    columnWidths: [400, 3200, 3226, 500, 700],
-    rows: [summaryHeaderRow, ...summaryRows]
-  })
+  const docContent: any[] = [
+    // ── Title block
+    { canvas: [{ type:'rect', x:0, y:0, w:515, h:50, color:BLUE }] },
+    { absolutePosition:{ x:40, y:20 }, text:'PPE TECH  ·  Document Control', font:'Helvetica', fontSize:14, bold:true, color:WHITE },
+    { absolutePosition:{ x:40, y:37 }, text:'DOCUMENT TRANSMITTAL', font:'Helvetica', fontSize:9, color:'#AACCEE' },
+    { text: ' ', margin:[0,55,0,0] },
 
-  // ─── 4. Per-document detail sections ─────────────────────────────────────────
-  const docSections: any[] = []
+    // ── Info table
+    { margin:[0,0,0,12],
+      table:{ widths:[120,'*'], body:[
+        [{ text:'TRANSMITTAL INFORMATION', colSpan:2, bold:true, font:'Helvetica', fontSize:8, color:WHITE, fillColor:BLUE, margin:[4,4,4,4] },{}],
+        [cell('Transmittal Number',{bold:true,bg:LGRAY}), cell(data.transmittalNumber,{bold:true})],
+        [cell('Date',{bold:true,bg:LGRAY}),               cell(format(new Date(),'d MMMM yyyy'))],
+        [cell('Vendor',{bold:true,bg:LGRAY}),              cell(data.vendorName)],
+        [cell('Project Package',{bold:true,bg:LGRAY}),     cell(`${data.packageCode}  —  ${data.packageName}`)],
+        [cell('No. of Documents',{bold:true,bg:LGRAY}),    cell(String(data.documents.length))],
+        [cell('Overall Outcome',{bold:true,bg:LGRAY}),     cell(`${data.overallCode}  —  ${outcomeText(data.overallCode)}`,{bold:true,fg:OUTCOME_FG[data.overallCode]??'#111'})],
+        [cell('Prepared By',{bold:true,bg:LGRAY}),         cell(data.controllerEmail)],
+      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
+    },
 
+    // ── Document summary table
+    { margin:[0,0,0,0],
+      table:{ widths:[16,130,'*',22,28], body:[
+        [hdr('#'),hdr('Document Number'),hdr('Document Title'),hdr('Rev'),hdr('Code')],
+        ...data.documents.map((d,i)=>[
+          cell(String(i+1),{bg:i%2?WHITE:LGRAY,align:'center'}),
+          cell(d.fileName,  {bg:i%2?WHITE:LGRAY}),
+          cell(d.docName||d.fileName,{bg:i%2?WHITE:LGRAY}),
+          cell(d.revision||'0',{bg:i%2?WHITE:LGRAY,align:'center'}),
+          cell(d.outcomeCode,{bg:OUTCOME_BG[d.outcomeCode]??LGRAY,fg:OUTCOME_FG[d.outcomeCode]??'#111',bold:true,align:'center'}),
+        ])
+      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
+    },
+  ]
+
+  // ── Per-document sections
   for (let i = 0; i < data.documents.length; i++) {
     const doc = data.documents[i]
-    if (i > 0) docSections.push(new Paragraph({ children: [new PageBreak()] }))
-
-    docSections.push(heading(`DOCUMENT ${i+1} OF ${data.documents.length}  —  ${doc.outcomeCode}: ${outcomeText(doc.outcomeCode)}`))
-    docSections.push(spacer())
-
-    // Doc metadata table
-    const metaRows = [
-      ['Document Number', doc.fileName],
-      ['Document Title',  doc.docName || doc.fileName],
-      ['Revision',        doc.revision || '0'],
-      ['Discipline',      [doc.discipline, doc.documentType, doc.topic].filter(Boolean).join('  ·  ') || '—'],
-      ['Overall Outcome', `${doc.outcomeCode} — ${outcomeText(doc.outcomeCode)}`],
-    ]
-    docSections.push(new Table({
-      width: { size: 9026, type: WidthType.DXA },
-      columnWidths: [2200, 6826],
-      rows: metaRows.map(([lbl, val]) => new TableRow({ children: [
-        cell(lbl, { w: 2200, fill: LIGHTBLUE, bold: true }),
-        cell(val, { w: 6826 }),
-      ]}))
-    }))
-    docSections.push(spacer())
-
-    // Reviewer outcomes table
-    docSections.push(new Paragraph({
-      spacing: { before: 120, after: 80 },
-      children: [new TextRun({ text: 'REVIEWER OUTCOMES', bold: true, font: 'Arial', size: 18, color: BLUE })]
-    }))
-
-    const reviewHeaderRow = new TableRow({ children: [
-      cell('Reviewer',    { w: 2200, fill: BLUE, bold: true, color: WHITE }),
-      cell('Code',        { w: 600,  fill: BLUE, bold: true, color: WHITE, align: AlignmentType.CENTER }),
-      cell('Description', { w: 2800, fill: BLUE, bold: true, color: WHITE }),
-      cell('Comment',     { w: 3426, fill: BLUE, bold: true, color: WHITE }),
-    ]})
-
-    const reviewRows = doc.reviewers.map((r, ri) => new TableRow({ children: [
-      cell(r.name,              { w: 2200, fill: ri%2===0?GRAY:WHITE }),
-      cell(r.code,              { w: 600,  fill: OUTCOME_FILL[r.code]||GRAY, bold: true, align: AlignmentType.CENTER }),
-      cell(outcomeText(r.code), { w: 2800, fill: ri%2===0?GRAY:WHITE }),
-      cell(r.comment||'—',      { w: 3426, fill: ri%2===0?GRAY:WHITE }),
-    ]}))
-
-    docSections.push(new Table({
-      width: { size: 9026, type: WidthType.DXA },
-      columnWidths: [2200, 600, 2800, 3426],
-      rows: [reviewHeaderRow, ...reviewRows]
-    }))
-    docSections.push(spacer())
-
+    docContent.push({ text:'', pageBreak:'before' })
+    docContent.push({
+      margin:[0,0,0,8],
+      table:{ widths:['*'], body:[[
+        { text:`DOCUMENT ${i+1} OF ${data.documents.length}  ·  ${doc.outcomeCode}: ${outcomeText(doc.outcomeCode)}`,
+          font:'Helvetica', fontSize:9, bold:true, color:WHITE, fillColor:BLUE, margin:[6,5,6,5] }
+      ]]}, layout:'noBorders'
+    })
+    docContent.push({
+      margin:[0,0,0,8],
+      table:{ widths:[100,'*'], body:[
+        [cell('Document Number',{bold:true,bg:LGRAY}), cell(doc.fileName)],
+        [cell('Document Title',{bold:true,bg:LGRAY}),  cell(doc.docName||doc.fileName)],
+        [cell('Revision',{bold:true,bg:LGRAY}),         cell(doc.revision||'0')],
+        [cell('Discipline',{bold:true,bg:LGRAY}),        cell([doc.discipline,doc.documentType,doc.topic].filter(Boolean).join('  ·  ')||'—')],
+        [cell('Overall Outcome',{bold:true,bg:LGRAY}),   cell(`${doc.outcomeCode}  —  ${outcomeText(doc.outcomeCode)}`,{bold:true,fg:OUTCOME_FG[doc.outcomeCode]??'#111'})],
+      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
+    })
+    // Reviewer outcomes
+    docContent.push({ text:'REVIEWER OUTCOMES', font:'Helvetica', fontSize:8, bold:true, color:BLUE, margin:[0,0,0,4] })
+    docContent.push({
+      margin:[0,0,0,8],
+      table:{ widths:[100,24,130,'*'], body:[
+        [hdr('Reviewer'),hdr('Code'),hdr('Description'),hdr('Comment')],
+        ...doc.reviewers.map((r,ri)=>[
+          cell(r.name,   {bg:ri%2?WHITE:LGRAY}),
+          cell(r.code,   {bg:OUTCOME_BG[r.code]??LGRAY,fg:OUTCOME_FG[r.code]??'#111',bold:true,align:'center'}),
+          cell(outcomeText(r.code),{bg:ri%2?WHITE:LGRAY,fg:'#555'}),
+          cell(r.comment||'—',{bg:ri%2?WHITE:LGRAY}),
+        ])
+      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
+    })
     // AI markup summary
     if (doc.markupSummary) {
-      docSections.push(new Paragraph({
-        spacing: { before: 120, after: 80 },
-        children: [new TextRun({ text: 'MARKUP SUMMARY (AI-GENERATED)', bold: true, font: 'Arial', size: 18, color: BLUE })]
-      }))
-      const summaryLines = doc.markupSummary.split('\n').filter(l => l.trim())
-      for (const line of summaryLines) {
-        docSections.push(new Paragraph({
-          spacing: { before: 40, after: 40 },
-          children: [new TextRun({ text: line.trim(), font: 'Arial', size: 18 })]
-        }))
+      docContent.push({ text:'MARKUP SUMMARY (AI-GENERATED)', font:'Helvetica', fontSize:8, bold:true, color:BLUE, margin:[0,0,0,4] })
+      for (const line of doc.markupSummary.split('\n').filter(l=>l.trim())) {
+        docContent.push({ text:line.trim(), font:'Helvetica', fontSize:8, margin:[0,1,0,1] })
       }
     }
   }
 
-  // ─── 5. Acknowledgement + legend ─────────────────────────────────────────────
-  const ackSection = [
-    new Paragraph({ children: [new PageBreak()] }),
-    heading('ACKNOWLEDGEMENT OF RECEIPT'),
-    spacer(),
-    new Paragraph({
-      spacing: { before: 0, after: 160 },
-      children: [new TextRun({ text: 'This transmittal confirms that the above-referenced documents have been reviewed in accordance with PPE Tech\'s document control procedures. Review outcomes are as indicated. Please action as required based on the review codes provided.', font: 'Arial', size: 18 })]
-    }),
-    new Table({
-      width: { size: 9026, type: WidthType.DXA },
-      columnWidths: [1800, 3000, 2226, 2000],
-      rows: [
-        new TableRow({ children: [
-          cell('For',               { w: 1800, fill: BLUE, bold: true, color: WHITE }),
-          cell('Name and Surname',  { w: 3000, fill: BLUE, bold: true, color: WHITE }),
-          cell('Signature',         { w: 2226, fill: BLUE, bold: true, color: WHITE }),
-          cell('Date',              { w: 2000, fill: BLUE, bold: true, color: WHITE }),
-        ]}),
-        new TableRow({ children: [
-          cell('PPE Tech', { w: 1800, fill: LIGHTBLUE, bold: true }),
-          cell('',         { w: 3000 }),
-          cell('',         { w: 2226 }),
-          cell('',         { w: 2000 }),
-        ]}),
-        new TableRow({ children: [
-          cell('Client',   { w: 1800, fill: LIGHTBLUE, bold: true }),
-          cell('',         { w: 3000 }),
-          cell('',         { w: 2226 }),
-          cell('',         { w: 2000 }),
-        ]}),
-      ]
-    }),
-    spacer(),
-    heading('REVIEW CODE LEGEND'),
-    spacer(),
-    new Table({
-      width: { size: 9026, type: WidthType.DXA },
-      columnWidths: [700, 8326],
-      rows: Object.values(OUTCOME_CODES).map((oc: any, i) => new TableRow({ children: [
-        cell(oc.code, { w: 700,  fill: OUTCOME_FILL[oc.code]||GRAY, bold: true, align: AlignmentType.CENTER }),
-        cell(oc.text, { w: 8326, fill: i%2===0?GRAY:WHITE }),
-      ]}))
-    }),
-    spacer(),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 240 },
-      children: [new TextRun({ text: `Generated by PPE Tech Document Control System  ·  ${format(new Date(), 'd MMMM yyyy')}  ·  Confidential`, font: 'Arial', size: 16, color: '888888', italics: true })]
-    }),
-  ]
-
-  // ─── Assemble document ────────────────────────────────────────────────────────
-  const doc = new Document({
-    styles: {
-      default: { document: { run: { font: 'Arial', size: 18 } } }
-    },
-    sections: [{
-      properties: {
-        page: {
-          size: { width: 11906, height: 16838 }, // A4
-          margin: { top: 1000, right: 900, bottom: 1000, left: 900 }
-        }
-      },
-      headers: {
-        default: new Header({ children: [
-          new Table({
-            width: { size: 10106, type: WidthType.DXA },
-            columnWidths: [5053, 5053],
-            borders: { top: NONE, bottom: { style: BorderStyle.SINGLE, size: 4, color: BLUE }, left: NONE, right: NONE, insideH: NONE, insideV: NONE },
-            rows: [new TableRow({ children: [
-              new TableCell({ width: { size: 5053, type: WidthType.DXA }, borders: { top: NONE, bottom: NONE, left: NONE, right: NONE }, children: [new Paragraph({ children: [new TextRun({ text: `PPE TECH  ·  Document Control  ·  ${data.transmittalNumber}`, font: 'Arial', size: 16, color: '555555' })] })] }),
-              new TableCell({ width: { size: 5053, type: WidthType.DXA }, borders: { top: NONE, bottom: NONE, left: NONE, right: NONE }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `${data.vendorName}  ·  ${data.packageCode}`, font: 'Arial', size: 16, color: '555555' })] })] }),
-            ]})]
-          })
-        ]})
-      },
-      children: [
-        ...titleBlock,
-        spacer(),
-        new Paragraph({ spacing: { before: 0, after: 80 }, children: [new TextRun({ text: 'TRANSMITTAL INFORMATION', bold: true, font: 'Arial', size: 18, color: BLUE })] }),
-        infoTable,
-        spacer(),
-        new Paragraph({ spacing: { before: 0, after: 80 }, children: [new TextRun({ text: 'DOCUMENT SUMMARY', bold: true, font: 'Arial', size: 18, color: BLUE })] }),
-        summaryTable,
-        ...docSections,
-        ...ackSection,
-      ]
-    }]
+  // ── Acknowledgement
+  docContent.push({ text:'', pageBreak:'before' })
+  docContent.push({
+    margin:[0,0,0,8],
+    table:{ widths:['*'], body:[[
+      { text:'ACKNOWLEDGEMENT OF RECEIPT', font:'Helvetica', fontSize:9, bold:true, color:WHITE, fillColor:BLUE, margin:[6,5,6,5] }
+    ]]}, layout:'noBorders'
   })
+  docContent.push({
+    text:'This transmittal confirms that the above-referenced documents have been reviewed in accordance with PPE Tech\'s document control procedures. Please action as required based on the review codes provided.',
+    font:'Helvetica', fontSize:8, margin:[0,0,0,12]
+  })
+  docContent.push({
+    margin:[0,0,0,16],
+    table:{ widths:[80,130,130,'*'], body:[
+      [hdr('For'),hdr('Name and Surname'),hdr('Signature'),hdr('Date')],
+      [cell('PPE Tech',{bold:true,bg:LGRAY}),cell(''),cell(''),cell('')],
+      [cell('Client',{bold:true,bg:LGRAY}),  cell(''),cell(''),cell('')],
+    ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
+  })
+  // Legend
+  docContent.push({ text:'REVIEW CODE LEGEND', font:'Helvetica', fontSize:8, bold:true, color:BLUE, margin:[0,0,0,4] })
+  docContent.push({
+    table:{ widths:[28,'*'], body: Object.values(OUTCOME_CODES).map((oc:any,i)=>[
+      cell(oc.code,{bg:OUTCOME_BG[oc.code]??LGRAY,fg:OUTCOME_FG[oc.code]??'#111',bold:true,align:'center'}),
+      cell(oc.text,{bg:i%2?WHITE:LGRAY}),
+    ])}, layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY }
+  })
+  docContent.push({ text:`Generated by PPE Tech Document Control System  ·  ${format(new Date(),'d MMMM yyyy')}  ·  Confidential`, font:'Helvetica', fontSize:7, color:'#888888', italics:true, alignment:'center', margin:[0,16,0,0] })
 
-  return await Packer.toBuffer(doc) as unknown as Buffer
+  const docDef = {
+    pageSize:'A4', pageMargins:[40,50,40,50],
+    defaultStyle:{ font:'Helvetica', fontSize:9 },
+    header: (currentPage:number, pageCount:number) => ({
+      columns:[
+        { text:`PPE TECH  ·  Document Control  ·  ${data.transmittalNumber}`, font:'Helvetica', fontSize:7, color:'#666', margin:[40,16,0,0] },
+        { text:`${data.vendorName}  ·  ${data.packageCode}  ·  Page ${currentPage} of ${pageCount}`, font:'Helvetica', fontSize:7, color:'#666', alignment:'right', margin:[0,16,40,0] },
+      ]
+    }),
+    content: docContent,
+  }
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const pdfDoc = printer.createPdfKitDocument(docDef)
+    const chunks: Buffer[] = []
+    pdfDoc.on('data', (c: Buffer) => chunks.push(c))
+    pdfDoc.on('end',  () => resolve(Buffer.concat(chunks)))
+    pdfDoc.on('error', reject)
+    pdfDoc.end()
+  })
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface TransmittalDocument {
+export interface TransmittalDocument {
   fileName:      string
   docName:       string | null
   revision:      string | null
@@ -356,18 +195,41 @@ interface TransmittalDocument {
   markupSummary: string
   reviewers:     { name: string; code: string; comment: string }[]
 }
-
-interface TransmittalData {
+export interface TransmittalData {
   transmittalNumber: string
   vendorName:        string
   packageCode:       string
   packageName:       string
   overallCode:       string
   controllerEmail:   string
+  controllerName:    string
   documents:         TransmittalDocument[]
 }
 
-// ─── Route handler ────────────────────────────────────────────────────────────
+// ─── GET — email suggestions for this vendor ──────────────────────────────────
+
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  const { id: batchId } = await params
+  const db = createServiceClient()
+
+  const { data: batch } = await db.from('batches').select('vendor_id, vendor_email, vendors(name)').eq('id', batchId).single()
+  if (!batch) return NextResponse.json({ pastEmails: [] })
+
+  const { data: pastTransmittals } = await db.from('transmittals')
+    .select('vendor_email_to').eq('vendor_id', batch.vendor_id).not('vendor_email_to','is',null).order('generated_at',{ascending:false}).limit(20)
+
+  const emails = [...new Set([
+    batch.vendor_email,
+    ...((pastTransmittals ?? []).map((t:any) => t.vendor_email_to)),
+  ].filter(Boolean) as string[])]
+
+  return NextResponse.json({ pastEmails: emails, defaultCc: process.env.CONTROLLER_EMAIL ?? '' })
+}
+
+// ─── POST — generate PDF, send email, return transmittal data ─────────────────
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -380,9 +242,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id: batchId } = await params
+  const body = await req.json()
+  const { toEmail, ccEmails = [] }: { toEmail: string; ccEmails: string[] } = body
+
+  if (!toEmail?.trim()) return NextResponse.json({ error: 'Vendor email is required' }, { status: 400 })
+
   const db = createServiceClient()
 
-  // ── Fetch batch + documents ────────────────────────────────────────────────
   const { data: batch } = await db.from('batches')
     .select(`id, batch_guid, status, target_library, controller_email, comments,
              vendor_id, package_id,
@@ -393,127 +259,104 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
   if (!['review_complete','transmittal_generated'].includes(batch.status))
-    return NextResponse.json({ error: 'Batch is not ready for transmittal' }, { status: 400 })
+    return NextResponse.json({ error: 'Batch not ready for transmittal' }, { status: 400 })
 
   const docVersions = (batch.document_versions as any[]) ?? []
 
-  // ── Fetch all review tasks for this batch ─────────────────────────────────
   const { data: allTasks } = await db.from('review_tasks')
-    .select('document_version_id, reviewer_email, review_outcome_code, comment, sequence_number, status')
-    .eq('batch_id', batchId)
-    .eq('status', 'completed')
-    .order('sequence_number', { ascending: true })
+    .select('document_version_id, reviewer_email, review_outcome_code, comment, sequence_number')
+    .eq('batch_id', batchId).eq('status','completed').order('sequence_number',{ascending:true})
 
-  // Fetch reviewer display names
-  const reviewerEmails = [...new Set((allTasks ?? []).map((t: any) => t.reviewer_email as string))]
+  const reviewerEmails = [...new Set((allTasks ?? []).map((t:any) => t.reviewer_email as string))]
   const { data: reviewerUsers } = await db.from('users').select('email, full_name').in('email', reviewerEmails)
-  const nameMap: Record<string, string> = {}
+  const nameMap: Record<string,string> = {}
   for (const u of reviewerUsers ?? []) { if (u.email) nameMap[u.email] = u.full_name ?? u.email.split('@')[0] }
 
-  function displayName(email: string) { return nameMap[email] ?? email.split('@')[0] }
-
-  // ── Run markup extraction in parallel ─────────────────────────────────────
+  // Run markup extraction in parallel (15s timeout per doc)
   const markupResults = await Promise.allSettled(
-    docVersions.map((dv: any) =>
-      Promise.race([
-        getMarkupSummary({
-          centralFileUrl: dv.central_file_url,
-          fileName:       dv.file_name,
-          docName:        dv.doc_name,
-          docUniqueId:    dv.doc_unique_id,
-          libraryName:    (batch as any).target_library,
-        }),
-        new Promise<string>(resolve => setTimeout(() => resolve(''), 25_000)), // 25s timeout
-      ])
-    )
+    docVersions.map((dv:any) => Promise.race([
+      getMarkupSummary({ centralFileUrl:dv.central_file_url, fileName:dv.file_name, docName:dv.doc_name, docUniqueId:dv.doc_unique_id, libraryName:(batch as any).target_library }),
+      new Promise<string>(r => setTimeout(() => r(''), 15_000)),
+    ]))
   )
 
-  // ── Build transmittal data ─────────────────────────────────────────────────
   const tasksByDv: Record<string, any[]> = {}
   for (const t of allTasks ?? []) {
     if (!tasksByDv[t.document_version_id]) tasksByDv[t.document_version_id] = []
     tasksByDv[t.document_version_id].push(t)
   }
 
-  const documents: TransmittalDocument[] = docVersions.map((dv: any, i: number) => {
-    const tasks  = tasksByDv[dv.id] ?? []
-    const codes  = tasks.map((t: any) => t.review_outcome_code).filter(Boolean)
-    const outCode = worstCode(codes) || 'A1'
-    const markupSummary = markupResults[i]?.status === 'fulfilled' ? (markupResults[i] as any).value as string : ''
-
+  const documents: TransmittalDocument[] = docVersions.map((dv:any, i:number) => {
+    const tasks    = tasksByDv[dv.id] ?? []
+    const codes    = tasks.map((t:any) => t.review_outcome_code).filter(Boolean)
+    const outCode  = worstCode(codes) || 'A1'
+    const markup   = markupResults[i]?.status === 'fulfilled' ? (markupResults[i] as any).value as string : ''
     return {
-      fileName:      dv.file_name,
-      docName:       dv.doc_name,
-      revision:      dv.revision,
-      discipline:    dv.discipline,
-      documentType:  dv.document_type,
-      topic:         dv.topic,
-      outcomeCode:   outCode,
-      markupSummary,
-      reviewers: tasks.map((t: any) => ({
-        name:    displayName(t.reviewer_email),
-        code:    t.review_outcome_code ?? '—',
-        comment: t.comment ?? '',
+      fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
+      discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
+      outcomeCode: outCode, markupSummary: markup,
+      reviewers: tasks.map((t:any) => ({
+        name: nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
+        code: t.review_outcome_code ?? '—', comment: t.comment ?? '',
       })),
     }
   })
 
-  const allCodes   = documents.map(d => d.outcomeCode)
-  const overallCode = worstCode(allCodes) || 'A1'
-  const vendorName  = (batch.vendors as any)?.name ?? 'Unknown Vendor'
-  const packageCode = (batch.packages as any)?.package_code ?? ''
-  const packageName = (batch.packages as any)?.package_name ?? ''
-
-  // ── Generate transmittal number ───────────────────────────────────────────
+  const overallCode    = worstCode(documents.map(d => d.outcomeCode)) || 'A1'
+  const vendorName     = (batch.vendors as any)?.name ?? 'Vendor'
+  const packageCode    = (batch.packages as any)?.package_code ?? ''
+  const packageName    = (batch.packages as any)?.package_name ?? ''
+  const controllerEmail = profile?.email ?? batch.controller_email ?? ''
+  const controllerName  = profile?.full_name ?? controllerEmail.split('@')[0]
   const transmittalNumber = await nextTransmittalNumber(db)
+  const transmittalDate   = format(new Date(), 'd MMMM yyyy')
 
   const transmittalData: TransmittalData = {
-    transmittalNumber,
-    vendorName,
-    packageCode,
-    packageName,
-    overallCode,
-    controllerEmail: profile?.email ?? batch.controller_email ?? '',
-    documents,
+    transmittalNumber, vendorName, packageCode, packageName,
+    overallCode, controllerEmail, controllerName, documents,
   }
 
-  // ── Build docx ────────────────────────────────────────────────────────────
-  let docxBuffer: Buffer
-  try {
-    docxBuffer = await buildTransmittalDocx(transmittalData)
-  } catch (e: any) {
-    console.error('DOCX generation failed:', e.message)
-    return NextResponse.json({ error: 'Failed to generate document: ' + e.message }, { status: 500 })
-  }
+  // Generate PDF
+  const pdfBuffer = await buildTransmittalPdf(transmittalData)
 
-  // ── Store transmittal record ──────────────────────────────────────────────
+  // Vendor portal URL — use env var or the batch source_site_url as fallback
+  const vendorPortalUrl = process.env.VENDOR_PORTAL_URL ?? (batch as any).source_site_url ?? 'your SharePoint vendor portal'
+
+  // Send email
+  const emailHtml = vendorTransmittalEmail({
+    vendorName, packageCode, packageName, transmittalNumber, transmittalDate,
+    overallCode, overallText: outcomeText(overallCode),
+    documents: documents.map(d => ({ fileName:d.fileName, docName:d.docName, outcomeCode:d.outcomeCode })),
+    vendorPortalUrl,
+    controllerName, controllerEmail,
+  })
+
+  await sendEmail({
+    to: toEmail,
+    cc: [controllerEmail, ...ccEmails].filter(Boolean),
+    subject: `Document Review Transmittal — ${transmittalNumber} — ${packageCode} ${packageName}`,
+    htmlBody: emailHtml,
+    attachments: [{ name: `${transmittalNumber}.pdf`, contentType: 'application/pdf', content: pdfBuffer }],
+  })
+
+  // Store transmittal record
   await db.from('transmittals').insert({
     transmittal_number: transmittalNumber,
-    batch_id:           batchId,
-    vendor_id:          batch.vendor_id,
-    package_id:         batch.package_id,
+    batch_id:    batchId,
+    vendor_id:   batch.vendor_id,
+    package_id:  batch.package_id,
     final_outcome_code: overallCode,
     final_outcome_text: outcomeText(overallCode),
-    generated_by:       profile?.email,
-    status:             'draft',
-  })
+    generated_by: profile?.email,
+    status: 'sent',
+  }).select()
 
-  await db.from('batches').update({ status: 'transmittal_generated', updated_at: new Date().toISOString() }).eq('id', batchId)
-
+  await db.from('batches').update({ status:'transmittal_generated', updated_at: new Date().toISOString() }).eq('id', batchId)
   await db.from('audit_events').insert({
-    entity_type: 'batch', entity_id: batchId,
-    event_type:  'transmittal_generated',
-    actor_email: profile?.email,
-    event_data:  { transmittalNumber, overallCode, documentCount: documents.length },
+    entity_type:'batch', entity_id:batchId, event_type:'transmittal_generated',
+    actor_email: controllerEmail,
+    event_data: { transmittalNumber, overallCode, toEmail, documentCount: documents.length },
   })
 
-  // ── Stream docx to client ─────────────────────────────────────────────────
-  const fileName = `${transmittalNumber}.docx`
-  return new Response(docxBuffer, {
-    headers: {
-      'Content-Type':        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Content-Length':      String(docxBuffer.length),
-    }
-  })
+  return NextResponse.json({ success: true, transmittalNumber, transmittalDate, toEmail, transmittalData })
 }
