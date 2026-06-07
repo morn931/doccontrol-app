@@ -18,7 +18,8 @@
     "date-fns": "^3.6.0",
     "papaparse": "^5.4.1",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^2.4.0"
+    "tailwind-merge": "^2.4.0",
+    "docx": "^9.5.0"
   },
   "devDependencies": {
     "typescript": "^5",

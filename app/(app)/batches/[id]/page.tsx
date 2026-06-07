@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, use } from 'react'
-import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle } from 'lucide-react'
+import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle, Download, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
@@ -51,9 +51,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [rejectReason, setRejectReason] = useState('')
   const [rejecting, setRejecting]   = useState(false)
   const [rejectError, setRejectError] = useState('')
-  const [editingDv, setEditingDv]   = useState<string | null>(null)
-  const [editForm, setEditForm]     = useState<any>({})
-  const [saving, setSaving]         = useState(false)
+  const [editingDv, setEditingDv]       = useState<string | null>(null)
+  const [editForm, setEditForm]         = useState<any>({})
+  const [saving, setSaving]             = useState(false)
+  const [generatingTransmittal, setGeneratingTransmittal] = useState(false)
+  const [transmittalError, setTransmittalError]           = useState('')
 
   useEffect(() => {
     loadBatch()
@@ -84,6 +86,30 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     if (!res.ok) { setRejectError(data.error ?? 'Failed'); setRejecting(false) }
     else { setShowReject(false); setRejectReason(''); loadBatch() }
     setRejecting(false)
+  }
+
+  async function handleGenerateTransmittal() {
+    setGeneratingTransmittal(true)
+    setTransmittalError('')
+    try {
+      const res = await fetch(`/api/batches/${id}/generate-transmittal`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json()
+        setTransmittalError(err.error ?? 'Failed to generate transmittal')
+        return
+      }
+      // Trigger download
+      const blob = await res.blob()
+      const cd   = res.headers.get('Content-Disposition') ?? ''
+      const name = cd.match(/filename="?([^"]+)"?/)?.[1] ?? 'transmittal.docx'
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url; a.download = name; a.click()
+      URL.revokeObjectURL(url)
+      loadBatch()
+    } finally {
+      setGeneratingTransmittal(false)
+    }
   }
 
   async function handleSaveMetadata(dvId: string) {
@@ -182,6 +208,21 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               <Link href={`/batches/${id}/assign`} className="btn-primary text-sm">
                 <Users className="h-4 w-4" /> Assign Reviewers
               </Link>
+            )}
+            {['review_complete','transmittal_generated'].includes(batch.status) && (
+              <button
+                onClick={handleGenerateTransmittal}
+                disabled={generatingTransmittal}
+                className="btn-primary text-sm flex items-center gap-2 justify-center"
+              >
+                {generatingTransmittal
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+                  : <><Download className="h-4 w-4" /> Generate Transmittal</>
+                }
+              </button>
+            )}
+            {transmittalError && (
+              <p className="text-xs text-red-600 max-w-[200px]">{transmittalError}</p>
             )}
           </div>
         </div>
