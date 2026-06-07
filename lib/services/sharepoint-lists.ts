@@ -35,7 +35,9 @@ async function resolveSpUserLookupId(email: string): Promise<number | null> {
   try {
     const token = await getSharePointToken()
     const siteBase = DOCCONTROL_SITE.replace(/\/$/, '')
-    const url = `${siteBase}/_api/web/siteusers?$filter=Email eq '${encodeURIComponent(email)}'&$select=Id,Email`
+    // Do NOT encodeURIComponent the email inside the OData filter string —
+    // that would turn @ into %40 which SharePoint treats as a literal string.
+    const url = `${siteBase}/_api/web/siteusers?$filter=Email eq '${email}'&$select=Id,Email`
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
