@@ -21,6 +21,40 @@ async function getDocControlSiteId(): Promise<string> {
   return _siteId
 }
 
+/**
+ * Resolve an email address to the SharePoint User Information List item ID.
+ * This integer ID is required when writing to a Person/Group field via Graph API
+ * (field must be set as `ApproverLookupId`, not `Approver`).
+ * Returns null if the user is not found in the site's user list.
+ */
+const _userIdCache: Record<string, number> = {}
+async function resolveSpUserLookupId(siteId: string, email: string): Promise<number | null> {
+  const key = email.toLowerCase()
+  if (_userIdCache[key]) return _userIdCache[key]
+  try {
+    const res = await graphFetch(
+      `/sites/${siteId}/lists/User%20Information%20List/items?$expand=fields($select=EMail)&$top=999`
+    )
+    if (!res.ok) {
+      console.warn('User Information List query failed:', res.status, await res.text())
+      return null
+    }
+    const data = await res.json()
+    for (const item of data.value ?? []) {
+      if (item.fields?.EMail?.toLowerCase() === key) {
+        const id = Number(item.id)
+        _userIdCache[key] = id
+        return id
+      }
+    }
+    console.warn(`SP user not found in User Information List: ${email}`)
+    return null
+  } catch (e: any) {
+    console.error('resolveSpUserLookupId error:', e.message)
+    return null
+  }
+}
+
 // ─── CREATE: one Document Approval List row per reviewer per document ─────────
 export interface ApprovalListRowData {
   fileName:       string   // document file name → Title
@@ -43,18 +77,26 @@ export async function createApprovalListRow(data: ApprovalListRowData): Promise<
   try {
     const siteId = await getDocControlSiteId()
 
-    // Only write fields we know are safe (text, Yes/No, Number, Date)
-    // Skip Choice fields (ApprovalStatus) and Person/Group fields (Approver)
-    // to avoid type mismatch errors
+    // Resolve the reviewer email to a SharePoint user lookup ID so the
+    // Person/Group `Approver` column is populated (plain email won't work there).
+    const approverLookupId = await resolveSpUserLookupId(siteId, data.approverEmail)
+
     const fields: Record<string, any> = {
       Title:           data.fileName,
-      ApproverEmail:   data.approverEmail,
+      ApproverEmail:   data.approverEmail,   // plain-text backup field
       SequenceNumber:  data.sequenceNumber,
       BatchID:         data.batchGuid,
       DocUniqueId:     data.docUniqueId,
       DocUrl:          data.docUrl,
       ReviewComplete:  false,
       TriggerNext:     false,
+    }
+
+    // Set the Person/Group field only if we resolved the user ID
+    if (approverLookupId !== null) {
+      fields.ApproverLookupId = approverLookupId
+    } else {
+      console.warn(`Could not resolve SP user for ${data.approverEmail} — Approver column will be empty`)
     }
 
     // Optional fields — only set if we have values
