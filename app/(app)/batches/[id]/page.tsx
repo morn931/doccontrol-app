@@ -54,6 +54,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
   const [saving, setSaving]             = useState(false)
+  const [transmittalPreview, setTransmittalPreview]       = useState<any>(null)  // inline preview (before send)
+  const [transmittalSent, setTransmittalSent]             = useState<any>(null)  // confirmed after send
+  const [generatingPreview, setGeneratingPreview]         = useState(false)
   const [showTransmittalModal, setShowTransmittalModal]   = useState(false)
   const [toEmail, setToEmail]                             = useState('')
   const [ccEmails, setCcEmails]                           = useState<string[]>([])
@@ -61,7 +64,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [pastEmails, setPastEmails]                       = useState<string[]>([])
   const [sending, setSending]                             = useState(false)
   const [transmittalError, setTransmittalError]           = useState('')
-  const [transmittalView, setTransmittalView]             = useState<any>(null)
 
   useEffect(() => {
     loadBatch()
@@ -94,32 +96,50 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     setRejecting(false)
   }
 
-  async function openTransmittalModal() {
+  async function handleGeneratePreview() {
+    setGeneratingPreview(true)
     setTransmittalError('')
-    setShowTransmittalModal(true)
-    const res = await fetch(`/api/batches/${id}/generate-transmittal`)
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/batches/${id}/generate-transmittal`)
       const data = await res.json()
+      if (!res.ok) { setTransmittalError(data.error ?? 'Failed to load transmittal'); return }
+      setTransmittalPreview(data.preview)
+      setTransmittalSent(null)
       setPastEmails(data.pastEmails ?? [])
       if (!ccEmails.length && data.defaultCc) setCcEmails([data.defaultCc])
+    } finally {
+      setGeneratingPreview(false)
     }
+  }
+
+  function openSendModal() {
+    setTransmittalError('')
+    setShowTransmittalModal(true)
   }
 
   async function handleSendTransmittal() {
     if (!toEmail.trim()) { setTransmittalError('Vendor email is required'); return }
     setSending(true); setTransmittalError('')
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 55_000) // 55s client timeout
     try {
       const res = await fetch(`/api/batches/${id}/generate-transmittal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toEmail: toEmail.trim(), ccEmails: ccEmails.filter(Boolean) }),
+        signal: controller.signal,
       })
       const data = await res.json()
-      if (!res.ok) { setTransmittalError(data.error ?? 'Failed'); return }
-      setTransmittalView(data)
+      if (!res.ok) { setTransmittalError(data.error ?? 'Failed to generate — check Vercel logs'); return }
+      setTransmittalSent(data)
+      setTransmittalPreview(null)
       setShowTransmittalModal(false)
       loadBatch()
+    } catch (e: any) {
+      if (e.name === 'AbortError') setTransmittalError('Timed out — try again. If this persists, contact support.')
+      else setTransmittalError(e.message ?? 'Unexpected error')
     } finally {
+      clearTimeout(timeout)
       setSending(false)
     }
   }
@@ -222,11 +242,20 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               </Link>
             )}
             {['review_complete','transmittal_generated'].includes(batch.status) && (
-              <button onClick={openTransmittalModal} className="btn-primary text-sm flex items-center gap-2 justify-center">
-                <Download className="h-4 w-4" />
-                {batch.status === 'transmittal_generated' ? 'Re-send Transmittal' : 'Generate Transmittal'}
+              <button
+                onClick={handleGeneratePreview}
+                disabled={generatingPreview}
+                className="btn-primary text-sm flex items-center gap-2 justify-center"
+              >
+                {generatingPreview
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Loading…</>
+                  : <><FileText className="h-4 w-4" />
+                    {batch.status === 'transmittal_generated' ? 'View / Re-send Transmittal' : 'Generate Transmittal'}
+                  </>
+                }
               </button>
             )}
+            {transmittalError && <p className="text-xs text-red-600 max-w-[200px]">{transmittalError}</p>}
           </div>
         </div>
 
@@ -478,60 +507,89 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* Inline transmittal view */}
-      {transmittalView && (
-        <div className="card">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center">
-                <Download className="h-4 w-4 text-teal-700" />
+      {/* Inline transmittal — preview or sent confirmation */}
+      {(transmittalPreview || transmittalSent) && (() => {
+        const isSent    = !!transmittalSent
+        const docs      = isSent ? transmittalSent.transmittalData?.documents : transmittalPreview?.documents
+        const header    = isSent ? transmittalSent.transmittalData : transmittalPreview
+        const codeColor = (c: string) =>
+          c === 'A1' ? 'bg-green-100 text-green-800' : c === 'D1' ? 'bg-blue-100 text-blue-800' :
+          c === 'B1' ? 'bg-yellow-100 text-yellow-800' : c === 'B2' ? 'bg-orange-100 text-orange-800' :
+          'bg-red-100 text-red-800'
+        return (
+          <div className="card">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSent ? 'bg-teal-100' : 'bg-blue-100'}`}>
+                  {isSent ? <Download className="h-4 w-4 text-teal-700" /> : <FileText className="h-4 w-4 text-blue-700" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-900">
+                      {isSent ? transmittalSent.transmittalNumber : 'Transmittal Preview'}
+                    </p>
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${codeColor(header?.overallCode)}`}>
+                      {header?.overallCode}
+                    </span>
+                    {isSent
+                      ? <span className="text-xs text-gray-400">Sent to {transmittalSent.toEmail} · {transmittalSent.transmittalDate}</span>
+                      : <span className="text-xs text-gray-400">{header?.vendorName} · {header?.packageCode}</span>
+                    }
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-gray-900">{transmittalView.transmittalNumber}</p>
-                <p className="text-xs text-gray-400">Sent to {transmittalView.toEmail} · {transmittalView.transmittalDate}</p>
+              <div className="flex items-center gap-2 shrink-0">
+                {!isSent && (
+                  <button onClick={openSendModal} className="btn-primary text-sm flex items-center gap-2">
+                    <Download className="h-4 w-4" /> Convert to PDF &amp; Send
+                  </button>
+                )}
+                <button onClick={() => { setTransmittalPreview(null); setTransmittalSent(null) }} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
-            <button onClick={() => setTransmittalView(null)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="px-6 py-4 space-y-4">
-            {transmittalView.transmittalData?.documents?.map((doc: any, i: number) => (
-              <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
-                <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
-                  <span className="font-mono text-sm font-semibold text-gray-800">{doc.fileName}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                    doc.outcomeCode === 'A1' ? 'bg-green-100 text-green-800' :
-                    doc.outcomeCode === 'D1' ? 'bg-blue-100 text-blue-800' :
-                    doc.outcomeCode === 'B1' ? 'bg-yellow-100 text-yellow-800' :
-                    doc.outcomeCode === 'B2' ? 'bg-orange-100 text-orange-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>{doc.outcomeCode}</span>
-                </div>
-                {doc.docName && <p className="px-4 pt-2 text-sm text-gray-700 font-medium">{doc.docName}</p>}
-                <div className="px-4 py-2 divide-y divide-gray-50">
-                  {doc.reviewers?.map((r: any, j: number) => (
-                    <div key={j} className="py-1.5 flex items-start gap-3 text-sm">
-                      <span className="font-medium text-gray-700 w-32 shrink-0">{r.name}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${
-                        r.code === 'A1' ? 'bg-green-100 text-green-800' :
-                        r.code === 'D1' ? 'bg-blue-100 text-blue-800' :
-                        r.code === 'B1' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-orange-100 text-orange-800'
-                      }`}>{r.code}</span>
-                      <span className="text-gray-500">{r.comment || '—'}</span>
+
+            {/* Document list */}
+            <div className="px-6 py-4 space-y-3">
+              {(docs ?? []).map((doc: any, i: number) => (
+                <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 bg-gray-50 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="font-mono text-sm font-semibold text-gray-800 block truncate">{doc.fileName}</span>
+                      {doc.docName && doc.docName !== doc.fileName && (
+                        <span className="text-xs text-gray-500">{doc.docName}</span>
+                      )}
                     </div>
-                  ))}
-                </div>
-                {doc.markupSummary && (
-                  <div className="px-4 pb-3">
-                    <p className="text-xs font-semibold text-blue-700 mb-1">AI Markup Summary</p>
-                    <p className="text-xs text-gray-600 whitespace-pre-line">{doc.markupSummary}</p>
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold shrink-0 ${codeColor(doc.outcomeCode)}`}>
+                      {doc.outcomeCode}
+                    </span>
                   </div>
-                )}
+                  <div className="px-4 py-2 divide-y divide-gray-50">
+                    {doc.reviewers?.map((r: any, j: number) => (
+                      <div key={j} className="py-1.5 flex items-start gap-3 text-sm">
+                        <span className="font-medium text-gray-700 w-28 shrink-0">{r.name}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${codeColor(r.code)}`}>{r.code}</span>
+                        <span className="text-gray-500 text-xs">{r.comment || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Re-send option after sent */}
+            {isSent && (
+              <div className="px-6 pb-4">
+                <button onClick={() => { setTransmittalSent(null); setTransmittalPreview(transmittalSent.transmittalData) }} className="btn-secondary text-sm flex items-center gap-2">
+                  <Download className="h-3.5 w-3.5" /> Re-send Transmittal
+                </button>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Review sequence */}
       {reviewTasks.length > 0 && (

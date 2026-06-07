@@ -1,6 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getMarkupSummary } from '@/lib/services/markup-extractor'
 import { sendEmail } from '@/lib/services/graph'
 import { vendorTransmittalEmail } from '@/lib/services/email-templates'
 import { OUTCOME_CODES } from '@/lib/utils/outcome-codes'
@@ -33,7 +32,8 @@ async function nextTransmittalNumber(db: any): Promise<string> {
 // ─── PDF builder (pdfmake with built-in Helvetica, no font files needed) ─────
 
 async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
-  const PdfPrinter = (await import('pdfmake')).default
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const PdfPrinter = require('pdfmake') as any
   const printer = new PdfPrinter({
     Helvetica: { normal:'Helvetica', bold:'Helvetica-Bold', italics:'Helvetica-Oblique', bolditalics:'Helvetica-BoldOblique' }
   })
@@ -206,7 +206,7 @@ export interface TransmittalData {
   documents:         TransmittalDocument[]
 }
 
-// ─── GET — email suggestions for this vendor ──────────────────────────────────
+// ─── GET — build transmittal preview (no PDF, no email) + email suggestions ───
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -215,18 +215,70 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id: batchId } = await params
   const db = createServiceClient()
 
-  const { data: batch } = await db.from('batches').select('vendor_id, vendor_email, vendors(name)').eq('id', batchId).single()
-  if (!batch) return NextResponse.json({ pastEmails: [] })
+  const { data: batch } = await db.from('batches')
+    .select(`id, status, target_library, controller_email, vendor_id, package_id, vendor_email,
+             vendors(name), packages(package_name, package_code),
+             document_versions(id, file_name, doc_name, doc_unique_id, revision, discipline, document_type, topic)`)
+    .eq('id', batchId).single()
 
+  if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
+
+  const docVersions = (batch.document_versions as any[]) ?? []
+
+  const { data: allTasks } = await db.from('review_tasks')
+    .select('document_version_id, reviewer_email, review_outcome_code, comment, sequence_number')
+    .eq('batch_id', batchId).eq('status', 'completed').order('sequence_number', { ascending: true })
+
+  const reviewerEmails = [...new Set((allTasks ?? []).map((t: any) => t.reviewer_email as string))]
+  const { data: reviewerUsers } = await db.from('users').select('email, full_name').in('email', reviewerEmails)
+  const nameMap: Record<string, string> = {}
+  for (const u of reviewerUsers ?? []) { if (u.email) nameMap[u.email] = u.full_name ?? u.email.split('@')[0] }
+
+  const tasksByDv: Record<string, any[]> = {}
+  for (const t of allTasks ?? []) {
+    if (!tasksByDv[t.document_version_id]) tasksByDv[t.document_version_id] = []
+    tasksByDv[t.document_version_id].push(t)
+  }
+
+  const documents: TransmittalDocument[] = docVersions.map((dv: any) => {
+    const tasks   = tasksByDv[dv.id] ?? []
+    const codes   = tasks.map((t: any) => t.review_outcome_code).filter(Boolean)
+    const outCode = worstCode(codes) || 'A1'
+    return {
+      fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
+      discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
+      outcomeCode: outCode, markupSummary: '',
+      reviewers: tasks.map((t: any) => ({
+        name:    nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
+        code:    t.review_outcome_code ?? '—',
+        comment: t.comment ?? '',
+      })),
+    }
+  })
+
+  const overallCode = worstCode(documents.map(d => d.outcomeCode)) || 'A1'
+
+  // Email suggestions for the send modal
   const { data: pastTransmittals } = await db.from('transmittals')
-    .select('vendor_email_to').eq('vendor_id', batch.vendor_id).not('vendor_email_to','is',null).order('generated_at',{ascending:false}).limit(20)
+    .select('vendor_email_to').eq('vendor_id', batch.vendor_id)
+    .not('vendor_email_to', 'is', null).order('generated_at', { ascending: false }).limit(20)
 
-  const emails = [...new Set([
-    batch.vendor_email,
-    ...((pastTransmittals ?? []).map((t:any) => t.vendor_email_to)),
+  const pastEmails = [...new Set([
+    (batch as any).vendor_email,
+    ...((pastTransmittals ?? []).map((t: any) => t.vendor_email_to)),
   ].filter(Boolean) as string[])]
 
-  return NextResponse.json({ pastEmails: emails, defaultCc: process.env.CONTROLLER_EMAIL ?? '' })
+  return NextResponse.json({
+    preview: {
+      vendorName:   (batch.vendors as any)?.name ?? '',
+      packageCode:  (batch.packages as any)?.package_code ?? '',
+      packageName:  (batch.packages as any)?.package_name ?? '',
+      overallCode,
+      documents,
+    },
+    pastEmails,
+    defaultCc: process.env.CONTROLLER_EMAIL ?? '',
+  })
 }
 
 // ─── POST — generate PDF, send email, return transmittal data ─────────────────
@@ -272,13 +324,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const nameMap: Record<string,string> = {}
   for (const u of reviewerUsers ?? []) { if (u.email) nameMap[u.email] = u.full_name ?? u.email.split('@')[0] }
 
-  // Run markup extraction in parallel (15s timeout per doc)
-  const markupResults = await Promise.allSettled(
-    docVersions.map((dv:any) => Promise.race([
-      getMarkupSummary({ centralFileUrl:dv.central_file_url, fileName:dv.file_name, docName:dv.doc_name, docUniqueId:dv.doc_unique_id, libraryName:(batch as any).target_library }),
-      new Promise<string>(r => setTimeout(() => r(''), 15_000)),
-    ]))
-  )
+  // Note: AI markup extraction is skipped here to keep within Vercel function timeout.
+  // Markup summaries stored on review_tasks.markup_summary are included if available.
 
   const tasksByDv: Record<string, any[]> = {}
   for (const t of allTasks ?? []) {
@@ -286,7 +333,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     tasksByDv[t.document_version_id].push(t)
   }
 
-  const documents: TransmittalDocument[] = docVersions.map((dv:any, i:number) => {
+  const documents: TransmittalDocument[] = docVersions.map((dv:any) => {
     const tasks    = tasksByDv[dv.id] ?? []
     const codes    = tasks.map((t:any) => t.review_outcome_code).filter(Boolean)
     const outCode  = worstCode(codes) || 'A1'
@@ -294,7 +341,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return {
       fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
       discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
-      outcomeCode: outCode, markupSummary: markup,
+      outcomeCode: outCode, markupSummary: '',
       reviewers: tasks.map((t:any) => ({
         name: nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
         code: t.review_outcome_code ?? '—', comment: t.comment ?? '',
