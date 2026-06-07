@@ -38,7 +38,7 @@ export async function getGraphToken(): Promise<string> {
   return _tokenCache.token
 }
 
-async function graphFetch(path: string, options: RequestInit = {}): Promise<Response> {
+export async function graphFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getGraphToken()
   return fetch(`https://graph.microsoft.com/v1.0${path}`, {
     ...options,
