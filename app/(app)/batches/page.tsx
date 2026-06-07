@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import { Inbox, Plus, Search } from 'lucide-react'
+import { Inbox } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow, format } from 'date-fns'
 import { BATCH_STATUS_LABELS, BATCH_STATUS_COLORS } from '@/lib/utils/batch-status'
@@ -7,36 +7,112 @@ import type { BatchStatus } from '@/lib/types/database'
 
 interface SearchParams { status?: string; q?: string }
 
+// ─── Reviewer chain helpers ────────────────────────────────────────────────
+
+function displayName(email: string, nameMap: Record<string, string>): string {
+  const full = nameMap[email]
+  if (full) return full.split(' ')[0]            // first name only
+  return email.split('@')[0]                      // email prefix fallback
+}
+
+function joinNames(names: string[]): string {
+  if (names.length === 0) return ''
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+interface ReviewChain {
+  active:    string[]   // currently reviewing
+  done:      string[]   // fully completed all their tasks
+  pending:   string[]   // not yet started (all tasks pending)
+  isFinal:   boolean    // active reviewer is the last in the chain
+}
+
+function getReviewChain(batch: any, nameMap: Record<string, string>): ReviewChain | null {
+  const tasks: any[] = batch.review_tasks ?? []
+  if (!tasks.length) return null
+
+  // Group by sequence_number, collect unique emails and all statuses
+  const bySeq: Record<number, { emails: Set<string>; statuses: string[] }> = {}
+  for (const t of tasks) {
+    const s = t.sequence_number as number
+    if (!bySeq[s]) bySeq[s] = { emails: new Set(), statuses: [] }
+    bySeq[s].emails.add(t.reviewer_email as string)
+    bySeq[s].statuses.push(t.status as string)
+  }
+
+  const seqs = Object.keys(bySeq).map(Number).sort((a, b) => a - b)
+
+  const active:  string[] = []
+  const done:    string[] = []
+  const pending: string[] = []
+
+  for (const seq of seqs) {
+    const { emails, statuses } = bySeq[seq]
+    const names = [...emails].map(e => displayName(e, nameMap))
+    const allDone   = statuses.every(s => s === 'completed')
+    const hasActive = statuses.some(s => ['sent', 'opened', 'in_progress'].includes(s))
+    const allPending = statuses.every(s => s === 'pending')
+
+    if (allDone)        done.push(...names)
+    else if (hasActive) active.push(...names)
+    else if (allPending) pending.push(...names)
+    else                active.push(...names)   // mixed: still in flight
+  }
+
+  // isFinal: no pending reviewers left after the current active ones
+  const isFinal = pending.length === 0
+
+  return { active, done, pending, isFinal }
+}
+
+// ─── Context rendering ─────────────────────────────────────────────────────
+
+function BatchReviewChain({ chain }: { chain: ReviewChain }) {
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs">
+      {chain.active.length > 0 && (
+        <span className="text-orange-600 font-medium">
+          With {joinNames(chain.active)}
+        </span>
+      )}
+      {chain.done.length > 0 && (
+        <span className="text-green-600">
+          ✓ {joinNames(chain.done)} reviewed
+        </span>
+      )}
+      {chain.pending.length > 0 ? (
+        <span className="text-gray-400">
+          → {joinNames(chain.pending)} still to review
+        </span>
+      ) : chain.active.length > 0 && (
+        <span className="text-gray-400 italic">
+          No more reviews after this
+        </span>
+      )}
+    </div>
+  )
+}
+
 function getBatchContextLine(batch: any): string | null {
   const status = batch.status as BatchStatus
-  if (status === 'intake_received' || status === 'metadata_pending') {
+  if (status === 'intake_received' || status === 'metadata_pending')
     return 'Document control action needed'
-  }
-  if (status === 'ready_for_reviewer_assignment') {
+  if (status === 'ready_for_reviewer_assignment')
     return 'Awaiting reviewer assignment'
-  }
-  if (status === 'review_ready_to_start') {
+  if (status === 'review_ready_to_start')
     return 'Awaiting document controller to start review'
-  }
-  if (status === 'review_in_progress') {
-    const tasks: any[] = batch.review_tasks ?? []
-    const active = tasks.filter((t: any) => ['sent', 'opened', 'in_progress'].includes(t.status))
-    if (!active.length) return null
-    const minSeq = Math.min(...active.map((t: any) => t.sequence_number))
-    const names = [...new Set(
-      active
-        .filter((t: any) => t.sequence_number === minSeq)
-        .map((t: any) => (t.reviewer_email as string).split('@')[0])
-    )] as string[]
-    if (names.length === 1) return `Being reviewed by ${names[0]}`
-    if (names.length === 2) return `Being reviewed by ${names[0]} and ${names[1]}`
-    return `Being reviewed by ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-  }
-  if (status === 'review_complete') return 'Ready to generate transmittal'
-  if (status === 'transmittal_generated') return 'Transmittal generated — awaiting return'
-  if (status === 'returned_to_vendor') return 'Returned to vendor'
+  if (status === 'review_complete')
+    return 'Ready to generate transmittal'
+  if (status === 'transmittal_generated')
+    return 'Transmittal generated — awaiting return'
+  if (status === 'returned_to_vendor')
+    return 'Returned to vendor'
   return null
 }
+
+// ─── Data fetching ─────────────────────────────────────────────────────────
 
 async function getBatches(params: SearchParams) {
   const db = createServiceClient()
@@ -74,10 +150,28 @@ const FILTER_TABS = [
   { key: 'rejected',  label: 'Rejected' },
 ]
 
+// ─── Page ──────────────────────────────────────────────────────────────────
+
 export default async function BatchesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   const activeTab = params.status ?? 'all'
   const { batches, error } = await getBatches(params)
+
+  // Fetch display names for all reviewer emails seen in this page's batches
+  const allEmails = [...new Set(
+    batches.flatMap((b: any) => (b.review_tasks ?? []).map((t: any) => t.reviewer_email as string))
+  )]
+  const nameMap: Record<string, string> = {}
+  if (allEmails.length) {
+    const db = createServiceClient()
+    const { data: users } = await db
+      .from('users')
+      .select('email, full_name')
+      .in('email', allEmails)
+    for (const u of users ?? []) {
+      if (u.email && u.full_name) nameMap[u.email] = u.full_name
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -118,37 +212,44 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             </Link>
           </div>
         ) : (
-          batches.map((batch: any) => (
-            <Link key={batch.id} href={`/batches/${batch.id}`}
-              className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-gray-900 truncate">
-                    {batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package'}
-                  </p>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${BATCH_STATUS_COLORS[batch.status as BatchStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {BATCH_STATUS_LABELS[batch.status as BatchStatus] ?? batch.status}
-                  </span>
+          batches.map((batch: any) => {
+            const isInReview = (batch.status as BatchStatus) === 'review_in_progress'
+            const chain = isInReview ? getReviewChain(batch, nameMap) : null
+            const contextLine = getBatchContextLine(batch)
+
+            return (
+              <Link key={batch.id} href={`/batches/${batch.id}`}
+                className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-900 truncate">
+                      {batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package'}
+                    </p>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${BATCH_STATUS_COLORS[batch.status as BatchStatus] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {BATCH_STATUS_LABELS[batch.status as BatchStatus] ?? batch.status}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-gray-500">
+                    <span>{batch.vendors?.name ?? 'Unknown Vendor'}</span>
+                    <span>· {batch.file_count} file{batch.file_count !== 1 ? 's' : ''}</span>
+                    <span>· Received {formatDistanceToNow(new Date(batch.received_at), { addSuffix: true })}</span>
+                    {batch.vendor_email && <span>· {batch.vendor_email}</span>}
+                  </div>
+                  {chain && <BatchReviewChain chain={chain} />}
+                  {!chain && contextLine && (
+                    <p className="text-xs text-indigo-500 mt-1">{contextLine}</p>
+                  )}
+                  {batch.comments && (
+                    <p className="text-xs text-gray-400 mt-1 truncate">{batch.comments}</p>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-gray-500">
-                  <span>{batch.vendors?.name ?? 'Unknown Vendor'}</span>
-                  <span>· {batch.file_count} file{batch.file_count !== 1 ? 's' : ''}</span>
-                  <span>· Received {formatDistanceToNow(new Date(batch.received_at), { addSuffix: true })}</span>
-                  {batch.vendor_email && <span>· {batch.vendor_email}</span>}
+                <div className="text-xs font-mono text-gray-400 shrink-0 text-right">
+                  <div>{format(new Date(batch.received_at), 'd MMM yyyy')}</div>
+                  <div className="text-gray-300">{batch.batch_guid?.slice(0,8)}…</div>
                 </div>
-                {getBatchContextLine(batch) && (
-                  <p className="text-xs text-indigo-500 mt-1">{getBatchContextLine(batch)}</p>
-                )}
-                {batch.comments && (
-                  <p className="text-xs text-gray-400 mt-1 truncate">{batch.comments}</p>
-                )}
-              </div>
-              <div className="text-xs font-mono text-gray-400 shrink-0 text-right">
-                <div>{format(new Date(batch.received_at), 'd MMM yyyy')}</div>
-                <div className="text-gray-300">{batch.batch_guid?.slice(0,8)}…</div>
-              </div>
-            </Link>
-          ))
+              </Link>
+            )
+          })
         )}
       </div>
     </div>
