@@ -333,18 +333,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     tasksByDv[t.document_version_id].push(t)
   }
 
-  const documents: TransmittalDocument[] = docVersions.map((dv:any) => {
-    const tasks    = tasksByDv[dv.id] ?? []
-    const codes    = tasks.map((t:any) => t.review_outcome_code).filter(Boolean)
-    const outCode  = worstCode(codes) || 'A1'
-    const markup   = markupResults[i]?.status === 'fulfilled' ? (markupResults[i] as any).value as string : ''
+  const documents: TransmittalDocument[] = docVersions.map((dv: any) => {
+    const tasks   = tasksByDv[dv.id] ?? []
+    const codes   = tasks.map((t: any) => t.review_outcome_code).filter(Boolean)
+    const outCode = worstCode(codes) || 'A1'
     return {
       fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
       discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
       outcomeCode: outCode, markupSummary: '',
-      reviewers: tasks.map((t:any) => ({
-        name: nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
-        code: t.review_outcome_code ?? '—', comment: t.comment ?? '',
+      reviewers: tasks.map((t: any) => ({
+        name:    nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
+        code:    t.review_outcome_code ?? '—',
+        comment: t.comment ?? '',
       })),
     }
   })
@@ -364,7 +364,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   // Generate PDF
-  const pdfBuffer = await buildTransmittalPdf(transmittalData)
+  let pdfBuffer: Buffer
+  try {
+    pdfBuffer = await buildTransmittalPdf(transmittalData)
+  } catch (e: any) {
+    console.error('PDF generation error:', e)
+    return NextResponse.json({ error: `PDF generation failed: ${e.message}` }, { status: 500 })
+  }
 
   // Vendor portal URL — use env var or the batch source_site_url as fallback
   const vendorPortalUrl = process.env.VENDOR_PORTAL_URL ?? (batch as any).source_site_url ?? 'your SharePoint vendor portal'
