@@ -103,13 +103,6 @@ export async function createApprovalListRow(data: ApprovalListRowData): Promise<
       TriggerNext:     false,
     }
 
-    // Set the Person/Group field only if we resolved the user ID
-    if (approverLookupId !== null) {
-      fields.ApproverLookupId = approverLookupId
-    } else {
-      console.warn(`Could not resolve SP user for ${data.approverEmail} — Approver column will be empty`)
-    }
-
     // Optional fields — only set if we have values
     if (data.libraryName) fields.LibraryName  = data.libraryName.replace(/^\//, '') // strip leading slash
     if (data.vendorSite)  fields.VendorSite   = data.vendorSite
@@ -120,15 +113,39 @@ export async function createApprovalListRow(data: ApprovalListRowData): Promise<
     if (data.topic)       fields.Topic        = data.topic.slice(0, 255)
     if (data.aiText)      fields.AIText       = data.aiText.slice(0, 3000)
 
-    const res = await graphFetch(
+    // ── Step 1: Create the row ────────────────────────────────────────────────
+    const createRes = await graphFetch(
       `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items`,
       { method: 'POST', body: JSON.stringify({ fields }) }
     )
 
-    if (!res.ok) {
-      const errText = await res.text()
-      console.error('DAL createRow failed:', res.status, errText)
-      return { ok: false, error: `${res.status}: ${errText.slice(0, 200)}` }
+    if (!createRes.ok) {
+      const errText = await createRes.text()
+      console.error('DAL createRow failed:', createRes.status, errText)
+      return { ok: false, error: `${createRes.status}: ${errText.slice(0, 200)}` }
+    }
+
+    const created = await createRes.json()
+    const newItemId = created.id
+
+    // ── Step 2: PATCH the Person/Group Approver field ─────────────────────────
+    // Graph API does not reliably set Person/Group fields in a POST body.
+    // A separate PATCH immediately after creation is confirmed working
+    // (ApproverLookupId=<UIL integer id>, HTTP 200 — verified in test script v2).
+    if (approverLookupId !== null && newItemId) {
+      const patchRes = await graphFetch(
+        `/sites/${siteId}/lists/${APPROVAL_LIST_ID}/items/${newItemId}/fields`,
+        { method: 'PATCH', body: JSON.stringify({ ApproverLookupId: approverLookupId }) }
+      )
+      if (!patchRes.ok) {
+        const patchErr = await patchRes.text()
+        console.warn(`DAL Approver PATCH failed for item ${newItemId}:`, patchRes.status, patchErr.slice(0, 200))
+        // Non-fatal — row exists, only Approver display name is missing
+      } else {
+        console.log(`DAL Approver set: item=${newItemId} email=${data.approverEmail} lookupId=${approverLookupId}`)
+      }
+    } else {
+      console.warn(`Approver not set for ${data.approverEmail}: lookupId=${approverLookupId} itemId=${newItemId}`)
     }
 
     return { ok: true }
