@@ -206,6 +206,7 @@ export async function markApprovalListRowComplete(
 
     const fields: Record<string, any> = {
       ReviewComplete:        true,
+      ApprovalStatus:        'Approved',  // Choice field — reviewer completed their review
       ReviewOutcomeCode:     data.reviewOutcomeCode,
       ReviewOutcomeText:     data.reviewOutcomeCode,
       Comment:               data.comment ?? '',
