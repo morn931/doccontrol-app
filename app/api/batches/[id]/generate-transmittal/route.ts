@@ -29,156 +29,189 @@ async function nextTransmittalNumber(db: any): Promise<string> {
   return `PPE-TRN-${year}-${String(next).padStart(5,'0')}`
 }
 
-// ─── PDF builder (pdfmake with built-in Helvetica, no font files needed) ─────
+// ─── Outcome colour helpers ───────────────────────────────────────────────────
+
+function oBg(code: string) {
+  return ({ A1:'#E8F5E9',D1:'#E3F2FD',B1:'#FFF9C4',B2:'#FFE0B2',C1:'#FFCDD2',Q1:'#FFCDD2',V1:'#EEEEEE',S1:'#EEEEEE' } as any)[code] ?? '#F2F4F6'
+}
+function oFg(code: string) {
+  return ({ A1:'#1B5E20',D1:'#0D47A1',B1:'#F57F17',B2:'#BF360C',C1:'#B71C1C',Q1:'#B71C1C',V1:'#424242',S1:'#424242' } as any)[code] ?? '#111111'
+}
+
+// ─── PDF builder using PDFKit (no font files, works in Vercel serverless) ─────
 
 async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const PdfPrinter = require('pdfmake') as any
-  const printer = new PdfPrinter({
-    Helvetica: { normal:'Helvetica', bold:'Helvetica-Bold', italics:'Helvetica-Oblique', bolditalics:'Helvetica-BoldOblique' }
-  })
+  const PDFDoc = require('pdfkit') as any
 
-  const BLUE = '#003087', LGRAY = '#F2F4F6', MGRAY = '#CCCCCC', WHITE = '#FFFFFF'
-  const OUTCOME_BG: Record<string,string> = { A1:'#E8F5E9',D1:'#E3F2FD',B1:'#FFF9C4',B2:'#FFE0B2',C1:'#FFCDD2',Q1:'#FFCDD2',V1:'#EEEEEE',S1:'#EEEEEE' }
-  const OUTCOME_FG: Record<string,string> = { A1:'#1B5E20',D1:'#0D47A1',B1:'#F57F17',B2:'#BF360C',C1:'#B71C1C',Q1:'#B71C1C',V1:'#424242',S1:'#424242' }
-
-  function hdr(text: string) {
-    return { text, font:'Helvetica', fontSize:8, bold:true, color:WHITE, fillColor:BLUE, margin:[4,4,4,4] }
-  }
-  function cell(text: string, opts?: { bold?:boolean; bg?:string; fg?:string; align?:string }) {
-    return { text: text ?? '', font:'Helvetica', fontSize:8, bold:opts?.bold, color:opts?.fg??'#111111',
-             fillColor:opts?.bg, alignment:(opts?.align??'left') as any, margin:[4,3,4,3] }
-  }
-
-  const docContent: any[] = [
-    // ── Title block
-    { canvas: [{ type:'rect', x:0, y:0, w:515, h:50, color:BLUE }] },
-    { absolutePosition:{ x:40, y:20 }, text:'PPE TECH  ·  Document Control', font:'Helvetica', fontSize:14, bold:true, color:WHITE },
-    { absolutePosition:{ x:40, y:37 }, text:'DOCUMENT TRANSMITTAL', font:'Helvetica', fontSize:9, color:'#AACCEE' },
-    { text: ' ', margin:[0,55,0,0] },
-
-    // ── Info table
-    { margin:[0,0,0,12],
-      table:{ widths:[120,'*'], body:[
-        [{ text:'TRANSMITTAL INFORMATION', colSpan:2, bold:true, font:'Helvetica', fontSize:8, color:WHITE, fillColor:BLUE, margin:[4,4,4,4] },{}],
-        [cell('Transmittal Number',{bold:true,bg:LGRAY}), cell(data.transmittalNumber,{bold:true})],
-        [cell('Date',{bold:true,bg:LGRAY}),               cell(format(new Date(),'d MMMM yyyy'))],
-        [cell('Vendor',{bold:true,bg:LGRAY}),              cell(data.vendorName)],
-        [cell('Project Package',{bold:true,bg:LGRAY}),     cell(`${data.packageCode}  —  ${data.packageName}`)],
-        [cell('No. of Documents',{bold:true,bg:LGRAY}),    cell(String(data.documents.length))],
-        [cell('Overall Outcome',{bold:true,bg:LGRAY}),     cell(`${data.overallCode}  —  ${outcomeText(data.overallCode)}`,{bold:true,fg:OUTCOME_FG[data.overallCode]??'#111'})],
-        [cell('Prepared By',{bold:true,bg:LGRAY}),         cell(data.controllerEmail)],
-      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
-    },
-
-    // ── Document summary table
-    { margin:[0,0,0,0],
-      table:{ widths:[16,130,'*',22,28], body:[
-        [hdr('#'),hdr('Document Number'),hdr('Document Title'),hdr('Rev'),hdr('Code')],
-        ...data.documents.map((d,i)=>[
-          cell(String(i+1),{bg:i%2?WHITE:LGRAY,align:'center'}),
-          cell(d.fileName,  {bg:i%2?WHITE:LGRAY}),
-          cell(d.docName||d.fileName,{bg:i%2?WHITE:LGRAY}),
-          cell(d.revision||'0',{bg:i%2?WHITE:LGRAY,align:'center'}),
-          cell(d.outcomeCode,{bg:OUTCOME_BG[d.outcomeCode]??LGRAY,fg:OUTCOME_FG[d.outcomeCode]??'#111',bold:true,align:'center'}),
-        ])
-      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
-    },
-  ]
-
-  // ── Per-document sections
-  for (let i = 0; i < data.documents.length; i++) {
-    const doc = data.documents[i]
-    docContent.push({ text:'', pageBreak:'before' })
-    docContent.push({
-      margin:[0,0,0,8],
-      table:{ widths:['*'], body:[[
-        { text:`DOCUMENT ${i+1} OF ${data.documents.length}  ·  ${doc.outcomeCode}: ${outcomeText(doc.outcomeCode)}`,
-          font:'Helvetica', fontSize:9, bold:true, color:WHITE, fillColor:BLUE, margin:[6,5,6,5] }
-      ]]}, layout:'noBorders'
-    })
-    docContent.push({
-      margin:[0,0,0,8],
-      table:{ widths:[100,'*'], body:[
-        [cell('Document Number',{bold:true,bg:LGRAY}), cell(doc.fileName)],
-        [cell('Document Title',{bold:true,bg:LGRAY}),  cell(doc.docName||doc.fileName)],
-        [cell('Revision',{bold:true,bg:LGRAY}),         cell(doc.revision||'0')],
-        [cell('Discipline',{bold:true,bg:LGRAY}),        cell([doc.discipline,doc.documentType,doc.topic].filter(Boolean).join('  ·  ')||'—')],
-        [cell('Overall Outcome',{bold:true,bg:LGRAY}),   cell(`${doc.outcomeCode}  —  ${outcomeText(doc.outcomeCode)}`,{bold:true,fg:OUTCOME_FG[doc.outcomeCode]??'#111'})],
-      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
-    })
-    // Reviewer outcomes
-    docContent.push({ text:'REVIEWER OUTCOMES', font:'Helvetica', fontSize:8, bold:true, color:BLUE, margin:[0,0,0,4] })
-    docContent.push({
-      margin:[0,0,0,8],
-      table:{ widths:[100,24,130,'*'], body:[
-        [hdr('Reviewer'),hdr('Code'),hdr('Description'),hdr('Comment')],
-        ...doc.reviewers.map((r,ri)=>[
-          cell(r.name,   {bg:ri%2?WHITE:LGRAY}),
-          cell(r.code,   {bg:OUTCOME_BG[r.code]??LGRAY,fg:OUTCOME_FG[r.code]??'#111',bold:true,align:'center'}),
-          cell(outcomeText(r.code),{bg:ri%2?WHITE:LGRAY,fg:'#555'}),
-          cell(r.comment||'—',{bg:ri%2?WHITE:LGRAY}),
-        ])
-      ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
-    })
-    // AI markup summary
-    if (doc.markupSummary) {
-      docContent.push({ text:'MARKUP SUMMARY (AI-GENERATED)', font:'Helvetica', fontSize:8, bold:true, color:BLUE, margin:[0,0,0,4] })
-      for (const line of doc.markupSummary.split('\n').filter(l=>l.trim())) {
-        docContent.push({ text:line.trim(), font:'Helvetica', fontSize:8, margin:[0,1,0,1] })
-      }
-    }
-  }
-
-  // ── Acknowledgement
-  docContent.push({ text:'', pageBreak:'before' })
-  docContent.push({
-    margin:[0,0,0,8],
-    table:{ widths:['*'], body:[[
-      { text:'ACKNOWLEDGEMENT OF RECEIPT', font:'Helvetica', fontSize:9, bold:true, color:WHITE, fillColor:BLUE, margin:[6,5,6,5] }
-    ]]}, layout:'noBorders'
-  })
-  docContent.push({
-    text:'This transmittal confirms that the above-referenced documents have been reviewed in accordance with PPE Tech\'s document control procedures. Please action as required based on the review codes provided.',
-    font:'Helvetica', fontSize:8, margin:[0,0,0,12]
-  })
-  docContent.push({
-    margin:[0,0,0,16],
-    table:{ widths:[80,130,130,'*'], body:[
-      [hdr('For'),hdr('Name and Surname'),hdr('Signature'),hdr('Date')],
-      [cell('PPE Tech',{bold:true,bg:LGRAY}),cell(''),cell(''),cell('')],
-      [cell('Client',{bold:true,bg:LGRAY}),  cell(''),cell(''),cell('')],
-    ], layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY } }
-  })
-  // Legend
-  docContent.push({ text:'REVIEW CODE LEGEND', font:'Helvetica', fontSize:8, bold:true, color:BLUE, margin:[0,0,0,4] })
-  docContent.push({
-    table:{ widths:[28,'*'], body: Object.values(OUTCOME_CODES).map((oc:any,i)=>[
-      cell(oc.code,{bg:OUTCOME_BG[oc.code]??LGRAY,fg:OUTCOME_FG[oc.code]??'#111',bold:true,align:'center'}),
-      cell(oc.text,{bg:i%2?WHITE:LGRAY}),
-    ])}, layout:{ hLineWidth:()=>0.5, vLineWidth:()=>0.5, hLineColor:()=>MGRAY, vLineColor:()=>MGRAY }
-  })
-  docContent.push({ text:`Generated by PPE Tech Document Control System  ·  ${format(new Date(),'d MMMM yyyy')}  ·  Confidential`, font:'Helvetica', fontSize:7, color:'#888888', italics:true, alignment:'center', margin:[0,16,0,0] })
-
-  const docDef = {
-    pageSize:'A4', pageMargins:[40,50,40,50],
-    defaultStyle:{ font:'Helvetica', fontSize:9 },
-    header: (currentPage:number, pageCount:number) => ({
-      columns:[
-        { text:`PPE TECH  ·  Document Control  ·  ${data.transmittalNumber}`, font:'Helvetica', fontSize:7, color:'#666', margin:[40,16,0,0] },
-        { text:`${data.vendorName}  ·  ${data.packageCode}  ·  Page ${currentPage} of ${pageCount}`, font:'Helvetica', fontSize:7, color:'#666', alignment:'right', margin:[0,16,40,0] },
-      ]
-    }),
-    content: docContent,
-  }
+  const BLUE = '#003087', LGRAY = '#F2F4F6', MGRAY = '#CCCCCC'
+  const M = 40, PW = 595.28, PH = 841.89
+  const CW = PW - M * 2   // 515.28
+  const RH = 18            // standard row height
 
   return new Promise<Buffer>((resolve, reject) => {
-    const pdfDoc = printer.createPdfKitDocument(docDef)
+    const pdf = new PDFDoc({ size: 'A4', margin: M, bufferPages: true, autoFirstPage: true })
     const chunks: Buffer[] = []
-    pdfDoc.on('data', (c: Buffer) => chunks.push(c))
-    pdfDoc.on('end',  () => resolve(Buffer.concat(chunks)))
-    pdfDoc.on('error', reject)
-    pdfDoc.end()
+    pdf.on('data', (c: Buffer) => chunks.push(c))
+    pdf.on('end',  () => resolve(Buffer.concat(chunks)))
+    pdf.on('error', reject)
+
+    // ── Draw a table cell (rect fill + border + text) ─────────────────────────
+    function cell(x: number, y: number, w: number, h: number, text: string, opts: {
+      fill?: string; fg?: string; bold?: boolean; align?: 'left'|'center'|'right'; fs?: number
+    } = {}) {
+      pdf.rect(x, y, w, h).fill(opts.fill ?? '#FFFFFF')
+      pdf.rect(x, y, w, h).lineWidth(0.4).stroke(MGRAY)
+      if (!text) return
+      const fs = opts.fs ?? 7.5
+      const ty = y + (h - fs) / 2
+      pdf.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica')
+         .fontSize(fs).fillColor(opts.fg ?? '#111111')
+         .text(String(text), x + 4, ty, { width: w - 8, align: opts.align ?? 'left', lineBreak: false, ellipsis: true })
+    }
+
+    function sectionHdr(y: number, text: string): number {
+      pdf.rect(M, y, CW, RH + 2).fill(BLUE)
+      pdf.font('Helvetica-Bold').fontSize(8.5).fillColor('#FFFFFF')
+         .text(text, M + 6, y + 5, { width: CW - 12, lineBreak: false })
+      return y + RH + 2
+    }
+
+    // ── Page 1: Title + Info + Summary ────────────────────────────────────────
+    let y = M
+
+    // Title block
+    pdf.rect(M, y, CW, 48).fill(BLUE)
+    pdf.font('Helvetica-Bold').fontSize(15).fillColor('#FFFFFF').text('PPE TECH', M + 8, y + 8)
+    pdf.font('Helvetica').fontSize(8.5).fillColor('#AACCEE').text('Document Control System', M + 8, y + 28)
+    pdf.font('Helvetica-Bold').fontSize(9.5).fillColor('#FFFFFF')
+       .text('DOCUMENT TRANSMITTAL', M, y + 16, { width: CW - 10, align: 'right' })
+    y += 60
+
+    // Info table
+    y = sectionHdr(y, 'TRANSMITTAL INFORMATION')
+    const IC1 = 125, IC2 = CW - IC1
+    const infoRows = [
+      ['Transmittal Number', data.transmittalNumber, true],
+      ['Date',               format(new Date(), 'd MMMM yyyy'), false],
+      ['Vendor',             data.vendorName, false],
+      ['Project Package',    `${data.packageCode}  —  ${data.packageName}`, false],
+      ['No. of Documents',   String(data.documents.length), false],
+      ['Overall Outcome',    `${data.overallCode}  —  ${outcomeText(data.overallCode)}`, true],
+      ['Prepared By',        data.controllerEmail, false],
+    ]
+    for (let i = 0; i < infoRows.length; i++) {
+      const altFill = i % 2 === 0 ? LGRAY : '#FFFFFF'
+      cell(M,       y, IC1, RH, String(infoRows[i][0]), { fill: LGRAY, bold: true })
+      cell(M + IC1, y, IC2, RH, String(infoRows[i][1]), { fill: altFill, bold: !!infoRows[i][2], fg: i === 5 ? oFg(data.overallCode) : '#111111' })
+      y += RH
+    }
+    y += 10
+
+    // Document summary
+    y = sectionHdr(y, 'DOCUMENT SUMMARY')
+    const SC = [18, 138, CW - 18 - 138 - 24 - 34, 24, 34]
+    const SX = [M, M+SC[0], M+SC[0]+SC[1], M+SC[0]+SC[1]+SC[2], M+SC[0]+SC[1]+SC[2]+SC[3]]
+    const hdrs = ['#','Document Number','Document Title','Rev','Code']
+    hdrs.forEach((h, i) => cell(SX[i], y, SC[i], RH, h, { fill: '#D0DCF0', bold: true, align: i===0||i>=3?'center':'left' }))
+    y += RH
+    for (let i = 0; i < data.documents.length; i++) {
+      const d = data.documents[i]
+      const f = i % 2 === 0 ? LGRAY : '#FFFFFF'
+      cell(SX[0], y, SC[0], RH, String(i+1),             { fill: f, align: 'center' })
+      cell(SX[1], y, SC[1], RH, d.fileName,               { fill: f, fs: 7 })
+      cell(SX[2], y, SC[2], RH, d.docName ?? d.fileName,  { fill: f })
+      cell(SX[3], y, SC[3], RH, d.revision ?? '0',        { fill: f, align: 'center' })
+      cell(SX[4], y, SC[4], RH, d.outcomeCode,            { fill: oBg(d.outcomeCode), fg: oFg(d.outcomeCode), bold: true, align: 'center' })
+      y += RH
+    }
+
+    // ── Per-document pages ────────────────────────────────────────────────────
+    for (let i = 0; i < data.documents.length; i++) {
+      const d = data.documents[i]
+      pdf.addPage()
+      y = M
+
+      y = sectionHdr(y, `DOCUMENT ${i+1} OF ${data.documents.length}  ·  ${d.outcomeCode}: ${outcomeText(d.outcomeCode)}`)
+      y += 6
+
+      const DC1 = 105, DC2 = CW - DC1
+      const metaRows = [
+        ['Document Number', d.fileName],
+        ['Document Title',  d.docName ?? d.fileName],
+        ['Revision',        d.revision ?? '0'],
+        ['Discipline',      [d.discipline, d.documentType, d.topic].filter(Boolean).join('  ·  ') || '—'],
+        ['Overall Outcome', `${d.outcomeCode}  —  ${outcomeText(d.outcomeCode)}`],
+      ]
+      for (let r = 0; r < metaRows.length; r++) {
+        cell(M,       y, DC1, RH, metaRows[r][0], { fill: LGRAY, bold: true })
+        cell(M + DC1, y, DC2, RH, metaRows[r][1], { bold: r===4, fg: r===4 ? oFg(d.outcomeCode) : '#111' })
+        y += RH
+      }
+      y += 8
+
+      pdf.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('REVIEWER OUTCOMES', M, y)
+      y += 12
+
+      const RC = [105, 26, 140, CW - 105 - 26 - 140]
+      const RX = [M, M+RC[0], M+RC[0]+RC[1], M+RC[0]+RC[1]+RC[2]]
+      ;['Reviewer','Code','Description','Comment'].forEach((h, j) =>
+        cell(RX[j], y, RC[j], RH, h, { fill: BLUE, bold: true, fg: '#FFFFFF', align: j===1?'center':'left' })
+      )
+      y += RH
+      for (let r = 0; r < d.reviewers.length; r++) {
+        const rv = d.reviewers[r]
+        const f  = r % 2 === 0 ? LGRAY : '#FFFFFF'
+        cell(RX[0], y, RC[0], RH, rv.name,              { fill: f })
+        cell(RX[1], y, RC[1], RH, rv.code,              { fill: oBg(rv.code), fg: oFg(rv.code), bold: true, align: 'center' })
+        cell(RX[2], y, RC[2], RH, outcomeText(rv.code), { fill: f, fg: '#555555' })
+        cell(RX[3], y, RC[3], RH, rv.comment || '—',   { fill: f })
+        y += RH
+      }
+    }
+
+    // ── Acknowledgement page ──────────────────────────────────────────────────
+    pdf.addPage()
+    y = M
+    y = sectionHdr(y, 'ACKNOWLEDGEMENT OF RECEIPT')
+    y += 8
+    pdf.font('Helvetica').fontSize(8).fillColor('#333')
+       .text("This transmittal confirms that the above-referenced documents have been reviewed in accordance with PPE Tech's document control procedures. Please action as required based on the review codes provided.", M, y, { width: CW })
+    y += 36
+
+    const AC = [80, 140, 140, CW - 80 - 140 - 140]
+    const AX = [M, M+AC[0], M+AC[0]+AC[1], M+AC[0]+AC[1]+AC[2]]
+    ;['For','Name and Surname','Signature','Date'].forEach((h,j) =>
+      cell(AX[j], y, AC[j], RH, h, { fill: BLUE, bold: true, fg: '#FFFFFF' })
+    )
+    y += RH
+    ;['PPE Tech','Client'].forEach(lbl => {
+      cell(AX[0], y, AC[0], RH*2, lbl, { fill: LGRAY, bold: true })
+      ;[1,2,3].forEach(j => cell(AX[j], y, AC[j], RH*2, ''))
+      y += RH * 2
+    })
+    y += 14
+
+    pdf.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('REVIEW CODE LEGEND', M, y)
+    y += 12
+    Object.values(OUTCOME_CODES).forEach((oc: any, i) => {
+      const f = i % 2 === 0 ? LGRAY : '#FFFFFF'
+      cell(M,      y, 28,      RH, oc.code, { fill: oBg(oc.code), fg: oFg(oc.code), bold: true, align: 'center' })
+      cell(M + 28, y, CW - 28, RH, oc.text, { fill: f })
+      y += RH
+    })
+
+    // ── Per-page headers/footers ──────────────────────────────────────────────
+    const range = pdf.bufferedPageRange()
+    for (let p = 0; p < range.count; p++) {
+      pdf.switchToPage(p)
+      pdf.font('Helvetica').fontSize(7).fillColor('#888888')
+      pdf.text(`PPE TECH  ·  Document Control  ·  ${data.transmittalNumber}`, M, 18, { width: CW / 2 })
+      pdf.text(`${data.vendorName}  ·  ${data.packageCode}  ·  Page ${p+1} of ${range.count}`, M + CW/2, 18, { width: CW/2, align: 'right' })
+      pdf.text(`Generated by PPE Tech Document Control System  ·  ${format(new Date(),'d MMMM yyyy')}  ·  Confidential`, M, PH - 25, { width: CW, align: 'center' })
+    }
+
+    pdf.end()
   })
 }
 
