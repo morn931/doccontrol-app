@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle, Download, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -54,6 +54,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
   const [saving, setSaving]             = useState(false)
+  const transmittalRef = useRef<HTMLDivElement>(null)
   const [transmittalPreview, setTransmittalPreview]       = useState<any>(null)  // inline preview (before send)
   const [transmittalSent, setTransmittalSent]             = useState<any>(null)  // confirmed after send
   const [generatingPreview, setGeneratingPreview]         = useState(false)
@@ -65,9 +66,14 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [sending, setSending]                             = useState(false)
   const [transmittalError, setTransmittalError]           = useState('')
 
+  useEffect(() => { loadBatch() }, [id])
+
+  // Scroll to transmittal view whenever it becomes visible
   useEffect(() => {
-    loadBatch()
-  }, [id])
+    if (transmittalPreview || transmittalSent) {
+      setTimeout(() => transmittalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+    }
+  }, [transmittalPreview, transmittalSent])
 
   async function loadBatch() {
     setLoading(true)
@@ -539,7 +545,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           c === 'B1' ? 'bg-yellow-100 text-yellow-800' : c === 'B2' ? 'bg-orange-100 text-orange-800' :
           'bg-red-100 text-red-800'
         return (
-          <div className="card">
+          <div ref={transmittalRef} className="card">
             {/* Header */}
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
@@ -575,6 +581,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
             {/* Document list */}
             <div className="px-6 py-4 space-y-3">
+              {(!docs || docs.length === 0) && (
+                <p className="text-sm text-gray-400 py-4 text-center">No documents found — check that reviews have been submitted for this batch.</p>
+              )}
               {(docs ?? []).map((doc: any, i: number) => (
                 <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
                   <div className="px-4 py-2 bg-gray-50 flex items-center justify-between gap-2">
