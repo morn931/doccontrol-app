@@ -9,7 +9,7 @@
  *   Document Approval List (Agent): 9711d630-daee-426e-b621-d941fc18c01f
  */
 
-import { getSiteId, graphFetch } from './graph'
+import { getSiteId, graphFetch, getSharePointToken } from './graph'
 
 const DOCCONTROL_SITE  = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
 const APPROVAL_LIST_ID = '9711d630-daee-426e-b621-d941fc18c01f'
@@ -22,33 +22,39 @@ async function getDocControlSiteId(): Promise<string> {
 }
 
 /**
- * Resolve an email address to the SharePoint User Information List item ID.
- * This integer ID is required when writing to a Person/Group field via Graph API
- * (field must be set as `ApproverLookupId`, not `Approver`).
- * Returns null if the user is not found in the site's user list.
+ * Resolve an email address to the SharePoint site user ID (integer).
+ * Uses the SharePoint REST API /_api/web/siteusers endpoint with a
+ * SharePoint-scoped token (different audience from the Graph token).
+ * The integer Id is required when writing to a Person/Group field via
+ * Graph API — set as `ApproverLookupId` in the fields payload.
  */
 const _userIdCache: Record<string, number> = {}
-async function resolveSpUserLookupId(siteId: string, email: string): Promise<number | null> {
+async function resolveSpUserLookupId(email: string): Promise<number | null> {
   const key = email.toLowerCase()
   if (_userIdCache[key]) return _userIdCache[key]
   try {
-    const res = await graphFetch(
-      `/sites/${siteId}/lists/User%20Information%20List/items?$expand=fields($select=EMail)&$top=999`
-    )
+    const token = await getSharePointToken()
+    const siteBase = DOCCONTROL_SITE.replace(/\/$/, '')
+    const url = `${siteBase}/_api/web/siteusers?$filter=Email eq '${encodeURIComponent(email)}'&$select=Id,Email`
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json;odata=nometadata',
+      },
+    })
     if (!res.ok) {
-      console.warn('User Information List query failed:', res.status, await res.text())
+      const text = await res.text()
+      console.error('siteusers query failed:', res.status, text.slice(0, 300))
       return null
     }
     const data = await res.json()
-    for (const item of data.value ?? []) {
-      if (item.fields?.EMail?.toLowerCase() === key) {
-        const id = Number(item.id)
-        _userIdCache[key] = id
-        return id
-      }
+    const user = data.value?.[0]
+    if (!user) {
+      console.warn(`SP site user not found for ${email} — Approver column will be empty`)
+      return null
     }
-    console.warn(`SP user not found in User Information List: ${email}`)
-    return null
+    _userIdCache[key] = user.Id
+    return user.Id
   } catch (e: any) {
     console.error('resolveSpUserLookupId error:', e.message)
     return null
@@ -79,7 +85,7 @@ export async function createApprovalListRow(data: ApprovalListRowData): Promise<
 
     // Resolve the reviewer email to a SharePoint user lookup ID so the
     // Person/Group `Approver` column is populated (plain email won't work there).
-    const approverLookupId = await resolveSpUserLookupId(siteId, data.approverEmail)
+    const approverLookupId = await resolveSpUserLookupId(data.approverEmail)
 
     const fields: Record<string, any> = {
       Title:           data.fileName,

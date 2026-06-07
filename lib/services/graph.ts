@@ -10,6 +10,7 @@ const CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET!
 const DOCCONTROL_SITE_URL = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
 
 let _tokenCache: { token: string; expiresAt: number } | null = null
+let _spTokenCache: { token: string; expiresAt: number } | null = null
 
 /** Get a cached app-only access token for Microsoft Graph */
 export async function getGraphToken(): Promise<string> {
@@ -48,6 +49,34 @@ export async function graphFetch(path: string, options: RequestInit = {}): Promi
       ...options.headers,
     },
   })
+}
+
+/**
+ * Get a cached app-only access token scoped to SharePoint REST API.
+ * Required for /_api/* endpoints — Graph tokens (graph.microsoft.com) won't work there.
+ */
+export async function getSharePointToken(): Promise<string> {
+  if (_spTokenCache && Date.now() < _spTokenCache.expiresAt - 60_000) {
+    return _spTokenCache.token
+  }
+  const tenantHost = new URL(DOCCONTROL_SITE_URL).hostname
+  const res = await fetch(
+    `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type:    'client_credentials',
+        client_id:     CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        scope:         `https://${tenantHost}/.default`,
+      }),
+    }
+  )
+  if (!res.ok) throw new Error(`SharePoint token error: ${await res.text()}`)
+  const data = await res.json()
+  _spTokenCache = { token: data.access_token, expiresAt: Date.now() + data.expires_in * 1000 }
+  return _spTokenCache.token
 }
 
 /** Get the SharePoint site ID from a site URL */
