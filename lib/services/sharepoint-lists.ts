@@ -9,7 +9,7 @@
  *   Document Approval List (Agent): 9711d630-daee-426e-b621-d941fc18c01f
  */
 
-import { getSiteId, graphFetch, getSharePointToken } from './graph'
+import { getSiteId, graphFetch } from './graph'
 
 const DOCCONTROL_SITE  = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
 const APPROVAL_LIST_ID = '9711d630-daee-426e-b621-d941fc18c01f'
@@ -22,45 +22,48 @@ async function getDocControlSiteId(): Promise<string> {
 }
 
 /**
- * Resolve an email address to the SharePoint site user ID (integer).
- * Uses the SharePoint REST API /_api/web/siteusers endpoint with a
- * SharePoint-scoped token (different audience from the Graph token).
- * The integer Id is required when writing to a Person/Group field via
- * Graph API — set as `ApproverLookupId` in the fields payload.
+ * Resolve email → SharePoint User Information List item ID (integer).
+ *
+ * This integer is required when writing to a Person/Group field via Graph API
+ * (field name: `ApproverLookupId`). Confirmed working via test script:
+ *   - UIL is accessible through Graph API with Sites.ReadWrite.All
+ *   - item.id (e.g. 9, 55) maps directly to ApproverLookupId
+ *   - SharePoint REST API (siteusers, ensureuser) is 401 — app has Graph perms only
+ *
+ * Queries the UIL once and caches all users for the lifetime of the function instance.
  */
-const _userIdCache: Record<string, number> = {}
-async function resolveSpUserLookupId(email: string): Promise<number | null> {
-  const key = email.toLowerCase()
-  if (_userIdCache[key]) return _userIdCache[key]
-  try {
-    const token = await getSharePointToken()
-    const siteBase = DOCCONTROL_SITE.replace(/\/$/, '')
-    // Do NOT encodeURIComponent the email inside the OData filter string —
-    // that would turn @ into %40 which SharePoint treats as a literal string.
-    const url = `${siteBase}/_api/web/siteusers?$filter=Email eq '${email}'&$select=Id,Email`
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json;odata=nometadata',
-      },
-    })
-    if (!res.ok) {
-      const text = await res.text()
-      console.error('siteusers query failed:', res.status, text.slice(0, 300))
+let _uilCache: Record<string, number> | null = null
+
+async function resolveSpUserLookupId(siteId: string, email: string): Promise<number | null> {
+  // Build cache on first call
+  if (_uilCache === null) {
+    _uilCache = {}
+    try {
+      const res = await graphFetch(
+        `/sites/${siteId}/lists/User%20Information%20List/items?$expand=fields($select=EMail,Title)&$top=999`
+      )
+      if (!res.ok) {
+        console.error('UIL query failed:', res.status, (await res.text()).slice(0, 200))
+        _uilCache = null
+        return null
+      }
+      const data = await res.json()
+      for (const item of data.value ?? []) {
+        if (item.fields?.EMail) {
+          _uilCache[item.fields.EMail.toLowerCase()] = Number(item.id)
+        }
+      }
+      console.log(`UIL cache built: ${Object.keys(_uilCache).length} users`)
+    } catch (e: any) {
+      console.error('UIL cache error:', e.message)
+      _uilCache = null
       return null
     }
-    const data = await res.json()
-    const user = data.value?.[0]
-    if (!user) {
-      console.warn(`SP site user not found for ${email} — Approver column will be empty`)
-      return null
-    }
-    _userIdCache[key] = user.Id
-    return user.Id
-  } catch (e: any) {
-    console.error('resolveSpUserLookupId error:', e.message)
-    return null
   }
+
+  const id = _uilCache[email.toLowerCase()]
+  if (!id) console.warn(`SP user not found in UIL: ${email} — Approver column will be empty`)
+  return id ?? null
 }
 
 // ─── CREATE: one Document Approval List row per reviewer per document ─────────
@@ -87,7 +90,7 @@ export async function createApprovalListRow(data: ApprovalListRowData): Promise<
 
     // Resolve the reviewer email to a SharePoint user lookup ID so the
     // Person/Group `Approver` column is populated (plain email won't work there).
-    const approverLookupId = await resolveSpUserLookupId(data.approverEmail)
+    const approverLookupId = await resolveSpUserLookupId(siteId, data.approverEmail)
 
     const fields: Record<string, any> = {
       Title:           data.fileName,
