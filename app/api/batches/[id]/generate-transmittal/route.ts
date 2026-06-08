@@ -317,6 +317,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // ─── POST — generate PDF, send email, return transmittal data ─────────────────
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
@@ -445,4 +446,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   })
 
   return NextResponse.json({ success: true, transmittalNumber, transmittalDate, toEmail, transmittalData })
+  } catch (e: any) {
+    console.error('POST /generate-transmittal unhandled error:', e)
+    return NextResponse.json({ error: `Server error: ${e?.message ?? String(e)}` }, { status: 500 })
+  }
 }
