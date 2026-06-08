@@ -5,14 +5,16 @@
  * One row per document per reviewer, matching the old system structure.
  * TriggerNext is always false — new app owns email routing.
  *
- * List ID (DocumentControl site):
+ * List IDs (DocumentControl site):
  *   Document Approval List (Agent): 9711d630-daee-426e-b621-d941fc18c01f
+ *   Approver Picks (Agent):         b5978f12-495c-49b6-bff4-3392a8d2a681
  */
 
 import { getSiteId, graphFetch } from './graph'
 
-const DOCCONTROL_SITE  = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
-const APPROVAL_LIST_ID = '9711d630-daee-426e-b621-d941fc18c01f'
+const DOCCONTROL_SITE   = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
+const APPROVAL_LIST_ID  = '9711d630-daee-426e-b621-d941fc18c01f'
+const APPROVER_PICKS_ID = 'b5978f12-495c-49b6-bff4-3392a8d2a681'
 
 let _siteId: string | null = null
 async function getDocControlSiteId(): Promise<string> {
@@ -260,5 +262,79 @@ export async function markApprovalListRowSent(
     )
   } catch (e: any) {
     console.error('DAL markSent error:', e.message)
+  }
+}
+
+// ─── APPROVER PICKS: flag ReturnRequested = true ──────────────────────────────
+//
+// The existing Logic App polls the Approver Picks list every 5 minutes for items
+// where ReturnRequested=true & ReturnComplete=false, then copies the reviewed
+// documents back to the vendor's SharePoint site.
+//
+// Calling this after transmittal send lets the new web app trigger that same
+// return-to-vendor flow without changing the Logic App at all (full parallel
+// operation — old Power Apps path and new web app path both work).
+//
+// sourceSiteUrl is passed through to SourceSiteURL on the SP item so the Logic
+// App can resolve the correct vendor return library (its primary routing signal).
+//
+export async function setApproverPicksReturnRequested(
+  batchGuid:     string,
+  sourceSiteUrl: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const siteId = await getDocControlSiteId()
+
+    // Find the Approver Picks item for this batch (match on BatchID field)
+    const filterExpr = encodeURIComponent(`BatchID eq '${batchGuid}'`)
+    const searchRes  = await graphFetch(
+      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete)&$filter=${filterExpr}&$top=1`
+    )
+
+    if (!searchRes.ok) {
+      const errText = await searchRes.text()
+      console.error('ApproverPicks lookup failed:', searchRes.status, errText.slice(0, 200))
+      return { ok: false, error: `Lookup failed: ${searchRes.status}` }
+    }
+
+    const searchData = await searchRes.json()
+    const item = searchData.value?.[0]
+
+    if (!item) {
+      // Batch was created entirely in the new app — no Approver Picks row exists.
+      // This is expected for new-app-only batches; log and return ok so transmittal still succeeds.
+      console.log(`ApproverPicks: no item found for batchGuid=${batchGuid} — new-app batch, skipping return trigger`)
+      return { ok: true }
+    }
+
+    // Already flagged — nothing to do
+    if (item.fields?.ReturnRequested === true && item.fields?.ReturnComplete === false) {
+      console.log(`ApproverPicks: ReturnRequested already set for item=${item.id}`)
+      return { ok: true }
+    }
+
+    const patch: Record<string, any> = {
+      ReturnRequested: true,
+      ReturnComplete:  false,
+    }
+    // Carry the source site URL so the Logic App can resolve the return library
+    if (sourceSiteUrl) patch.SourceSiteURL = sourceSiteUrl.trim()
+
+    const patchRes = await graphFetch(
+      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items/${item.id}/fields`,
+      { method: 'PATCH', body: JSON.stringify(patch) }
+    )
+
+    if (!patchRes.ok) {
+      const errText = await patchRes.text()
+      console.error('ApproverPicks PATCH failed:', patchRes.status, errText.slice(0, 200))
+      return { ok: false, error: `PATCH failed: ${patchRes.status}` }
+    }
+
+    console.log(`ApproverPicks: ReturnRequested=true set for item=${item.id} batchGuid=${batchGuid}`)
+    return { ok: true }
+  } catch (e: any) {
+    console.error('setApproverPicksReturnRequested error:', e.message)
+    return { ok: false, error: e.message }
   }
 }
