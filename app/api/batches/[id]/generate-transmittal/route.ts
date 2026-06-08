@@ -329,9 +329,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { id: batchId } = await params
   const body = await req.json()
-  const { toEmail, ccEmails = [] }: { toEmail: string; ccEmails: string[] } = body
+  const { toEmail: rawTo, ccEmails: rawCc = [] }: { toEmail: string; ccEmails: string[] } = body
+  const toEmail  = rawTo?.trim()
+  const ccEmails = (rawCc as string[]).map((e: string) => e.trim()).filter(Boolean)
 
-  if (!toEmail?.trim()) return NextResponse.json({ error: 'Vendor email is required' }, { status: 400 })
+  if (!toEmail) return NextResponse.json({ error: 'Vendor email is required' }, { status: 400 })
 
   const db = createServiceClient()
 
@@ -387,7 +389,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const vendorName     = (batch.vendors as any)?.name ?? 'Vendor'
   const packageCode    = (batch.packages as any)?.package_code ?? ''
   const packageName    = (batch.packages as any)?.package_name ?? ''
-  const controllerEmail = profile?.email ?? batch.controller_email ?? ''
+  const controllerEmail = (profile?.email ?? batch.controller_email ?? '').trim()
   const controllerName  = profile?.full_name ?? controllerEmail.split('@')[0]
   const transmittalNumber = await nextTransmittalNumber(db)
   const transmittalDate   = format(new Date(), 'd MMMM yyyy')
