@@ -286,25 +286,42 @@ export async function setApproverPicksReturnRequested(
     const siteId = await getDocControlSiteId()
 
     // Find the Approver Picks item for this batch.
-    // Graph API OData $filter on custom SharePoint columns requires the fields/ prefix.
-    // We scan recent items (top 500 desc) and match client-side as a reliable fallback
-    // because $filter on custom columns can silently return empty results.
-    const scanRes = await graphFetch(
-      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete)&$orderby=id desc&$top=500`
-    )
+    // Graph API pages SharePoint list items at 200 per request regardless of $top.
+    // We paginate through all pages (max 30 = 6000 items) until we find the BatchID match.
+    const targetGuid = batchGuid.trim().toLowerCase()
+    let item: any = null
+    let nextUrl: string | null =
+      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete)&$top=200`
+    let totalScanned = 0
+    const MAX_PAGES = 30
 
-    if (!scanRes.ok) {
-      const errText = await scanRes.text()
-      console.error('ApproverPicks scan failed:', scanRes.status, errText.slice(0, 200))
-      return { ok: false, error: `Scan failed: ${scanRes.status}` }
+    for (let page = 0; page < MAX_PAGES && nextUrl; page++) {
+      const scanRes = await graphFetch(nextUrl)
+      if (!scanRes.ok) {
+        const errText = await scanRes.text()
+        console.error(`ApproverPicks scan page ${page} failed:`, scanRes.status, errText.slice(0, 200))
+        return { ok: false, error: `Scan failed: ${scanRes.status}` }
+      }
+      const scanData = await scanRes.json()
+      const pageItems: any[] = scanData.value ?? []
+      totalScanned += pageItems.length
+
+      item = pageItems.find(
+        (i: any) => i.fields?.BatchID?.trim().toLowerCase() === targetGuid
+      )
+
+      if (item) {
+        console.log(`ApproverPicks: found item=${item.id} on page ${page + 1} (scanned ${totalScanned} total)`)
+        break
+      }
+
+      // Follow pagination link if present
+      nextUrl = scanData['@odata.nextLink'] ?? null
     }
 
-    const scanData = await scanRes.json()
-    console.log(`ApproverPicks scan: ${scanData.value?.length ?? 0} items returned, looking for BatchID=${batchGuid}`)
-
-    const item = scanData.value?.find(
-      (i: any) => i.fields?.BatchID?.trim().toLowerCase() === batchGuid.trim().toLowerCase()
-    )
+    if (!item) {
+      console.log(`ApproverPicks: BatchID=${batchGuid} not found after scanning ${totalScanned} items`)
+    }
 
     if (!item) {
       // Batch was created entirely in the new app — no Approver Picks row exists.

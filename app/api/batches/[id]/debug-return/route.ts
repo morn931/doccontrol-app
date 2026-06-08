@@ -27,36 +27,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
 
-  // 2. What does SharePoint have?
+  // 2. What does SharePoint have? Paginate until match found (max 30 pages).
   const siteId = await getSiteId(DOCCONTROL_SITE)
-  const scanRes = await graphFetch(
-    `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete,SourceSiteURL)&$orderby=id desc&$top=200`
-  )
-
-  let spItems: any[] = []
+  const targetGuid = batch.batch_guid?.trim().toLowerCase()
+  let matchedItem: any = null
   let spError: string | null = null
-  if (scanRes.ok) {
-    const data = await scanRes.json()
-    spItems = data.value ?? []
-  } else {
-    spError = `${scanRes.status}: ${(await scanRes.text()).slice(0, 200)}`
+  let totalScanned = 0
+  let nextUrl: string | null =
+    `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete,SourceSiteURL)&$top=200`
+
+  for (let page = 0; page < 30 && nextUrl; page++) {
+    const res = await graphFetch(nextUrl)
+    if (!res.ok) { spError = `${res.status}: ${(await res.text()).slice(0, 200)}`; break }
+    const data = await res.json()
+    const items: any[] = data.value ?? []
+    totalScanned += items.length
+    matchedItem = items.find((i: any) => i.fields?.BatchID?.trim().toLowerCase() === targetGuid)
+    if (matchedItem) break
+    nextUrl = data['@odata.nextLink'] ?? null
   }
 
-  // Find matching item
-  const batchGuid = batch.batch_guid?.trim().toLowerCase()
-  const matchedItem = spItems.find(
-    (i: any) => i.fields?.BatchID?.trim().toLowerCase() === batchGuid
-  )
-
-  // Show recent items for comparison
-  const recentItems = spItems.slice(0, 10).map((i: any) => ({
-    spItemId: i.id,
-    batchId: i.fields?.BatchID,
-    returnRequested: i.fields?.ReturnRequested,
-    returnComplete: i.fields?.ReturnComplete,
-    sourceSiteURL: i.fields?.SourceSiteURL,
-    matches: i.fields?.BatchID?.trim().toLowerCase() === batchGuid,
-  }))
+  const recentItems: any[] = [] // not needed once pagination works
 
   return NextResponse.json({
     supabase: {
@@ -67,7 +58,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     },
     sharePoint: {
       error: spError,
-      totalScanned: spItems.length,
+      totalScanned,
       matchFound: !!matchedItem,
       matchedItem: matchedItem ? {
         spItemId: matchedItem.id,
@@ -76,7 +67,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         returnComplete: matchedItem.fields?.ReturnComplete,
         sourceSiteURL: matchedItem.fields?.SourceSiteURL,
       } : null,
-      recentItems,
     },
   })
 }
