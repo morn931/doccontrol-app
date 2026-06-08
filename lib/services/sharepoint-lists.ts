@@ -285,20 +285,26 @@ export async function setApproverPicksReturnRequested(
   try {
     const siteId = await getDocControlSiteId()
 
-    // Find the Approver Picks item for this batch (match on BatchID field)
-    const filterExpr = encodeURIComponent(`BatchID eq '${batchGuid}'`)
-    const searchRes  = await graphFetch(
-      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete)&$filter=${filterExpr}&$top=1`
+    // Find the Approver Picks item for this batch.
+    // Graph API OData $filter on custom SharePoint columns requires the fields/ prefix.
+    // We scan recent items (top 500 desc) and match client-side as a reliable fallback
+    // because $filter on custom columns can silently return empty results.
+    const scanRes = await graphFetch(
+      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete)&$orderby=id desc&$top=500`
     )
 
-    if (!searchRes.ok) {
-      const errText = await searchRes.text()
-      console.error('ApproverPicks lookup failed:', searchRes.status, errText.slice(0, 200))
-      return { ok: false, error: `Lookup failed: ${searchRes.status}` }
+    if (!scanRes.ok) {
+      const errText = await scanRes.text()
+      console.error('ApproverPicks scan failed:', scanRes.status, errText.slice(0, 200))
+      return { ok: false, error: `Scan failed: ${scanRes.status}` }
     }
 
-    const searchData = await searchRes.json()
-    const item = searchData.value?.[0]
+    const scanData = await scanRes.json()
+    console.log(`ApproverPicks scan: ${scanData.value?.length ?? 0} items returned, looking for BatchID=${batchGuid}`)
+
+    const item = scanData.value?.find(
+      (i: any) => i.fields?.BatchID?.trim().toLowerCase() === batchGuid.trim().toLowerCase()
+    )
 
     if (!item) {
       // Batch was created entirely in the new app — no Approver Picks row exists.
