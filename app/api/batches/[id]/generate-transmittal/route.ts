@@ -46,8 +46,9 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
 
   const BLUE = '#003087', LGRAY = '#F2F4F6', MGRAY = '#CCCCCC'
   const M = 40, PW = 595.28, PH = 841.89
-  const CW = PW - M * 2   // 515.28
-  const RH = 18            // standard row height
+  const CW = PW - M * 2        // 515.28
+  const RH = 18                 // standard row height
+  const PAGE_BOTTOM = PH - 38  // leave room for footer
 
   return new Promise<Buffer>((resolve, reject) => {
     const pdf = new PDFDoc({ size: 'A4', margin: M, bufferPages: true, autoFirstPage: true })
@@ -56,18 +57,40 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
     pdf.on('end',  () => resolve(Buffer.concat(chunks)))
     pdf.on('error', reject)
 
-    // ── Draw a table cell (rect fill + border + text) ─────────────────────────
+    // ── Estimate wrapped text height ──────────────────────────────────────────
+    function calcH(text: string, w: number, fs = 7.5): number {
+      if (!text) return RH
+      const charsPerLine = Math.max(1, Math.floor((w - 8) / (fs * 0.55)))
+      const lines = Math.ceil(text.length / charsPerLine)
+      return Math.max(RH, lines * (fs + 4) + 6)
+    }
+
+    // ── Ensure enough vertical space; add page if needed ─────────────────────
+    function ensureSpace(currentY: number, needed: number): number {
+      if (currentY + needed > PAGE_BOTTOM) {
+        pdf.addPage()
+        return M
+      }
+      return currentY
+    }
+
+    // ── Draw a table cell ─────────────────────────────────────────────────────
     function cell(x: number, y: number, w: number, h: number, text: string, opts: {
-      fill?: string; fg?: string; bold?: boolean; align?: 'left'|'center'|'right'; fs?: number
+      fill?: string; fg?: string; bold?: boolean; align?: 'left'|'center'|'right'
+      fs?: number; wrap?: boolean
     } = {}) {
       pdf.rect(x, y, w, h).fill(opts.fill ?? '#FFFFFF')
       pdf.rect(x, y, w, h).lineWidth(0.4).stroke(MGRAY)
       if (!text) return
-      const fs = opts.fs ?? 7.5
-      const ty = y + (h - fs) / 2
+      const fs   = opts.fs ?? 7.5
+      const wrap = opts.wrap ?? false
+      const ty   = y + (wrap ? 4 : (h - fs) / 2)
       pdf.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica')
          .fontSize(fs).fillColor(opts.fg ?? '#111111')
-         .text(String(text), x + 4, ty, { width: w - 8, align: opts.align ?? 'left', lineBreak: false, ellipsis: true })
+         .text(String(text), x + 4, ty, {
+           width: w - 8, align: opts.align ?? 'left',
+           lineBreak: wrap, ...(wrap ? {} : { ellipsis: true }),
+         })
     }
 
     function sectionHdr(y: number, text: string): number {
@@ -126,11 +149,31 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
       y += RH
     }
 
-    // ── Per-document pages ────────────────────────────────────────────────────
+    // ── Per-document sections (packed — new page only when space runs out) ────
+    // Reviewer table columns: widened Code col (38px), Description (136px)
+    const RC = [100, 38, 136, CW - 100 - 38 - 136]
+    const RX = [M, M+RC[0], M+RC[0]+RC[1], M+RC[0]+RC[1]+RC[2]]
+
     for (let i = 0; i < data.documents.length; i++) {
       const d = data.documents[i]
-      pdf.addPage()
-      y = M
+
+      // Pre-calculate each reviewer row height based on longest wrapping cell
+      const reviewerRowHeights = d.reviewers.map(rv =>
+        Math.max(RH,
+          calcH(rv.name,              RC[0]),
+          calcH(outcomeText(rv.code), RC[2]),
+          calcH(rv.comment || '—',   RC[3]),
+        )
+      )
+      // Minimum height needed to start this document (header + meta + reviewer header)
+      const minDocStart = (RH + 2) + 6 + 5 * RH + 8 + 14 + RH + (reviewerRowHeights[0] ?? RH)
+
+      if (i === 0 || y + minDocStart > PAGE_BOTTOM) {
+        pdf.addPage()
+        y = M
+      } else {
+        y += 18  // visual gap between documents sharing a page
+      }
 
       y = sectionHdr(y, `DOCUMENT ${i+1} OF ${data.documents.length}  ·  ${d.outcomeCode}: ${outcomeText(d.outcomeCode)}`)
       y += 6
@@ -144,33 +187,36 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
         ['Overall Outcome', `${d.outcomeCode}  —  ${outcomeText(d.outcomeCode)}`],
       ]
       for (let r = 0; r < metaRows.length; r++) {
+        y = ensureSpace(y, RH)
         cell(M,       y, DC1, RH, metaRows[r][0], { fill: LGRAY, bold: true })
         cell(M + DC1, y, DC2, RH, metaRows[r][1], { bold: r===4, fg: r===4 ? oFg(d.outcomeCode) : '#111' })
         y += RH
       }
       y += 8
 
-      pdf.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('REVIEWER OUTCOMES', M, y)
-      y += 12
+      y = ensureSpace(y, 14 + RH + (reviewerRowHeights[0] ?? RH))
+      pdf.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('REVIEWER OUTCOMES', M, y, { lineBreak: false })
+      y += 14
 
-      const RC = [105, 26, 140, CW - 105 - 26 - 140]
-      const RX = [M, M+RC[0], M+RC[0]+RC[1], M+RC[0]+RC[1]+RC[2]]
       ;['Reviewer','Code','Description','Comment'].forEach((h, j) =>
         cell(RX[j], y, RC[j], RH, h, { fill: BLUE, bold: true, fg: '#FFFFFF', align: j===1?'center':'left' })
       )
       y += RH
+
       for (let r = 0; r < d.reviewers.length; r++) {
-        const rv = d.reviewers[r]
-        const f  = r % 2 === 0 ? LGRAY : '#FFFFFF'
-        cell(RX[0], y, RC[0], RH, rv.name,              { fill: f })
-        cell(RX[1], y, RC[1], RH, rv.code,              { fill: oBg(rv.code), fg: oFg(rv.code), bold: true, align: 'center' })
-        cell(RX[2], y, RC[2], RH, outcomeText(rv.code), { fill: f, fg: '#555555' })
-        cell(RX[3], y, RC[3], RH, rv.comment || '—',   { fill: f })
-        y += RH
+        const rv   = d.reviewers[r]
+        const rowH = reviewerRowHeights[r]
+        y = ensureSpace(y, rowH)
+        const f = r % 2 === 0 ? LGRAY : '#FFFFFF'
+        cell(RX[0], y, RC[0], rowH, rv.name,              { fill: f, wrap: true })
+        cell(RX[1], y, RC[1], rowH, rv.code,              { fill: oBg(rv.code), fg: oFg(rv.code), bold: true, align: 'center' })
+        cell(RX[2], y, RC[2], rowH, outcomeText(rv.code), { fill: f, fg: '#555555', wrap: true })
+        cell(RX[3], y, RC[3], rowH, rv.comment || '—',   { fill: f, wrap: true })
+        y += rowH
       }
     }
 
-    // ── Acknowledgement page ──────────────────────────────────────────────────
+    // ── Acknowledgement page (always its own page) ────────────────────────────
     pdf.addPage()
     y = M
     y = sectionHdr(y, 'ACKNOWLEDGEMENT OF RECEIPT')
@@ -192,7 +238,7 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
     })
     y += 14
 
-    pdf.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('REVIEW CODE LEGEND', M, y)
+    pdf.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('REVIEW CODE LEGEND', M, y, { lineBreak: false })
     y += 12
     Object.values(OUTCOME_CODES).forEach((oc: any, i) => {
       const f = i % 2 === 0 ? LGRAY : '#FFFFFF'
@@ -206,9 +252,9 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
     for (let p = 0; p < range.count; p++) {
       pdf.switchToPage(p)
       pdf.font('Helvetica').fontSize(7).fillColor('#888888')
-      pdf.text(`PPE TECH  ·  Document Control  ·  ${data.transmittalNumber}`, M, 18, { width: CW / 2 })
-      pdf.text(`${data.vendorName}  ·  ${data.packageCode}  ·  Page ${p+1} of ${range.count}`, M + CW/2, 18, { width: CW/2, align: 'right' })
-      pdf.text(`Generated by PPE Tech Document Control System  ·  ${format(new Date(),'d MMMM yyyy')}  ·  Confidential`, M, PH - 25, { width: CW, align: 'center' })
+      pdf.text(`PPE TECH  ·  Document Control  ·  ${data.transmittalNumber}`, M, 18, { width: CW / 2, lineBreak: false })
+      pdf.text(`${data.vendorName}  ·  ${data.packageCode}  ·  Page ${p+1} of ${range.count}`, M + CW/2, 18, { width: CW/2, align: 'right', lineBreak: false })
+      pdf.text(`Generated by PPE Tech Document Control System  ·  ${format(new Date(),'d MMMM yyyy')}  ·  Confidential`, M, PH - 25, { width: CW, align: 'center', lineBreak: false })
     }
 
     pdf.end()
