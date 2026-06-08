@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     // ESLint warnings won't block deployment
     ignoreDuringBuilds: true,
   },
+  // Prevent webpack from bundling pdfkit — it must run as native Node.js
+  // in the serverless runtime. Bundling it mangles internal class constructors.
+  serverExternalPackages: ['pdfkit'],
 }
 
 export default nextConfig
