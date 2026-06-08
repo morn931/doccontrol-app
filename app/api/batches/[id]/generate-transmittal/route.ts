@@ -475,40 +475,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     attachments: [{ name: `${transmittalNumber}.pdf`, contentType: 'application/pdf', content: pdfBuffer }],
   })
 
-  // Trigger the existing Logic App return-to-vendor flow (parallel operation).
-  // The Logic App polls the Approver Picks SharePoint list every 5 minutes for
-  // items where ReturnRequested=true & ReturnComplete=false, then copies reviewed
-  // documents back to the vendor site. Setting the flag here fires that flow
-  // without touching the Logic App or overriding the existing Power Apps path.
-  // Fire-and-forget — a failure here logs a warning but does not fail the transmittal.
-  ;(async () => {
-    try {
-      // Look up the authoritative vendor site root URL from the vendor registry.
-      // This ensures SourceSiteURL on the Approver Picks item is always the clean
-      // site root (e.g. https://.../sites/K108-...) so the Logic App routes the
-      // return to the correct TO VENDOR / TO ICTS / To ABB library.
-      let sourceSiteUrl: string | null = null
-      if (batch.package_id) {
-        const { data: vendorSite } = await db
-          .from('vendor_sites')
-          .select('site_url')
-          .eq('package_id', batch.package_id)
-          .eq('active', true)
-          .single()
-        sourceSiteUrl = vendorSite?.site_url ?? null
-      }
-      // Fall back: strip library path from batch.source_site_url to get site root
-      if (!sourceSiteUrl && (batch as any).source_site_url) {
-        const raw: string = (batch as any).source_site_url
-        const m = raw.match(/^(https:\/\/[^/]+\/sites\/[^/?#]+)/)
-        sourceSiteUrl = m ? m[1] : raw
-      }
-      const result = await setApproverPicksReturnRequested(batch.batch_guid, sourceSiteUrl)
-      if (!result.ok) console.warn('Return-to-vendor trigger warning:', result.error)
-    } catch (e: any) {
-      console.warn('Return-to-vendor trigger error:', e?.message)
+  // Trigger the existing Logic App return-to-vendor flow.
+  // Awaited before responding — Vercel kills fire-and-forget tasks when response is sent.
+  // A failure here logs a warning but does NOT fail the transmittal response.
+  try {
+    // Look up the authoritative vendor site root URL from the vendor registry.
+    let sourceSiteUrl: string | null = null
+    if (batch.package_id) {
+      const { data: vendorSite } = await db
+        .from('vendor_sites')
+        .select('site_url')
+        .eq('package_id', batch.package_id)
+        .eq('active', true)
+        .single()
+      sourceSiteUrl = vendorSite?.site_url ?? null
     }
-  })()
+    // Fall back: strip library path from batch.source_site_url to get site root
+    if (!sourceSiteUrl && (batch as any).source_site_url) {
+      const raw: string = (batch as any).source_site_url
+      const m = raw.match(/^(https:\/\/[^/]+\/sites\/[^/?#]+)/)
+      sourceSiteUrl = m ? m[1] : raw
+    }
+    const returnResult = await setApproverPicksReturnRequested(batch.batch_guid, sourceSiteUrl)
+    if (!returnResult.ok) console.warn('Return-to-vendor trigger warning:', returnResult.error)
+    else console.log('Return-to-vendor: ReturnRequested=true set on Approver Picks item')
+  } catch (e: any) {
+    console.warn('Return-to-vendor trigger error:', e?.message)
+  }
 
   // Store transmittal record
   await db.from('transmittals').insert({
