@@ -7,7 +7,12 @@
  */
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getSiteId, graphFetch } from '@/lib/services/graph'
+import { getSiteId, graphFetch, getGraphToken } from '@/lib/services/graph'
+
+async function graphFetchAbsolute(url: string): Promise<Response> {
+  const token = await getGraphToken()
+  return fetch(url, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } })
+}
 
 const DOCCONTROL_SITE   = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
 const APPROVER_PICKS_ID = 'b5978f12-495c-49b6-bff4-3392a8d2a681'
@@ -33,11 +38,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   let matchedItem: any = null
   let spError: string | null = null
   let totalScanned = 0
-  let nextUrl: string | null =
-    `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete,SourceSiteURL)&$top=200`
+  let nextUrl: string | null = null
+  const firstUrl = `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete,SourceSiteURL)&$top=200`
 
-  for (let page = 0; page < 30 && nextUrl; page++) {
-    const res = await graphFetch(nextUrl)
+  for (let page = 0; page < 30; page++) {
+    const res = page === 0 ? await graphFetch(firstUrl) : await graphFetchAbsolute(nextUrl!)
     if (!res.ok) { spError = `${res.status}: ${(await res.text()).slice(0, 200)}`; break }
     const data = await res.json()
     const items: any[] = data.value ?? []
@@ -45,6 +50,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     matchedItem = items.find((i: any) => i.fields?.BatchID?.trim().toLowerCase() === targetGuid)
     if (matchedItem) break
     nextUrl = data['@odata.nextLink'] ?? null
+    if (!nextUrl) break
   }
 
   const recentItems: any[] = [] // not needed once pagination works

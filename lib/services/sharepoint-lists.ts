@@ -10,7 +10,20 @@
  *   Approver Picks (Agent):         b5978f12-495c-49b6-bff4-3392a8d2a681
  */
 
-import { getSiteId, graphFetch } from './graph'
+import { getSiteId, graphFetch, getGraphToken } from './graph'
+
+/** Like graphFetch but accepts an absolute URL (for @odata.nextLink pagination) */
+async function graphFetchAbsolute(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = await getGraphToken()
+  return fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  })
+}
 
 const DOCCONTROL_SITE   = process.env.SHAREPOINT_DOCUMENTCONTROL_SITE_URL!
 const APPROVAL_LIST_ID  = '9711d630-daee-426e-b621-d941fc18c01f'
@@ -290,13 +303,16 @@ export async function setApproverPicksReturnRequested(
     // We paginate through all pages (max 30 = 6000 items) until we find the BatchID match.
     const targetGuid = batchGuid.trim().toLowerCase()
     let item: any = null
-    let nextUrl: string | null =
-      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete)&$top=200`
+    // First page uses relative path (graphFetch); subsequent pages use absolute nextLink URL
+    let nextUrl: string | null = null
+    let firstUrl = `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID,ReturnRequested,ReturnComplete)&$top=200`
     let totalScanned = 0
     const MAX_PAGES = 30
 
-    for (let page = 0; page < MAX_PAGES && nextUrl; page++) {
-      const scanRes = await graphFetch(nextUrl)
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const scanRes = page === 0
+        ? await graphFetch(firstUrl)
+        : await graphFetchAbsolute(nextUrl!)
       if (!scanRes.ok) {
         const errText = await scanRes.text()
         console.error(`ApproverPicks scan page ${page} failed:`, scanRes.status, errText.slice(0, 200))
@@ -315,8 +331,9 @@ export async function setApproverPicksReturnRequested(
         break
       }
 
-      // Follow pagination link if present
+      // Follow pagination link if present; stop if no more pages
       nextUrl = scanData['@odata.nextLink'] ?? null
+      if (!nextUrl) break
     }
 
     if (!item) {
