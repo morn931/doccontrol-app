@@ -163,6 +163,28 @@ The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the sam
   none) → P6 export has nothing to carry yet; mapping is ready for when they appear.
 - **Reporting** off the MDDR (progress roll-ups by package/vendor; P6 Activity-ID export).
 
+## Reporting (menu: **Reporting**, `/reporting`)
+
+Reports computed live off the MDDR. First report: **Engineering Tracker**
+(`/reporting/engineering-tracker`) — a replica of the workbook's "Engineering Tracker"
+sheet, package-filterable (ALL = full tracker with subtotals + grand total).
+
+- **Config** `lib/reporting/eng-tracker-config.ts` — the static budget hours per package
+  + Links inputs (planned staffed hours EOP = 16050), captured from the workbook. Edit here
+  when the budget basis changes.
+- **Engine** `lib/reporting/engineering-tracker.ts` — `buildTracker(stats)` produces all
+  columns. `currentBudget` = staffed-hours × (pkg budget / Σ budget) (K124 = control line,
+  taken as-is); `earned = currentBudget × actual%`; subtotals are hours-weighted. Reproduces
+  the sheet exactly (K125 F=2138, E102 F=1063, Eng subtotal F=63,675).
+- **API** `app/api/reporting/engineering-tracker/route.ts` — aggregates awarded MDDR rows per
+  package: actual% = avg Rules-of-Credit progress; plan-to-date% = docs with planned date ≤
+  "as of"; approved = A1 count.
+- **Ratio corrections vs the spreadsheet** (the sheet's were wrong): "% of Proj" divided by an
+  empty cell → always 0 (fixed to budget-hours / grand total); "% of Discpl" used doc-COUNT
+  share → switched to budget-HOUR share for consistency (UI toggle keeps "docs" available).
+- Note: the workbook's GRAND TOTAL hours were inflated by a stray K-001 = 141,865 entry; the
+  contracts here use their real budget (0).
+
 ## Key Files
 
 ```
@@ -253,6 +275,9 @@ numeric Rev 0 IFC/IFD). UI: package→vendor→source + awarded/scope filters, f
 Doc#/Title columns with always-visible horizontal scroll, top-left Doc Number quick-filter,
 column picker, CSV export, Upload (merge/override), Sync Progress. Fixed a sync pagination
 bug (offset paging without `.order` undercounted matches) and made `--wipe` batch-delete.
-Next: MDDR reporting + P6 Activity-ID export (Activity IDs not yet present in source registers).
+**Reporting menu added** with the first report — Engineering Tracker (live EVM tracker off the
+MDDR; reproduces the workbook's budget columns exactly: K125 F=2138, E102 F=1063, Eng subtotal
+F=63,675; fixed the sheet's % of Proj / % of Discpl ratio errors). Next: more reports + P6
+Activity-ID export (Activity IDs not yet present in source registers).
 **Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
 site registry seeded; Graph API pagination fix.

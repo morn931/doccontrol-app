@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import {
   LayoutDashboard, FileText, Inbox, ClipboardCheck,
-  Send, Search, Settings, LogOut, Shield, Users, Upload, ListChecks,
+  Send, Search, Settings, LogOut, Shield, Users, Upload, ListChecks, BarChart3,
 } from 'lucide-react'
 import type { UserRole } from '@/lib/types/database'
 
@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/transmittals',  label: 'Transmittals',      icon: Send,            roles: ['admin','document_controller','project_manager'] },
   { href: '/documents',     label: 'Document Search',   icon: Search,          roles: ['admin','document_controller','reviewer','engineering_manager','project_manager','vendor'] },
   { href: '/mddr',          label: 'MDDR',              icon: ListChecks,      roles: ['admin','document_controller','engineering_manager','project_manager'] },
+  { href: '/reporting',     label: 'Reporting',         icon: BarChart3,       roles: ['admin','document_controller','engineering_manager','project_manager'] },
 ]
 
 const ADMIN_ITEMS: NavItem[] = [
