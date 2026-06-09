@@ -108,21 +108,45 @@ against the agreed Siemens Rules of Credit. Menu: **MDDR** (`/mddr`).
 - **One master per document**: rows merge by `normalized_document_number` (a unique
   partial index). Awarded docs merge across registers (SDDR/CDDL own accurate dates/status,
   the GMDR fills gaps); unawarded scope rows are flagged `is_awarded = false`.
+- **Doc-number normalisation** (`normalizeDocNumber` in `mapping.ts`): upper-cases, strips
+  revision/sheet/extension suffixes, AND reconciles the discipline/type delimiter difference
+  between registers — the master GMDR splits them (`…-E-GAD-…`) while vendor SDDRs and the
+  live document filenames fuse them (`…-EGAD-…`). It collapses to the fused form so the same
+  document merges into ONE master row. Also matches package codes with a trailing letter
+  (e.g. `E511B`, `E516B`).
 - **Rules of Credit** (`lib/mddr/rules-of-credit.ts`, agreed with Siemens 4 Jun 2026):
   **25%** first submission → **75%** reviewed w/ comments/proceed (B1/B2/D1, not C1/Q1) →
   **85%** A1 accepted → **100%** numeric Rev 0+ IFC/IFD. Credits are constants, easy to retune.
 - **Status carry-over** (`lib/mddr/sync.ts`): matches each master doc number to the live
   `document_versions` (by parsed filename) + worst-case `review_tasks` outcome, then applies
   the Rules of Credit. (`documents` table is empty; matching goes via `document_versions`.)
+  NB: the awarded-entries pagination MUST `.order('id')` — offset paging without a stable
+  order while updating rows silently skips rows and undercounts matches.
 - **Shared libs** `lib/mddr/import.ts` + `sync.ts` are used by BOTH the API routes and the
   CLI scripts, so there is no duplicated logic.
+
+### MDDR page UI (`app/(app)/mddr/page.tsx`)
+- Filters: **Package** chips → repopulate **Vendor** chips for that package → **Source**
+  (SDDR/CDDL/MDDR) → **Show** (Awarded docs / Unawarded scope, default awarded so the ~87k
+  scope rows don't swamp the view). Plus a broad server search box (top-right).
+- **Doc Number quick-filter** (top-left of the table): client-side, narrows rows as you type.
+  The page loads the full result set (`limit=10000`; list API cap raised to 20000) so it can
+  find any document, not just the first page.
+- **Frozen columns** through **Title** (`position: sticky` with computed left offsets) so the
+  doc number/title stay visible when scrolling right; table is height-bounded so the
+  horizontal scrollbar stays in view while scrolling rows.
+- Column picker, CSV export, Sync Progress, Upload Register (merge/override) buttons.
 
 ### Bulk load / sync (service-role, bypasses auth-gated HTTP routes)
 ```
 npx tsx scripts/import-direct.ts            # import all Registers/*.xlsx (SDDR/CDDL first, GMDR last)
+npx tsx scripts/import-direct.ts --wipe      # clear master first (batched delete), then re-import
 npx tsx scripts/import-direct.ts K137       # only files matching a substring
-npx tsx scripts/sync-direct.ts              # carry live review status → progress
+npx tsx scripts/sync-direct.ts              # carry live review status → progress (all packages)
+npx tsx scripts/sync-direct.ts K137         # one package
 ```
+Note: a single delete of the whole ~95k-row table exceeds the statement timeout, so `--wipe`
+deletes in id-batches.
 The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the same via
 `/api/mddr/upload` and `/api/mddr/sync`.
 
@@ -218,11 +242,17 @@ VENDOR_PORTAL_URL
 3. Claude will read this file and be fully up to speed immediately
 
 This file should be updated at the end of each work session with new progress.
-**Last updated: 2026-06-09** — MDDR module built & loaded: migration 004 applied; all 9
-registers imported (6,714 awarded docs + 88,278 scope rows = 94,992 entries, merged to one
-master per doc number); Rules-of-Credit progress engine (25/75/85/100) synced 518 docs from
-the live review system. Menu, filters (package→vendor→source + awarded/scope), upload
-(merge/override), column picker, CSV export, and Sync Progress all working. Next: MDDR
-reporting + P6 Activity-ID export (Activity IDs not yet present in source registers).
+**Last updated: 2026-06-09** — MDDR module built, loaded & live in production
+(`doccontrol-app.vercel.app/mddr`). Migration 004 applied to project `tjzeahdimbekuizegsky`.
+All 9 registers imported and reconciled to ONE master per document number: **6,078 awarded
+docs + ~87,400 unawarded scope rows**. The discipline/type delimiter reconciliation merged
+636 SDDR↔GMDR duplicate pairs (e.g. `…-E-GAD-…` ↔ `…-EGAD-…`); 1,039 docs now carry both
+master + vendor-register data in one row. Rules-of-Credit progress (25/75/85/100) synced
+**470 docs** from the live review system (85 @25%, 120 @75%, 265 @85%; no 100% yet — none at
+numeric Rev 0 IFC/IFD). UI: package→vendor→source + awarded/scope filters, frozen
+Doc#/Title columns with always-visible horizontal scroll, top-left Doc Number quick-filter,
+column picker, CSV export, Upload (merge/override), Sync Progress. Fixed a sync pagination
+bug (offset paging without `.order` undercounted matches) and made `--wipe` batch-delete.
+Next: MDDR reporting + P6 Activity-ID export (Activity IDs not yet present in source registers).
 **Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
 site registry seeded; Graph API pagination fix.
