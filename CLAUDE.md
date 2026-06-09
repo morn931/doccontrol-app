@@ -283,9 +283,13 @@ numeric Rev 0 IFC/IFD). UI: package→vendor→source + awarded/scope filters, f
 Doc#/Title columns with always-visible horizontal scroll, top-left Doc Number quick-filter,
 column picker, CSV export, Upload (merge/override), Sync Progress. Fixed a sync pagination
 bug (offset paging without `.order` undercounted matches) and made `--wipe` batch-delete.
-**Reporting menu added** with the first report — Engineering Tracker (live EVM tracker off the
-MDDR; reproduces the workbook's budget columns exactly: K125 F=2138, E102 F=1063, Eng subtotal
-F=63,675; fixed the sheet's % of Proj / % of Discpl ratio errors). Next: more reports + P6
-Activity-ID export (Activity IDs not yet present in source registers).
+**Reporting menu added with three live reports off the MDDR:** (1) Engineering Tracker
+(by package; EVM tracker — reproduces the workbook budget columns exactly: K125 F=2138,
+E102 F=1063, Eng subtotal F=63,675; fixed the sheet's % of Proj / % of Discpl ratio errors);
+(2) Package Progress Summary (by package; doc counts, planned vs actual %, variance — backed by
+the shared `aggregatePackages`); (3) PPE Phase 1 Engineering Deliverables (by **WBS code**,
+**CDDL only**; 3-milestone Rev A/Rev 0/Approved completion; placeholders = 0%). Each is
+package/WBS-filterable with CSV export. Next: print/PDF views + P6 Activity-ID export
+(Activity IDs not yet present in source registers).
 **Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
 site registry seeded; Graph API pagination fix.
