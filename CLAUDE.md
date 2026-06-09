@@ -88,6 +88,57 @@ The new app triggers the existing Logic App by setting `ReturnRequested = true` 
 
 ---
 
+## MDDR — Master Document & Drawing Register
+
+A combined master of every deliverable across all registers, with progress tracked
+against the agreed Siemens Rules of Credit. Menu: **MDDR** (`/mddr`).
+
+### Registers it ingests
+- **SDDR** — Supplier Document & Drawing Register (one per vendor per package; data in
+  the `Register` sheet, header on **row 2**; vendor variants e.g. ABB add extra cols).
+- **CDDL** — Contractor's Document & Deliverables List (PPE's own docs; `CDDL` sheet,
+  header **row 1**).
+- **MDDR/GMDR** — the master from RDMC (multi-sheet, one per area; header on **row 10**;
+  includes unawarded scope rows where vendor = "To be Appointed" / doc number blank).
+
+### How it works
+- **Parsing/mapping**: `lib/mddr/mapping.ts` auto-detects the header row, walks **all**
+  sheets, maps every real header to a canonical field, and preserves **every original
+  column** verbatim in `mddr_entries.raw` (JSONB) so any header stays filterable/reportable.
+- **One master per document**: rows merge by `normalized_document_number` (a unique
+  partial index). Awarded docs merge across registers (SDDR/CDDL own accurate dates/status,
+  the GMDR fills gaps); unawarded scope rows are flagged `is_awarded = false`.
+- **Rules of Credit** (`lib/mddr/rules-of-credit.ts`, agreed with Siemens 4 Jun 2026):
+  **25%** first submission → **75%** reviewed w/ comments/proceed (B1/B2/D1, not C1/Q1) →
+  **85%** A1 accepted → **100%** numeric Rev 0+ IFC/IFD. Credits are constants, easy to retune.
+- **Status carry-over** (`lib/mddr/sync.ts`): matches each master doc number to the live
+  `document_versions` (by parsed filename) + worst-case `review_tasks` outcome, then applies
+  the Rules of Credit. (`documents` table is empty; matching goes via `document_versions`.)
+- **Shared libs** `lib/mddr/import.ts` + `sync.ts` are used by BOTH the API routes and the
+  CLI scripts, so there is no duplicated logic.
+
+### Bulk load / sync (service-role, bypasses auth-gated HTTP routes)
+```
+npx tsx scripts/import-direct.ts            # import all Registers/*.xlsx (SDDR/CDDL first, GMDR last)
+npx tsx scripts/import-direct.ts K137       # only files matching a substring
+npx tsx scripts/sync-direct.ts              # carry live review status → progress
+```
+The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the same via
+`/api/mddr/upload` and `/api/mddr/sync`.
+
+### Schema (`supabase/migrations/004_mddr_schema.sql`, idempotent)
+- `mddr_registers` — one row per uploaded file. `mddr_entries` — the master rows.
+- Key columns: `normalized_document_number` (merge key, unique partial index),
+  `is_awarded`, `source_types[]`, `raw` JSONB, `progress_percent` / `progress_milestone` /
+  `progress_source`, `activity_id` (for the future P6 export), `linked_version_id`.
+- **Depends on the base tables** (`vendors`, `users`, `documents`, `document_versions`) —
+  run it in the DocControl project `tjzeahdimbekuizegsky`, NOT CoreTime.
+
+### Known gaps / next
+- **Activity IDs** are not populated in the supplied registers (CDDL column blank, GMDR has
+  none) → P6 export has nothing to carry yet; mapping is ready for when they appear.
+- **Reporting** off the MDDR (progress roll-ups by package/vendor; P6 Activity-ID export).
+
 ## Key Files
 
 ```
@@ -167,4 +218,11 @@ VENDOR_PORTAL_URL
 3. Claude will read this file and be fully up to speed immediately
 
 This file should be updated at the end of each work session with new progress.
-**Last updated: 2026-06-08** — Transmittal PDF, email send, and return-to-vendor Logic App trigger all working. Vendor site registry seeded. Pagination fix for Graph API applied.
+**Last updated: 2026-06-09** — MDDR module built & loaded: migration 004 applied; all 9
+registers imported (6,714 awarded docs + 88,278 scope rows = 94,992 entries, merged to one
+master per doc number); Rules-of-Credit progress engine (25/75/85/100) synced 518 docs from
+the live review system. Menu, filters (package→vendor→source + awarded/scope), upload
+(merge/override), column picker, CSV export, and Sync Progress all working. Next: MDDR
+reporting + P6 Activity-ID export (Activity IDs not yet present in source registers).
+**Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
+site registry seeded; Graph API pagination fix.
