@@ -170,7 +170,9 @@ Reports computed live off the MDDR. Charts use **recharts**.
 - **Progress Dashboard** (`/reporting/dashboard`) — 4 charts: Planned-vs-Actual **S-curve**
   (cumulative %, over docs with a planned date), Planned vs Actual by package (bars), Document
   Maturity by Rules-of-Credit milestone (donut), and Schedule Variance by package (diverging bars).
-  API `app/api/reporting/dashboard`.
+  MDDR-style filters (package/vendor/source/awarded) tailor all charts and flow into each chart's
+  heading; KPI tiles + on-chart data labels make it print/screenshot-friendly. API
+  `app/api/reporting/dashboard` (accepts the same filter params).
 
 Reports computed live off the MDDR. Three detail reports:
 - **Engineering Tracker** (`/reporting/engineering-tracker`) — by package; EVM hours/progress.
