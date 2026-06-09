@@ -217,6 +217,11 @@ export function normalizeDocNumber(raw: unknown): string | null {
   s = s.replace(/[_\s]*REV[._\s-]*[A-Z0-9]{1,3}$/i, '')  // "_REV A"
   s = s.replace(/_[A-Z0-9]{1,3}$/, '')                   // trailing "_A"
   s = s.replace(/\s+/g, '')
+  // Reconcile discipline/type delimiter difference between registers so the same
+  // document merges into one master row: the master GMDR splits the discipline
+  // letter from the type code ("…-E-GAD-…") while vendor SDDRs and the live
+  // document filenames fuse them ("…-EGAD-…"). Collapse to the fused form.
+  s = s.replace(/-([A-Z])-([A-Z]{2,4})-/g, '-$1$2-')
   return s || null
 }
 

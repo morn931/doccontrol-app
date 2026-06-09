@@ -48,7 +48,25 @@ function detect(fileName: string): { registerType: RegisterType; pkg: string } {
 }
 
 async function main() {
-  const filter = process.argv[2]   // optional: only import files whose name includes this
+  const args = process.argv.slice(2)
+  const wipe = args.includes('--wipe')          // clear the master before importing
+  const filter = args.find(a => !a.startsWith('--'))   // only files whose name includes this
+
+  if (wipe) {
+    process.stdout.write('Wiping existing mddr_entries + mddr_registers … ')
+    // Batched delete by id pages — a single delete of ~95k rows exceeds the
+    // statement timeout and silently leaves rows behind.
+    for (const table of ['mddr_entries', 'mddr_registers']) {
+      for (;;) {
+        const { data } = await db.from(table).select('id').limit(2000)
+        if (!data || data.length === 0) break
+        const { error } = await db.from(table).delete().in('id', data.map((r: any) => r.id))
+        if (error) { console.log(`\n  wipe ${table} error: ${error.message}`); break }
+      }
+    }
+    console.log('done')
+  }
+
   const dir = path.join(ROOT, 'Registers')
   const files = fs.readdirSync(dir)
     .filter(f => /\.(xlsx|xls)$/i.test(f) && !f.startsWith('~$'))

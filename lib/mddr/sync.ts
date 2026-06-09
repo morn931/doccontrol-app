@@ -77,6 +77,7 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
       .select('id, normalized_document_number, weighting_total')
       .eq('is_active', true)
       .not('normalized_document_number', 'is', null)
+      .order('id', { ascending: true })   // stable order for offset pagination
       .range(from, from + 499)
     if (pkg) q = q.eq('package_code', pkg)
     const { data: entries, error } = await q
