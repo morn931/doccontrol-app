@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const source = url.searchParams.get('source')    ?? ''
   const awarded = url.searchParams.get('awarded')  ?? 'true'   // true | false | all
   const q      = url.searchParams.get('q')         ?? ''
-  const limit  = Math.min(parseInt(url.searchParams.get('limit') ?? '2000'), 5000)
+  const limit  = Math.min(parseInt(url.searchParams.get('limit') ?? '2000'), 20000)
   const offset = parseInt(url.searchParams.get('offset') ?? '0')
 
   let query = db
