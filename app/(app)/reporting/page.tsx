@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BarChart3, LineChart, ArrowRight } from 'lucide-react'
+import { BarChart3, LineChart, Table2, ArrowRight } from 'lucide-react'
 
 const REPORTS = [
   {
@@ -7,6 +7,13 @@ const REPORTS = [
     title: 'Engineering Tracker',
     description: 'Per-package engineering progress — budget hours, earned value and progress vs plan, computed live from the MDDR and review system. Filter by package or view the full tracker.',
     icon: LineChart,
+    ready: true,
+  },
+  {
+    href: '/reporting/package-progress',
+    title: 'Package Progress Summary',
+    description: 'Per-package document counts and progress — active docs, planned vs actual %, approvals, missing due dates and variance. Live from the MDDR.',
+    icon: Table2,
     ready: true,
   },
 ]

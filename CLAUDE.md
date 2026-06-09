@@ -165,9 +165,13 @@ The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the sam
 
 ## Reporting (menu: **Reporting**, `/reporting`)
 
-Reports computed live off the MDDR. First report: **Engineering Tracker**
-(`/reporting/engineering-tracker`) — a replica of the workbook's "Engineering Tracker"
-sheet, package-filterable (ALL = full tracker with subtotals + grand total).
+Reports computed live off the MDDR. Two reports so far, both package-filterable:
+**Engineering Tracker** (`/reporting/engineering-tracker`) and **Package Progress Summary**
+(`/reporting/package-progress`), replicas of the matching workbook sheets.
+
+`lib/reporting/package-progress.ts` → `aggregatePackages(db, periodEnd)` is the single
+per-package aggregator (active/approved/matched docs, missing due dates, actual% = avg
+Rules-of-Credit progress, planned% = docs due ≤ "as of", variance). It backs BOTH reports.
 
 - **Config** `lib/reporting/eng-tracker-config.ts` — the static budget hours per package
   + Links inputs (planned staffed hours EOP = 16050), captured from the workbook. Edit here
