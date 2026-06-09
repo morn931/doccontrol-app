@@ -1,7 +1,14 @@
 import Link from 'next/link'
-import { BarChart3, LineChart, Table2, Boxes, ArrowRight } from 'lucide-react'
+import { BarChart3, LineChart, Table2, Boxes, LayoutDashboard, ArrowRight } from 'lucide-react'
 
 const REPORTS = [
+  {
+    href: '/reporting/dashboard',
+    title: 'Progress Dashboard',
+    description: 'Programme-wide view — Planned vs Actual S-curve, planned vs actual by package, document maturity (Rules of Credit) and schedule variance.',
+    icon: LayoutDashboard,
+    ready: true,
+  },
   {
     href: '/reporting/engineering-tracker',
     title: 'Engineering Tracker',

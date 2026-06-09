@@ -165,7 +165,14 @@ The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the sam
 
 ## Reporting (menu: **Reporting**, `/reporting`)
 
-Reports computed live off the MDDR. Three reports so far:
+Reports computed live off the MDDR. Charts use **recharts**.
+
+- **Progress Dashboard** (`/reporting/dashboard`) — 4 charts: Planned-vs-Actual **S-curve**
+  (cumulative %, over docs with a planned date), Planned vs Actual by package (bars), Document
+  Maturity by Rules-of-Credit milestone (donut), and Schedule Variance by package (diverging bars).
+  API `app/api/reporting/dashboard`.
+
+Reports computed live off the MDDR. Three detail reports:
 - **Engineering Tracker** (`/reporting/engineering-tracker`) — by package; EVM hours/progress.
 - **Package Progress Summary** (`/reporting/package-progress`) — by package; doc counts & progress.
 - **PPE Phase 1 Engineering Deliverables** (`/reporting/phase1-deliverables`) — by **WBS code**,
