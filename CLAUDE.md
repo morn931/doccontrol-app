@@ -165,13 +165,17 @@ The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the sam
 
 ## Reporting (menu: **Reporting**, `/reporting`)
 
-Reports computed live off the MDDR. Two reports so far, both package-filterable:
-**Engineering Tracker** (`/reporting/engineering-tracker`) and **Package Progress Summary**
-(`/reporting/package-progress`), replicas of the matching workbook sheets.
+Reports computed live off the MDDR. Three reports so far:
+- **Engineering Tracker** (`/reporting/engineering-tracker`) — by package; EVM hours/progress.
+- **Package Progress Summary** (`/reporting/package-progress`) — by package; doc counts & progress.
+- **PPE Phase 1 Engineering Deliverables** (`/reporting/phase1-deliverables`) — by **WBS code**,
+  **PPE CDDL only**; 3-milestone completion (Rev A / Rev 0 / Approved, 1/3 each) derived from each
+  doc's Aconex status (IFR/IFD/IFC/IFU) + Rev A/Rev 0 transmittal dates + revision; placeholders
+  ("RES - Reserved Placeholder" / "No Placeholder Yet") = 0%. `lib/reporting/phase1-wbs.ts`.
 
 `lib/reporting/package-progress.ts` → `aggregatePackages(db, periodEnd)` is the single
 per-package aggregator (active/approved/matched docs, missing due dates, actual% = avg
-Rules-of-Credit progress, planned% = docs due ≤ "as of", variance). It backs BOTH reports.
+Rules-of-Credit progress, planned% = docs due ≤ "as of", variance). It backs the first two reports.
 
 - **Config** `lib/reporting/eng-tracker-config.ts` — the static budget hours per package
   + Links inputs (planned staffed hours EOP = 16050), captured from the workbook. Edit here

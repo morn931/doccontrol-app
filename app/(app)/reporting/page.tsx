@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BarChart3, LineChart, Table2, ArrowRight } from 'lucide-react'
+import { BarChart3, LineChart, Table2, Boxes, ArrowRight } from 'lucide-react'
 
 const REPORTS = [
   {
@@ -14,6 +14,13 @@ const REPORTS = [
     title: 'Package Progress Summary',
     description: 'Per-package document counts and progress — active docs, planned vs actual %, approvals, missing due dates and variance. Live from the MDDR.',
     icon: Table2,
+    ready: true,
+  },
+  {
+    href: '/reporting/phase1-deliverables',
+    title: 'PPE Phase 1 Engineering Deliverables',
+    description: 'PPE CDDL deliverables grouped by WBS code — total docs, placeholders and 3-milestone completion (Rev A / Rev 0 / Approved). Filter by WBS.',
+    icon: Boxes,
     ready: true,
   },
 ]
