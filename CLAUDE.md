@@ -300,5 +300,11 @@ the shared `aggregatePackages`); (3) PPE Phase 1 Engineering Deliverables (by **
 **CDDL only**; 3-milestone Rev A/Rev 0/Approved completion; placeholders = 0%). Each is
 package/WBS-filterable with CSV export. Next: print/PDF views + P6 Activity-ID export
 (Activity IDs not yet present in source registers).
+**Document Search** reworked to query the MDDR (the full register, not just the 790 live docs):
+MDDR-style filters (package/vendor/source/awarded) + discipline/doc-type/status dropdowns +
+separate **Doc Number** and **Title** search boxes (`/api/mddr` gained `docnum`, `title`,
+`discipline`, `document_type`, `status` params; `/api/mddr/meta` now also returns distinct
+disciplines/documentTypes/statuses). **Vendors & Packages** now shows the awarded vendor per
+package (`lib/package-vendors.ts`; default "Not awarded yet"; K124 = PPE).
 **Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
 site registry seeded; Graph API pagination fix.

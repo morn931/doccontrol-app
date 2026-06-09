@@ -38,5 +38,18 @@ export async function GET(req: NextRequest) {
 
   const vendors = [...new Set((venData ?? []).map((r: any) => r.vendor_name).filter(Boolean))].sort()
 
-  return NextResponse.json({ packages, vendors })
+  // Distinct disciplines / document types / statuses (awarded-scoped, optional package)
+  async function distinct(col: string): Promise<string[]> {
+    let qy = db.from('mddr_entries').select(col).eq('is_active', true).not(col, 'is', null)
+    if (awarded === 'true')  qy = qy.eq('is_awarded', true)
+    if (awarded === 'false') qy = qy.eq('is_awarded', false)
+    if (pkg) qy = qy.eq('package_code', pkg)
+    const { data } = await qy.limit(20000)
+    return [...new Set((data ?? []).map((r: any) => r[col]).filter(Boolean))].sort()
+  }
+  const [disciplines, documentTypes, statuses] = await Promise.all([
+    distinct('discipline'), distinct('document_type'), distinct('document_status'),
+  ])
+
+  return NextResponse.json({ packages, vendors, disciplines, documentTypes, statuses })
 }
