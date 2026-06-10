@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils/cn'
 import {
-  LayoutDashboard, FileText, Inbox, ClipboardCheck,
+  LayoutDashboard, Inbox, ClipboardCheck,
   Send, Search, Settings, LogOut, Shield, Users, Upload, ListChecks, BarChart3,
 } from 'lucide-react'
 import type { UserRole } from '@/lib/types/database'
@@ -59,8 +59,9 @@ export function Sidebar({ role, userEmail, userName }: SidebarProps) {
     <aside className="flex flex-col w-64 bg-navy-900 min-h-screen shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-navy-800">
-        <div className="flex items-center justify-center w-9 h-9 bg-navy-700 rounded-lg shrink-0">
-          <FileText className="h-5 w-5 text-white" />
+        <div className="flex items-center justify-center bg-white rounded-lg shrink-0 px-1.5 py-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/coreflow-mark.png" alt="Coreflow" className="h-5 w-auto" />
         </div>
         <div className="min-w-0">
           <p className="text-white font-semibold text-sm leading-tight">PPE Tech</p>
