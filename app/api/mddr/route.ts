@@ -25,12 +25,13 @@ export async function GET(req: NextRequest) {
   const offset = parseInt(url.searchParams.get('offset') ?? '0')
 
   // Build a fresh query each page (supabase query builders are single-use).
-  // Exact count only on the first page — counting on every page is what made the
-  // large register query time out (returning a non-JSON error to the client).
-  const build = (from: number, to: number, withCount: boolean) => {
+  // No exact count — counting the filtered set over the large table hit the DB
+  // statement timeout. The page loads the whole set (up to `limit`), so the
+  // returned row count is the effective total.
+  const build = (from: number, to: number) => {
     let query = db
       .from('mddr_entries')
-      .select('*', withCount ? { count: 'exact' } : undefined)
+      .select('*')
       .eq('is_active', true)
       .order('activity_id', { ascending: true, nullsFirst: false })
       .order('document_number', { ascending: true })
@@ -66,18 +67,17 @@ export async function GET(req: NextRequest) {
   }
 
   const rows: any[] = []
-  let total = 0
   for (let from = offset; rows.length < limit; from += PAGE) {
     const to = Math.min(from + PAGE, offset + limit) - 1
-    const { data, error, count } = await build(from, to, from === offset)
+    const { data, error } = await build(from, to)
     if (error) {
       console.error('[MDDR GET]', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
-    if (count != null) total = count
     rows.push(...(data ?? []))
     if (!data || data.length < PAGE) break   // last page
   }
 
-  return NextResponse.json({ rows, total })
+  // rows.length is exact when the set fits under `limit`; '+' when capped.
+  return NextResponse.json({ rows, total: rows.length, capped: rows.length >= limit })
 }
