@@ -6,7 +6,7 @@ A modern web-based document approval & control system for PPE Tech (PPE Technolo
 **Live URL:** https://doccontrol-app.vercel.app  
 **Stack:** Next.js 14 (App Router), TypeScript, Supabase (Postgres), Vercel, Microsoft Graph API, Azure Document Intelligence, Azure OpenAI  
 **Repo:** `C:\Users\mornec\Claude\Projects\Document management (1)\doccontrol-app`  
-**Owner:** Morné Cronjé — mornec@ppetech.co.za
+**Co-owners (equal, full authority):** Morné Cronjé — mornec@ppetech.co.za — **and** Liezl Cronjé — liezlc@ppetech.co.za. Both hold full repo write/merge rights, full Supabase access, and admin in the apps. **Either may review and merge their own PRs and run migrations/scripts — neither needs the other's sign-off for routine work; do NOT route actions through "ask Morné" / "ask Liezl".**
 
 ---
 
