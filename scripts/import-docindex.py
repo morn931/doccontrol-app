@@ -117,8 +117,8 @@ def upsert(items):
     for i in range(0, len(arr), 200):
         chunk = arr[i:i+200]
         body = json.dumps(chunk).encode()
-        req = urllib.request.Request(f'{URL}/rest/v1/mddr_entries?on_conflict=normalized_document_number',
-            data=body, method='POST', headers={**SH, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal'})
+        req = urllib.request.Request(f'{URL}/rest/v1/mddr_entries',
+            data=body, method='POST', headers={**SH, 'Content-Type': 'application/json', 'Prefer': 'return=minimal'})
         try: urllib.request.urlopen(req); done += len(chunk)
         except urllib.error.HTTPError as e: print('  err:', e.code, e.read().decode()[:200])
     return done
