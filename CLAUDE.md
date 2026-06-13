@@ -337,5 +337,13 @@ Sync Progress copies `ai_text` onto matched rows; `scripts/embed-mddr.ts` backfi
 `POST /api/mddr/semantic` embeds the query and calls `match_mddr`. **Setup:** deploy an Azure
 embeddings model, set env `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, apply migration 005, run Sync
 Progress, then `npx tsx scripts/embed-mddr.ts`.
+**Document Index → MDDR sectors** (`migration 006`): the site-wide SharePoint "Document Index"
+list (display name "Document Index", URL slug "Mater Site Document Index", id e348e9d5-…) is the
+master of every file. `scripts/import-docindex.py` brings in the balance not in the registers:
+(A) ~22 docs in current packages as register rows, and (B) ~2,926 as `source_type='INDEX'` rows
+with a `sector` (K038 Early Works · SHERQ/Safety · QC · Plans/Procedures · Specs/Datasheets) +
+`file_link` + `ai_text` (AISummary). INDEX rows are EXCLUDED from the register MDDR page
+(`exclude_index=1`) and the EVM reports (`.neq('source_type','INDEX')`), but searchable in
+**Document Search** via a new **Sector** filter; re-run `scripts/embed-mddr.ts` to embed them.
 **Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
 site registry seeded; Graph API pagination fix.

@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     let q = db.from('mddr_entries')
       .select('package_code, progress_percent, planned_completion_date, actual_submission_date, actual_completion_date')
       .eq('is_active', true)
+      .neq('source_type', 'INDEX')
       .order('id', { ascending: true }).range(from, from + 999)
     if (awarded === 'true')  q = q.eq('is_awarded', true)
     if (awarded === 'false') q = q.eq('is_awarded', false)

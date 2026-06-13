@@ -14,7 +14,8 @@ const SOURCE_COLORS: Record<string, string> = {
 
 function Chip({ active, onClick, children, color = 'navy' }: any) {
   const on = color === 'teal' ? 'bg-teal-600 border-teal-600' : color === 'purple' ? 'bg-purple-600 border-purple-600'
-    : color === 'amber' ? 'bg-amber-500 border-amber-500' : 'bg-navy-700 border-navy-700'
+    : color === 'amber' ? 'bg-amber-500 border-amber-500' : color === 'rose' ? 'bg-rose-600 border-rose-600'
+    : 'bg-navy-700 border-navy-700'
   return (
     <button onClick={onClick}
       className={cn('px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
@@ -30,6 +31,8 @@ export default function DocumentsPage() {
   const [disciplines, setDisciplines] = useState<string[]>([])
   const [docTypes, setDocTypes] = useState<string[]>([])
   const [statuses, setStatuses] = useState<string[]>([])
+  const [sectors, setSectors] = useState<string[]>([])
+  const [selSector, setSelSector] = useState('ALL')
 
   const [selPackage, setSelPackage] = useState('ALL')
   const [selVendor, setSelVendor] = useState('ALL')
@@ -61,6 +64,7 @@ export default function DocumentsPage() {
       setDisciplines(d.disciplines ?? [])
       setDocTypes(d.documentTypes ?? [])
       setStatuses(d.statuses ?? [])
+      setSectors(d.sectors ?? [])
     }).catch(() => {})
   }, [awarded, selPackage])
 
@@ -74,6 +78,7 @@ export default function DocumentsPage() {
       if (discipline) p.set('discipline', discipline)
       if (docType) p.set('document_type', docType)
       if (status) p.set('status', status)
+      if (selSector !== 'ALL') p.set('sector', selSector)
       if (docnum) p.set('docnum', docnum)
       if (title) p.set('title', title)
       const res = await fetch(`/api/mddr?${p}`)
@@ -82,7 +87,7 @@ export default function DocumentsPage() {
       else { setRows(data.rows ?? []); setTotal(data.total ?? 0) }
     } catch (e: any) { setError(e.message); setRows([]) }
     finally { setLoading(false) }
-  }, [awarded, selPackage, selVendor, selSource, discipline, docType, status, docnum, title])
+  }, [awarded, selPackage, selVendor, selSource, discipline, docType, status, selSector, docnum, title])
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -114,7 +119,7 @@ export default function DocumentsPage() {
 
   function clearAll() {
     setSelPackage('ALL'); setSelVendor('ALL'); setSelSource('ALL'); setAwarded('true')
-    setDiscipline(''); setDocType(''); setStatus(''); setDocnum(''); setTitle(''); setSmart('')
+    setDiscipline(''); setDocType(''); setStatus(''); setSelSector('ALL'); setDocnum(''); setTitle(''); setSmart('')
   }
 
   const isSmart = smart.trim().length > 0
@@ -164,6 +169,13 @@ export default function DocumentsPage() {
           {([['true', 'Awarded docs'], ['false', 'Unawarded scope']] as const).map(([v, l]) =>
             <Chip key={v} color="amber" active={awarded === v} onClick={() => setAwarded(v)}>{l}</Chip>)}
         </div>
+
+        {sectors.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Sector:</span>
+            {['ALL', ...sectors].map(s => <Chip key={s} color="rose" active={selSector === s} onClick={() => setSelSector(s)}>{s}</Chip>)}
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3 items-center pt-1">
           <select value={discipline} onChange={e => setDiscipline(e.target.value)} className="input w-auto text-sm py-1.5">

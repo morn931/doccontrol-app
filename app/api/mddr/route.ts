@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
   const discipline   = url.searchParams.get('discipline')    ?? ''
   const documentType = url.searchParams.get('document_type') ?? ''
   const status       = url.searchParams.get('status')        ?? ''
+  const sector       = url.searchParams.get('sector')        ?? ''
+  const excludeIndex = url.searchParams.get('exclude_index') === '1'   // register MDDR page
   const limit  = Math.min(parseInt(url.searchParams.get('limit') ?? '2000'), 20000)
   const offset = parseInt(url.searchParams.get('offset') ?? '0')
 
@@ -39,6 +41,8 @@ export async function GET(req: NextRequest) {
     if (discipline)   query = query.eq('discipline', discipline)
     if (documentType) query = query.eq('document_type', documentType)
     if (status)       query = query.eq('document_status', status)
+    if (sector)       query = query.eq('sector', sector)
+    if (excludeIndex) query = query.neq('source_type', 'INDEX')
     if (docnum) {
       const t = `%${docnum}%`
       query = query.or(`document_number.ilike.${t},normalized_document_number.ilike.${t},ppe_doc_number.ilike.${t},vendor_doc_id.ilike.${t}`)

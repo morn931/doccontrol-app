@@ -30,6 +30,7 @@ export async function aggregateByActivity(db: any, opts: { package?: string } = 
     let q = db.from('mddr_entries')
       .select('activity_id, progress_percent, package_code')
       .eq('is_active', true).eq('is_awarded', true)
+      .neq('source_type', 'INDEX')
       .not('activity_id', 'is', null)
       .order('id', { ascending: true }).range(from, from + 999)
     if (opts.package) q = q.eq('package_code', opts.package)

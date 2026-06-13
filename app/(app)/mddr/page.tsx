@@ -230,7 +230,7 @@ export default function MddrPage() {
 
   // ── Load available packages & vendors ──────────────────────
   useEffect(() => {
-    fetch(`/api/mddr/meta?awarded=${awarded}`)
+    fetch(`/api/mddr/meta?awarded=${awarded}&exclude_index=1`)
       .then(r => r.json())
       .then(d => {
         setPackages(d.packages ?? [])
@@ -241,7 +241,7 @@ export default function MddrPage() {
 
   // Update vendor list when package changes
   useEffect(() => {
-    const base = `/api/mddr/meta?awarded=${awarded}`
+    const base = `/api/mddr/meta?awarded=${awarded}&exclude_index=1`
     if (selPackage === 'ALL') {
       fetch(base)
         .then(r => r.json())
@@ -267,6 +267,7 @@ export default function MddrPage() {
       if (src !== 'ALL') p.set('source',  src)
       if (q)             p.set('q',       q)
       p.set('awarded', awarded)
+      p.set('exclude_index', '1')   // register master only — Document-Index sectors live in Document Search
       p.set('limit', '10000')   // load full result set so the Doc Number filter finds any doc
       const res  = await fetch(`/api/mddr?${p}`)
       const data = await res.json()
