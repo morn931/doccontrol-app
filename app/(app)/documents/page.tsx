@@ -82,7 +82,8 @@ export default function DocumentsPage() {
       if (docnum) p.set('docnum', docnum)
       if (title) p.set('title', title)
       const res = await fetch(`/api/mddr?${p}`)
-      const data = await res.json()
+      const text = await res.text()
+      let data: any = {}; try { data = JSON.parse(text) } catch { data = { error: text.slice(0, 200) } }
       if (!res.ok) { setError(data.error ?? 'Search failed'); setRows([]) }
       else { setRows(data.rows ?? []); setTotal(data.total ?? 0) }
     } catch (e: any) { setError(e.message); setRows([]) }
@@ -90,10 +91,11 @@ export default function DocumentsPage() {
   }, [awarded, selPackage, selVendor, selSource, discipline, docType, status, selSector, docnum, title])
 
   useEffect(() => {
+    if (smart.trim()) { setLoading(false); return }   // Smart search owns the results — skip the filter query
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(fetchRows, (docnum || title) ? 250 : 0)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [fetchRows, docnum, title])
+  }, [fetchRows, docnum, title, smart])
 
   // Semantic search (debounced). Respects the package / source / awarded chips.
   const smartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -108,9 +110,10 @@ export default function DocumentsPage() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: q, package: selPackage, source: selSource, awarded }),
         })
-        const data = await res.json()
+        const text = await res.text()
+        let data: any = {}; try { data = JSON.parse(text) } catch { data = { error: text.slice(0, 200) } }
         setSmartRows(res.ok ? (data.rows ?? []) : [])
-        if (!res.ok) setError(data.error ?? 'Smart search failed')
+        setError(res.ok ? null : (data.error ?? 'Smart search failed'))
       } catch (e: any) { setError(e.message); setSmartRows([]) }
       finally { setSmartLoading(false) }
     }, 600)
