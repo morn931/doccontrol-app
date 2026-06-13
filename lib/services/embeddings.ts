@@ -5,16 +5,19 @@
  * model (text-embedding-3-small, 1536 dims) in Azure OpenAI and set the env var
  * AZURE_OPENAI_EMBEDDING_DEPLOYMENT to its deployment name.
  */
-const ENDPOINT    = process.env.AZURE_OPENAI_ENDPOINT!
-const API_KEY     = process.env.AZURE_OPENAI_API_KEY!
-const DEPLOYMENT  = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-small'
 const API_VERSION = '2024-02-01'
 
 export const EMBED_DIMS = 1536
 
-/** Embed one or more texts → array of 1536-float vectors (same order as input). */
+/** Embed one or more texts → array of 1536-float vectors (same order as input).
+ *  Env is read at call time (not module load) so CLI scripts that populate
+ *  process.env after importing this module still work. */
 export async function embed(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return []
+  const ENDPOINT   = process.env.AZURE_OPENAI_ENDPOINT
+  const API_KEY    = process.env.AZURE_OPENAI_API_KEY
+  const DEPLOYMENT = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-3-small'
+  if (!ENDPOINT || !API_KEY) throw new Error('AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY not set')
   const res = await fetch(
     `${ENDPOINT}/openai/deployments/${DEPLOYMENT}/embeddings?api-version=${API_VERSION}`,
     {

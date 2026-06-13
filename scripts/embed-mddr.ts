@@ -20,7 +20,7 @@ for (const l of fs.readFileSync(path.join(ROOT, '.env.local'), 'utf8').split(/\r
 const db: any = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } })
 
 const ALL = process.argv.includes('--all')
-const SELECT = 'id, document_number, document_title, discipline, document_type, package_code, ai_text'
+const SELECT = 'id, source_type, document_number, document_title, discipline, document_type, package_code, ai_text'
 
 async function main() {
   // Load awarded rows (optionally only those missing an embedding).
@@ -42,7 +42,8 @@ async function main() {
     const chunk = rows.slice(i, i + BATCH)
     const vectors = await embed(chunk.map(buildEmbedText))
     const updates = chunk.map((r, j) => ({
-      id: r.id, embedding: `[${vectors[j].join(',')}]`, embedded_at: new Date().toISOString(),
+      id: r.id, source_type: r.source_type,   // satisfy NOT NULL on the upsert insert-path
+      embedding: `[${vectors[j].join(',')}]`, embedded_at: new Date().toISOString(),
     }))
     const { error } = await db.from('mddr_entries').upsert(updates, { onConflict: 'id' })
     if (error) { console.error('  upsert error:', error.message); continue }
