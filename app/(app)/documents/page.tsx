@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, FileText, Loader2, X, Sparkles } from 'lucide-react'
+import { Search, FileText, Loader2, X, Sparkles, ExternalLink, ChevronRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 const SOURCES = ['ALL', 'SDDR', 'CDDL', 'MDDR']
@@ -129,6 +129,25 @@ export default function DocumentsPage() {
   const shown = rows.slice(0, RENDER_CAP)
   const displayRows = isSmart ? smartRows : shown
 
+  // Revisions drawer
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [revs, setRevs] = useState<Record<string, any[]>>({})
+  const [revLoading, setRevLoading] = useState(false)
+  async function toggleRevs(r: any) {
+    if (openId === r.id) { setOpenId(null); return }
+    setOpenId(r.id)
+    const key = r.normalized_document_number
+    if (key && !(key in revs)) {
+      setRevLoading(true)
+      try {
+        const d = await (await fetch(`/api/mddr/revisions?docnum=${encodeURIComponent(key)}`)).json()
+        setRevs(p => ({ ...p, [key]: d.rows ?? [] }))
+      } catch { setRevs(p => ({ ...p, [key]: [] })) }
+      finally { setRevLoading(false) }
+    }
+  }
+  const fmtD = (d: string | null) => d ? new Date(d).toLocaleDateString() : ''
+
   return (
     <div className="space-y-4">
       <div>
@@ -229,32 +248,71 @@ export default function DocumentsPage() {
             <p className="font-medium">No documents found</p>
             <p className="text-sm mt-1">{isSmart ? 'Try describing the document differently' : 'Adjust the filters or search terms'}</p>
           </div>
-        ) : displayRows.map((r: any) => (
-          <div key={r.id} className="px-5 py-3 hover:bg-gray-50 transition-colors">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-sm font-semibold text-gray-900">{r.document_number ?? '—'}</span>
-              {r.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {r.revision}</span>}
-              {r.source_type && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', SOURCE_COLORS[r.source_type] ?? 'bg-gray-100 text-gray-600')}>{r.source_type}</span>}
-              {r.review_outcome_code && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[r.review_outcome_code] ?? 'bg-gray-100 text-gray-700')}>{r.review_outcome_code}</span>}
-              {r.progress_percent != null && <span className="text-xs text-gray-400">{Number(r.progress_percent).toFixed(0)}%</span>}
-              {isSmart && r.similarity != null && (
-                <span className="ml-auto px-1.5 py-0.5 rounded text-xs font-semibold bg-navy-100 text-navy-700">{Math.round(r.similarity * 100)}% match</span>
-              )}
+        ) : displayRows.map((r: any) => {
+          const expanded = openId === r.id
+          const revRows = revs[r.normalized_document_number] ?? []
+          return (
+          <div key={r.id} className="hover:bg-gray-50 transition-colors">
+            <div className="px-5 py-3 flex items-start gap-3">
+              <button onClick={() => toggleRevs(r)} className="mt-0.5 text-gray-400 hover:text-navy-600 shrink-0" title="Show revisions">
+                {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-sm font-semibold text-gray-900">{r.document_number ?? '—'}</span>
+                  {r.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {r.revision}</span>}
+                  {r.source_type && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', SOURCE_COLORS[r.source_type] ?? 'bg-gray-100 text-gray-600')}>{r.source_type}</span>}
+                  {r.review_outcome_code && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[r.review_outcome_code] ?? 'bg-gray-100 text-gray-700')}>{r.review_outcome_code}</span>}
+                  {r.progress_percent != null && <span className="text-xs text-gray-400">{Number(r.progress_percent).toFixed(0)}%</span>}
+                  {isSmart && r.similarity != null && (
+                    <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-navy-100 text-navy-700">{Math.round(r.similarity * 100)}% match</span>
+                  )}
+                </div>
+                {r.document_title && <p className="text-sm text-gray-700 mt-0.5">{r.document_title}</p>}
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500 mt-0.5">
+                  {r.package_code && <span className="font-medium text-gray-600">{r.package_code}</span>}
+                  {r.vendor_name && <span>· {r.vendor_name}</span>}
+                  {r.discipline && <span>· {r.discipline}</span>}
+                  {r.document_type && <span>· {r.document_type}</span>}
+                  {r.document_status && <span>· {r.document_status}</span>}
+                  {r.tag_number && <span>· Tag {r.tag_number}</span>}
+                </div>
+                {isSmart && r.ai_text && (
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2 bg-gray-50 rounded px-2 py-1">{r.ai_text.replace(/\s+/g, ' ').slice(0, 240)}…</p>
+                )}
+              </div>
+              {r.file_link
+                ? <a href={r.file_link} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3 shrink-0"><ExternalLink className="h-3.5 w-3.5" /> Open</a>
+                : <span className="text-xs text-gray-300 shrink-0 mt-1.5">no file</span>}
             </div>
-            {r.document_title && <p className="text-sm text-gray-700 mt-0.5">{r.document_title}</p>}
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500 mt-0.5">
-              {r.package_code && <span className="font-medium text-gray-600">{r.package_code}</span>}
-              {r.vendor_name && <span>· {r.vendor_name}</span>}
-              {r.discipline && <span>· {r.discipline}</span>}
-              {r.document_type && <span>· {r.document_type}</span>}
-              {r.document_status && <span>· {r.document_status}</span>}
-              {r.tag_number && <span>· Tag {r.tag_number}</span>}
-            </div>
-            {isSmart && r.ai_text && (
-              <p className="text-xs text-gray-500 mt-1 line-clamp-2 bg-gray-50 rounded px-2 py-1">{r.ai_text.replace(/\s+/g, ' ').slice(0, 240)}…</p>
+
+            {expanded && (
+              <div className="px-5 pb-3 pl-12">
+                <div className="rounded-md border border-gray-100 bg-gray-50/60 divide-y divide-gray-100">
+                  {revLoading && !(r.normalized_document_number in revs) ? (
+                    <div className="px-3 py-2 text-xs text-gray-400 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> loading revisions…</div>
+                  ) : revRows.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-gray-400 flex items-center justify-between">
+                      <span>No prior revisions tracked{r.file_link ? ' — current file:' : ''}</span>
+                      {r.file_link && <a href={r.file_link} target="_blank" rel="noopener noreferrer" className="text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>}
+                    </div>
+                  ) : revRows.map((rv: any, i: number) => (
+                    <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
+                      <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded font-mono font-bold">Rev {rv.revision ?? '—'}</span>
+                      {i === 0 && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-semibold">LATEST</span>}
+                      {rv.status && <span className="text-gray-500">{rv.status}</span>}
+                      {rv.date && <span className="text-gray-400">{fmtD(rv.date)}</span>}
+                      {rv.url
+                        ? <a href={rv.url} target="_blank" rel="noopener noreferrer" className="ml-auto text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>
+                        : <span className="ml-auto text-gray-300">no link</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
