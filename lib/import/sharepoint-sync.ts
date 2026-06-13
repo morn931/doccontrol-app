@@ -27,8 +27,21 @@ export async function syncFromSharePoint(
       .insert({ source: `${source}:sharepoint`, mode, status: 'running', started_by: null })
       .select().single()
     try {
-      const rows = await reader()
+      const allRows = await reader()
+      // Incremental: only process rows changed since the last successful sync watermark.
+      const wmKey = `sp_watermark_${source}`
+      let rows = allRows
+      if (mode === 'incremental') {
+        const { data: wm } = await db.from('system_settings').select('value').eq('key', wmKey).maybeSingle()
+        const since = wm?.value
+        if (since) rows = allRows.filter(r => r.__modified && r.__modified > since)
+      }
       const result = await processImport(run?.id, source, mode, rows, db)
+      // Advance the watermark to the newest item seen (full read), unless dry run.
+      if (mode !== 'dry_run' && result.status !== 'failed') {
+        const maxMod = allRows.reduce((m, r) => (r.__modified && r.__modified > m ? r.__modified : m), '')
+        if (maxMod) await db.from('system_settings').upsert({ key: wmKey, value: maxMod }, { onConflict: 'key' })
+      }
       out[source] = { ...result, read: rows.length }
     } catch (e: any) {
       if (run?.id) await db.from('import_runs').update({

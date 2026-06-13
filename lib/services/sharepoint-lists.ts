@@ -57,6 +57,7 @@ async function readAllListItems(listId: string, maxPages = 60): Promise<any[]> {
       for (const [k, v] of Object.entries(f)) {
         row[k] = typeof v === 'boolean' ? (v ? 'True' : 'False') : v
       }
+      row.__modified = item.lastModifiedDateTime ?? f.Modified ?? null   // for incremental sync
       out.push(row)
     }
     nextUrl = data['@odata.nextLink'] ?? null

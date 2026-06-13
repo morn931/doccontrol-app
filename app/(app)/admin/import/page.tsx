@@ -30,7 +30,7 @@ export default function ImportPage() {
   // ── Direct SharePoint sync (via Graph) ──
   const [spStatus, setSpStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [spResult, setSpResult] = useState<any>(null)
-  async function handleSpSync(syncMode: 'dry_run' | 'full') {
+  async function handleSpSync(syncMode: 'dry_run' | 'full' | 'incremental') {
     setSpStatus('running'); setSpResult(null)
     try {
       const res = await fetch('/api/admin/sync-sharepoint', {
@@ -123,6 +123,9 @@ export default function ImportPage() {
         <div className="flex flex-wrap gap-2">
           <button onClick={() => handleSpSync('full')} disabled={spStatus === 'running'} className="btn-primary text-sm">
             {spStatus === 'running' ? <><Loader2 className="h-4 w-4 animate-spin" /> Syncing…</> : <><RefreshCw className="h-4 w-4" /> Sync now (force update)</>}
+          </button>
+          <button onClick={() => handleSpSync('incremental')} disabled={spStatus === 'running'} className="btn-secondary text-sm">
+            Sync changes only
           </button>
           <button onClick={() => handleSpSync('dry_run')} disabled={spStatus === 'running'} className="btn-secondary text-sm">
             Preview (dry run)

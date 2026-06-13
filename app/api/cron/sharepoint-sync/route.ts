@@ -18,7 +18,8 @@ export async function GET(req: Request) {
   }
   const db = createServiceClient()
   try {
-    const results = await syncFromSharePoint(db, { mode: 'full' })
+    // Incremental keeps the daily run light (only items changed since last sync).
+    const results = await syncFromSharePoint(db, { mode: 'incremental' })
     return NextResponse.json({ ok: true, ranAt: new Date().toISOString(), results })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
