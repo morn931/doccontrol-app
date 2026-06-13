@@ -36,6 +36,38 @@ async function getDocControlSiteId(): Promise<string> {
   return _siteId
 }
 
+// ─── List readers (for direct SharePoint → Supabase sync) ───────────────────
+/**
+ * Read ALL items' field values from a DocumentControl list, paginated.
+ * Booleans are coerced to 'True'/'False' so the rows match the CSV-export shape
+ * the importer expects (lib/import/process). Returns an array of `fields` objects.
+ */
+async function readAllListItems(listId: string, maxPages = 60): Promise<any[]> {
+  const siteId = await getDocControlSiteId()
+  const out: any[] = []
+  let nextUrl: string | null = null
+  const firstUrl = `/sites/${siteId}/lists/${listId}/items?$expand=fields&$top=999`
+  for (let page = 0; page < maxPages; page++) {
+    const res = page === 0 ? await graphFetch(firstUrl) : await graphFetchAbsolute(nextUrl!)
+    if (!res.ok) throw new Error(`List ${listId} read page ${page}: ${res.status} ${(await res.text()).slice(0, 200)}`)
+    const data = await res.json()
+    for (const item of (data.value ?? [])) {
+      const f = item.fields ?? {}
+      const row: Record<string, any> = {}
+      for (const [k, v] of Object.entries(f)) {
+        row[k] = typeof v === 'boolean' ? (v ? 'True' : 'False') : v
+      }
+      out.push(row)
+    }
+    nextUrl = data['@odata.nextLink'] ?? null
+    if (!nextUrl) break
+  }
+  return out
+}
+
+export const readApproverPicks  = () => readAllListItems(APPROVER_PICKS_ID)
+export const readApprovalList   = () => readAllListItems(APPROVAL_LIST_ID)
+
 /**
  * Resolve email → SharePoint User Information List item ID (integer).
  *
