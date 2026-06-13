@@ -3,6 +3,9 @@
 -- Migration: 007_match_mddr_filelink.sql  (idempotent — CREATE OR REPLACE)
 -- So semantic (Smart search) results also get the Open button + revisions.
 -- ============================================================
+-- Return-type change requires dropping the old function first.
+DROP FUNCTION IF EXISTS match_mddr(vector, int, text, text, boolean);
+
 CREATE OR REPLACE FUNCTION match_mddr(
   query_embedding vector(1536),
   match_count     int     DEFAULT 30,
