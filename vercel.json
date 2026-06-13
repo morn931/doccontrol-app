@@ -6,5 +6,10 @@
     "app/api/admin/import/route.ts": {
       "maxDuration": 60
     }
+  },
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
   }
 }
