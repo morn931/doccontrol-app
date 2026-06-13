@@ -291,7 +291,7 @@ export default function MddrPage() {
   // ── Column filters (Excel-style header menus) ───────────────
   const activeFilterCols = Object.keys(colFilters).filter(k => {
     const f = colFilters[k]
-    return f && ((f.search && f.search.length) || (f.selected && f.selected.length))
+    return f && ((f.search && f.search.length) || Array.isArray(f.selected))   // [] is an active filter (show none)
   })
   function rowPasses(row: any, exceptKey?: string) {
     for (const key of activeFilterCols) {
@@ -299,14 +299,14 @@ export default function MddrPage() {
       const f = colFilters[key]
       const t = cellText(row, key)
       if (f.search && !t.toLowerCase().includes(f.search.toLowerCase())) return false
-      if (f.selected && f.selected.length && !f.selected.includes(t === '' ? BLANKS : t)) return false
+      if (f.selected && !f.selected.includes(t === '' ? BLANKS : t)) return false  // [] ⇒ excludes everything
     }
     return true
   }
   function setColFilter(key: string, f: ColFilter) {
     setColFilters(prev => {
       const next = { ...prev }
-      if ((!f.search || !f.search.length) && (!f.selected || !f.selected.length)) delete next[key]
+      if ((!f.search || !f.search.length) && f.selected === undefined) delete next[key]  // keep [] (none selected)
       else next[key] = f
       return next
     })
