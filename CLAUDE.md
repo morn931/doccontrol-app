@@ -330,5 +330,12 @@ separate **Doc Number** and **Title** search boxes (`/api/mddr` gained `docnum`,
 `discipline`, `document_type`, `status` params; `/api/mddr/meta` now also returns distinct
 disciplines/documentTypes/statuses). **Vendors & Packages** now shows the awarded vendor per
 package (`lib/package-vendors.ts`; default "Not awarded yet"; K124 = PPE).
+**Semantic search** (Document Search "Smart search" box): pgvector embeddings of each doc's
+AI summary. `migration 005_mddr_semantic.sql` (pgvector + `mddr_entries.ai_text`/`embedding`
++ `match_mddr` RPC); `lib/services/embeddings.ts` (Azure `text-embedding-3-small`, 1536 dims);
+Sync Progress copies `ai_text` onto matched rows; `scripts/embed-mddr.ts` backfills;
+`POST /api/mddr/semantic` embeds the query and calls `match_mddr`. **Setup:** deploy an Azure
+embeddings model, set env `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, apply migration 005, run Sync
+Progress, then `npx tsx scripts/embed-mddr.ts`.
 **Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
 site registry seeded; Graph API pagination fix.

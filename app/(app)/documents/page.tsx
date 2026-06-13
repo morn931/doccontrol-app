@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, FileText, Loader2, X, ListChecks } from 'lucide-react'
+import { Search, FileText, Loader2, X, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
 const SOURCES = ['ALL', 'SDDR', 'CDDL', 'MDDR']
@@ -40,6 +40,9 @@ export default function DocumentsPage() {
   const [status, setStatus] = useState('')
   const [docnum, setDocnum] = useState('')
   const [title, setTitle] = useState('')
+  const [smart, setSmart] = useState('')                 // natural-language semantic search
+  const [smartRows, setSmartRows] = useState<any[]>([])
+  const [smartLoading, setSmartLoading] = useState(false)
 
   const [rows, setRows] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -87,12 +90,36 @@ export default function DocumentsPage() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [fetchRows, docnum, title])
 
+  // Semantic search (debounced). Respects the package / source / awarded chips.
+  const smartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    const q = smart.trim()
+    if (!q) { setSmartRows([]); setSmartLoading(false); return }
+    setSmartLoading(true)
+    if (smartRef.current) clearTimeout(smartRef.current)
+    smartRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/mddr/semantic', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, package: selPackage, source: selSource, awarded }),
+        })
+        const data = await res.json()
+        setSmartRows(res.ok ? (data.rows ?? []) : [])
+        if (!res.ok) setError(data.error ?? 'Smart search failed')
+      } catch (e: any) { setError(e.message); setSmartRows([]) }
+      finally { setSmartLoading(false) }
+    }, 600)
+    return () => { if (smartRef.current) clearTimeout(smartRef.current) }
+  }, [smart, selPackage, selSource, awarded])
+
   function clearAll() {
     setSelPackage('ALL'); setSelVendor('ALL'); setSelSource('ALL'); setAwarded('true')
-    setDiscipline(''); setDocType(''); setStatus(''); setDocnum(''); setTitle('')
+    setDiscipline(''); setDocType(''); setStatus(''); setDocnum(''); setTitle(''); setSmart('')
   }
 
+  const isSmart = smart.trim().length > 0
   const shown = rows.slice(0, RENDER_CAP)
+  const displayRows = isSmart ? smartRows : shown
 
   return (
     <div className="space-y-4">
@@ -101,8 +128,27 @@ export default function DocumentsPage() {
         <p className="text-gray-500 text-sm mt-1">Find any document across the Master Register (SDDR · CDDL · MDDR). Filters and searches narrow live.</p>
       </div>
 
+      {/* Smart (semantic) search */}
+      <div className="card p-4 border-navy-200 bg-gradient-to-r from-navy-50/40 to-transparent">
+        <label className="text-xs font-semibold text-navy-700 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
+          <Sparkles className="h-3.5 w-3.5" /> Smart search — describe the document
+        </label>
+        <div className="relative">
+          {smartLoading
+            ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-500 animate-spin" />
+            : <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-navy-400" />}
+          <input value={smart} onChange={e => setSmart(e.target.value)}
+            placeholder="e.g.  earthing layout for the 220kV substation   ·   overhead line tension calculations"
+            className="input pl-9 pr-9" />
+          {smart && <button onClick={() => setSmart('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>}
+        </div>
+        <p className="text-xs text-gray-400 mt-1">
+          Meaning-based — finds documents by what they're about (from the AI summaries), even without exact keywords. Respects the Package / Source / Show filters below.
+        </p>
+      </div>
+
       {/* Filters */}
-      <div className="card p-4 space-y-3">
+      <div className={cn('card p-4 space-y-3', isSmart && 'opacity-60')}>
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Package:</span>
           {['ALL', ...packages].map(p => <Chip key={p} active={selPackage === p} onClick={() => { setSelPackage(p); setSelVendor('ALL') }}>{p}</Chip>)}
@@ -153,20 +199,22 @@ export default function DocumentsPage() {
 
       {/* Result count */}
       <div className="flex items-center gap-2 text-sm text-gray-500">
-        {loading ? <Loader2 className="h-4 w-4 animate-spin text-navy-500" /> : <FileText className="h-4 w-4 text-gray-400" />}
-        <span>{total.toLocaleString()} document{total !== 1 ? 's' : ''}</span>
-        {total > RENDER_CAP && <span className="text-xs text-amber-600">· showing first {RENDER_CAP} — narrow your filters</span>}
+        {(loading || smartLoading) ? <Loader2 className="h-4 w-4 animate-spin text-navy-500" /> : <FileText className="h-4 w-4 text-gray-400" />}
+        {isSmart
+          ? <span>{displayRows.length.toLocaleString()} best matches for “{smart.trim()}”</span>
+          : <><span>{total.toLocaleString()} document{total !== 1 ? 's' : ''}</span>
+              {total > RENDER_CAP && <span className="text-xs text-amber-600">· showing first {RENDER_CAP} — narrow your filters</span>}</>}
       </div>
 
       {/* Results */}
       <div className="card divide-y divide-gray-50">
-        {shown.length === 0 && !loading ? (
+        {displayRows.length === 0 && !loading && !smartLoading ? (
           <div className="py-16 text-center text-gray-400">
             <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="font-medium">No documents found</p>
-            <p className="text-sm mt-1">Adjust the filters or search terms</p>
+            <p className="text-sm mt-1">{isSmart ? 'Try describing the document differently' : 'Adjust the filters or search terms'}</p>
           </div>
-        ) : shown.map((r: any) => (
+        ) : displayRows.map((r: any) => (
           <div key={r.id} className="px-5 py-3 hover:bg-gray-50 transition-colors">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-sm font-semibold text-gray-900">{r.document_number ?? '—'}</span>
@@ -174,6 +222,9 @@ export default function DocumentsPage() {
               {r.source_type && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', SOURCE_COLORS[r.source_type] ?? 'bg-gray-100 text-gray-600')}>{r.source_type}</span>}
               {r.review_outcome_code && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[r.review_outcome_code] ?? 'bg-gray-100 text-gray-700')}>{r.review_outcome_code}</span>}
               {r.progress_percent != null && <span className="text-xs text-gray-400">{Number(r.progress_percent).toFixed(0)}%</span>}
+              {isSmart && r.similarity != null && (
+                <span className="ml-auto px-1.5 py-0.5 rounded text-xs font-semibold bg-navy-100 text-navy-700">{Math.round(r.similarity * 100)}% match</span>
+              )}
             </div>
             {r.document_title && <p className="text-sm text-gray-700 mt-0.5">{r.document_title}</p>}
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500 mt-0.5">
@@ -184,6 +235,9 @@ export default function DocumentsPage() {
               {r.document_status && <span>· {r.document_status}</span>}
               {r.tag_number && <span>· Tag {r.tag_number}</span>}
             </div>
+            {isSmart && r.ai_text && (
+              <p className="text-xs text-gray-500 mt-1 line-clamp-2 bg-gray-50 rounded px-2 py-1">{r.ai_text.replace(/\s+/g, ' ').slice(0, 240)}…</p>
+            )}
           </div>
         ))}
       </div>

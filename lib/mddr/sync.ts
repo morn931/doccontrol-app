@@ -16,6 +16,7 @@ interface VersionInfo {
   revision: string | null
   isLatest: boolean
   outcomes: string[]
+  aiText: string | null
 }
 
 export interface SyncResult {
@@ -49,7 +50,7 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
   const byDocNumber = new Map<string, VersionInfo>()
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db.from('document_versions')
-      .select('id, document_id, file_name, revision, is_latest')
+      .select('id, document_id, file_name, revision, is_latest, ai_text')
       .range(from, from + 999)
     if (error) throw new Error(`document_versions: ${error.message}`)
     for (const v of data ?? []) {
@@ -59,7 +60,7 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
       const info: VersionInfo = {
         versionId: v.id, documentId: v.document_id ?? null,
         revision: v.revision ?? parsed.revision, isLatest: !!v.is_latest,
-        outcomes: outcomesByVersion.get(v.id) ?? [],
+        outcomes: outcomesByVersion.get(v.id) ?? [], aiText: v.ai_text ?? null,
       }
       const cur = byDocNumber.get(key)
       const better = !cur || (info.isLatest && !cur.isLatest) ||
@@ -94,6 +95,7 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
       const { error: uErr } = await db.from('mddr_entries').update({
         progress_percent: prog.percent, progress_milestone: prog.milestone, progress_source: 'review_system',
         review_outcome_code: outcome, earned_value: earned,
+        ai_text: info.aiText,
         linked_document_id: info.documentId, linked_version_id: info.versionId,
         status_synced_at: new Date().toISOString(),
         stage_submitted: prog.milestone >= 1, stage_reviewed: prog.milestone >= 2, stage_approved: prog.milestone >= 3,
