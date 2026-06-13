@@ -135,6 +135,10 @@ against the agreed Siemens Rules of Credit. Menu: **MDDR** (`/mddr`).
 - **Frozen columns** through **Title** (`position: sticky` with computed left offsets) so the
   doc number/title stay visible when scrolling right; table is height-bounded so the
   horizontal scrollbar stays in view while scrolling rows.
+- **Excel-style header menus** (`ColumnMenu`): click any column header to Sort A→Z / Z→A, type-ahead
+  search (contains, narrows the table + the value list), and tick distinct values to filter. All
+  client-side over the loaded rows; the value list respects other columns' active filters; a funnel
+  icon marks filtered columns and "N column filters · Clear" resets them. CSV export honours filters.
 - Column picker, CSV export, Sync Progress, Upload Register (merge/override) buttons.
 
 ### Bulk load / sync (service-role, bypasses auth-gated HTTP routes)

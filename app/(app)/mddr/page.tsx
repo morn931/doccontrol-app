@@ -86,6 +86,20 @@ function fmtNum(v: number | null, decimals = 1) {
   return v.toFixed(decimals)
 }
 
+const BLANKS = '(Blanks)'
+
+/** Display string for a cell — used by the column filter checklist + matching. */
+function cellText(row: any, key: string): string {
+  const v = row[key]
+  if (v == null || v === '') return ''
+  if (DATE_COLS.has(key)) return fmtDate(v)
+  if (key === 'progress_percent') return `${Number(v).toFixed(0)}%`
+  return String(v)
+}
+
+// ─── Per-column filter state ──────────────────────────────────
+interface ColFilter { search?: string; selected?: string[] }  // selected present ⇒ only those values
+
 // ─── Sort helper ──────────────────────────────────────────────
 type SortDir = 'asc' | 'desc'
 
@@ -96,6 +110,95 @@ function sortRows(rows: any[], col: string, dir: SortDir) {
     const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true })
     return dir === 'asc' ? cmp : -cmp
   })
+}
+
+// ─── Excel-style column header menu (sort / filter / type-ahead) ──
+function ColumnMenu({
+  label, anchor, values, filter, sortDir, onSort, onApply, onClear, onClose,
+}: {
+  label: string
+  anchor: DOMRect
+  values: string[]              // distinct display values available (given other filters)
+  filter: ColFilter
+  sortDir: SortDir | null
+  onSort: (dir: SortDir) => void
+  onApply: (f: ColFilter) => void
+  onClear: () => void
+  onClose: () => void
+}) {
+  const q = filter.search ?? ''
+  const selectedSet = filter.selected ? new Set(filter.selected) : null   // null = all selected
+  const shown = (q ? values.filter(v => v.toLowerCase().includes(q.toLowerCase())) : values).slice(0, 1000)
+  const isChecked = (v: string) => !selectedSet || selectedSet.has(v)
+
+  function setSelected(next: Set<string>) {
+    onApply({ search: filter.search, selected: next.size === values.length ? undefined : [...next] })
+  }
+  function toggle(v: string) {
+    const cur = new Set(filter.selected ?? values)
+    if (cur.has(v)) cur.delete(v); else cur.add(v)
+    setSelected(cur)
+  }
+  function selectAllShown(check: boolean) {
+    const cur = new Set(filter.selected ?? values)
+    shown.forEach(v => check ? cur.add(v) : cur.delete(v))
+    setSelected(cur)
+  }
+
+  const left = Math.min(anchor.left, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 280)
+  const allShownChecked = shown.every(isChecked)
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="fixed z-50 w-64 bg-white rounded-lg shadow-xl border border-gray-200 text-xs"
+        style={{ left, top: anchor.bottom + 2 }} onClick={e => e.stopPropagation()}>
+        <div className="px-3 py-2 border-b border-gray-100 font-semibold text-gray-700 truncate">{label}</div>
+
+        {/* Sort */}
+        <div className="flex border-b border-gray-100">
+          <button onClick={() => { onSort('asc'); onClose() }}
+            className={cn('flex-1 px-3 py-2 flex items-center gap-1.5 hover:bg-gray-50', sortDir === 'asc' && 'text-navy-700 font-semibold')}>
+            <ChevronUp className="h-3.5 w-3.5" /> Sort A → Z
+          </button>
+          <button onClick={() => { onSort('desc'); onClose() }}
+            className={cn('flex-1 px-3 py-2 flex items-center gap-1.5 border-l border-gray-100 hover:bg-gray-50', sortDir === 'desc' && 'text-navy-700 font-semibold')}>
+            <ChevronDown className="h-3.5 w-3.5" /> Sort Z → A
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="p-2 border-b border-gray-100 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <input autoFocus value={q}
+            onChange={e => onApply({ search: e.target.value, selected: filter.selected })}
+            placeholder="Search…" className="input pl-7 pr-2 py-1 text-xs w-full" />
+        </div>
+
+        {/* Value checklist */}
+        <label className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50">
+          <input type="checkbox" checked={allShownChecked} onChange={e => selectAllShown(e.target.checked)} className="rounded" />
+          <span className="font-medium text-gray-600">{q ? 'Select all (results)' : 'Select all'}</span>
+        </label>
+        <div className="max-h-52 overflow-y-auto py-1">
+          {shown.length === 0 && <p className="px-3 py-2 text-gray-400">No matches</p>}
+          {shown.map(v => (
+            <label key={v} className="flex items-center gap-2 px-3 py-1 cursor-pointer select-none hover:bg-gray-50">
+              <input type="checkbox" checked={isChecked(v)} onChange={() => toggle(v)} className="rounded" />
+              <span className={cn('truncate', v === BLANKS && 'text-gray-400 italic')}>{v}</span>
+            </label>
+          ))}
+          {values.length > 1000 && <p className="px-3 py-1 text-gray-400">…refine with search ({values.length.toLocaleString()} values)</p>}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100">
+          <button onClick={onClear} className="text-gray-500 hover:text-red-600">Clear filter</button>
+          <button onClick={onClose} className="btn-primary text-xs py-1 px-3">Done</button>
+        </div>
+      </div>
+    </>
+  )
 }
 
 // ─── Main Page ────────────────────────────────────────────────
@@ -120,6 +223,9 @@ export default function MddrPage() {
   )
   const [sortCol,   setSortCol]  = useState<string>('activity_id')
   const [sortDir,   setSortDir]  = useState<SortDir>('asc')
+  const [colFilters, setColFilters] = useState<Record<string, ColFilter>>({})
+  const [menuCol,    setMenuCol]    = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Load available packages & vendors ──────────────────────
@@ -182,8 +288,34 @@ export default function MddrPage() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [selPackage, selVendor, selSource, search, fetchRows])
 
-  // ── Sorted rows ─────────────────────────────────────────────
-  const sortedRows = sortRows(rows, sortCol, sortDir)
+  // ── Column filters (Excel-style header menus) ───────────────
+  const activeFilterCols = Object.keys(colFilters).filter(k => {
+    const f = colFilters[k]
+    return f && ((f.search && f.search.length) || (f.selected && f.selected.length))
+  })
+  function rowPasses(row: any, exceptKey?: string) {
+    for (const key of activeFilterCols) {
+      if (key === exceptKey) continue
+      const f = colFilters[key]
+      const t = cellText(row, key)
+      if (f.search && !t.toLowerCase().includes(f.search.toLowerCase())) return false
+      if (f.selected && f.selected.length && !f.selected.includes(t === '' ? BLANKS : t)) return false
+    }
+    return true
+  }
+  function setColFilter(key: string, f: ColFilter) {
+    setColFilters(prev => {
+      const next = { ...prev }
+      if ((!f.search || !f.search.length) && (!f.selected || !f.selected.length)) delete next[key]
+      else next[key] = f
+      return next
+    })
+  }
+  // Distinct values for the open column (respecting the OTHER columns' filters).
+  const menuValues = menuCol
+    ? [...new Set(rows.filter(r => rowPasses(r, menuCol)).map(r => { const t = cellText(r, menuCol); return t === '' ? BLANKS : t }))]
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    : []
 
   function toggleSort(col: string) {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -210,10 +342,10 @@ export default function MddrPage() {
   const leftOffsets: number[] = []
   for (let i = 0, acc = 0; i < pinnedCount; i++) { leftOffsets[i] = acc; acc += displayedCols[i].width ?? 100 }
 
-  // Quick Doc Number filter (client-side, narrows as you type).
-  const viewRows = docSearch
-    ? sortedRows.filter(r => String(r.document_number ?? '').toLowerCase().includes(docSearch.toLowerCase()))
-    : sortedRows
+  // Apply column filters + the Doc Number quick filter, then sort.
+  const filteredRows = rows.filter(r =>
+    rowPasses(r) && (!docSearch || String(r.document_number ?? '').toLowerCase().includes(docSearch.toLowerCase())))
+  const viewRows = sortRows(filteredRows, sortCol, sortDir)
 
   function renderCell(row: any, col: ColDef) {
     const v = row[col.key]
@@ -281,7 +413,7 @@ export default function MddrPage() {
   // ── CSV export ──────────────────────────────────────────────
   function exportCSV() {
     const headers = displayedCols.map(c => c.label)
-    const dataRows = sortedRows.map(row =>
+    const dataRows = viewRows.map(row =>
       displayedCols.map(col => {
         const v = row[col.key]
         if (v == null) return ''
@@ -459,9 +591,13 @@ export default function MddrPage() {
             </button>
           )}
         </div>
-        {docSearch && (
-          <span className="text-xs text-gray-500">{viewRows.length.toLocaleString()} match{viewRows.length === 1 ? '' : 'es'}</span>
+        {activeFilterCols.length > 0 && (
+          <button onClick={() => setColFilters({})}
+            className="text-xs font-semibold text-navy-700 border border-navy-200 bg-navy-50 rounded-full px-3 py-1 hover:bg-navy-100 inline-flex items-center gap-1">
+            <Filter className="h-3 w-3" /> {activeFilterCols.length} column filter{activeFilterCols.length === 1 ? '' : 's'} · Clear
+          </button>
         )}
+        <span className="text-xs text-gray-500 ml-auto">{viewRows.length.toLocaleString()} of {rows.length.toLocaleString()} shown</span>
       </div>
 
       {/* Table — bounded height so the horizontal scrollbar stays visible while
@@ -479,24 +615,26 @@ export default function MddrPage() {
               <tr>
                 {displayedCols.map((col, i) => {
                   const pinned = i < pinnedCount
+                  const hasFilter = !!colFilters[col.key]
                   return (
                     <th
                       key={col.key}
-                      onClick={() => toggleSort(col.key)}
+                      onClick={e => { setMenuCol(col.key); setMenuAnchor((e.currentTarget as HTMLElement).getBoundingClientRect()) }}
                       style={{ minWidth: col.width ?? 100, ...(pinned ? { position: 'sticky', left: leftOffsets[i], top: 0 } : {}) }}
                       className={cn(
-                        'px-3 py-2.5 text-left font-semibold text-gray-600 cursor-pointer hover:text-navy-700 whitespace-nowrap select-none bg-gray-50 border-b border-gray-200',
+                        'px-3 py-2.5 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap select-none bg-gray-50 border-b border-gray-200',
                         pinned && 'z-30',
                         i === pinnedCount - 1 && 'border-r border-gray-200',
                       )}
                     >
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1 w-full">
                         {col.label}
                         {sortCol === col.key && (
                           sortDir === 'asc'
-                            ? <ChevronUp   className="h-3 w-3" />
-                            : <ChevronDown className="h-3 w-3" />
+                            ? <ChevronUp   className="h-3 w-3 shrink-0" />
+                            : <ChevronDown className="h-3 w-3 shrink-0" />
                         )}
+                        <Filter className={cn('h-3 w-3 ml-auto shrink-0', hasFilter ? 'text-navy-600 fill-navy-200' : 'text-gray-300')} />
                       </span>
                     </th>
                   )
@@ -528,6 +666,21 @@ export default function MddrPage() {
           </table>
         )}
       </div>
+
+      {/* Excel-style column menu */}
+      {menuCol && menuAnchor && (
+        <ColumnMenu
+          label={COLUMNS.find(c => c.key === menuCol)?.label ?? menuCol}
+          anchor={menuAnchor}
+          values={menuValues}
+          filter={colFilters[menuCol] ?? {}}
+          sortDir={sortCol === menuCol ? sortDir : null}
+          onSort={d => { setSortCol(menuCol); setSortDir(d) }}
+          onApply={f => setColFilter(menuCol, f)}
+          onClear={() => setColFilter(menuCol, {})}
+          onClose={() => { setMenuCol(null); setMenuAnchor(null) }}
+        />
+      )}
 
       {/* Footer count */}
       {rows.length > 0 && (
