@@ -5,8 +5,20 @@
     },
     "app/api/admin/import/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/admin/sync-sharepoint/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/cron/sharepoint-sync/route.ts": {
+      "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/sharepoint-sync",
+      "schedule": "0 2 * * *"
+    }
+  ],
   "git": {
     "deploymentEnabled": {
       "main": false

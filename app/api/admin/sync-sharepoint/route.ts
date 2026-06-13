@@ -1,29 +1,27 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { processImport } from '@/lib/import/process'
+import { syncFromSharePoint } from '@/lib/import/sharepoint-sync'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
+// Manual "Sync now" — reads the SharePoint lists directly via Graph and imports.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-
   const { data: profile } = await supabase.from('users').select('role').eq('auth_user_id', user.id).single()
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const body = await req.json()
-  const { mode, source, csvData } = body
-  if (!csvData) return NextResponse.json({ error: 'csvData is required' }, { status: 400 })
+  let body: any = {}
+  try { body = await req.json() } catch {}
+  const mode = (body?.mode === 'dry_run' || body?.mode === 'incremental') ? body.mode : 'full'
 
   const db = createServiceClient()
-
-  const { data: run } = await db.from('import_runs').insert({
-    source, mode: mode ?? 'dry_run', started_by: null, status: 'running',
-  }).select().single()
-  if (!run) return NextResponse.json({ error: 'Failed to create import run' }, { status: 500 })
-
-  const result = await processImport(run.id, source, mode ?? 'dry_run', csvData, db)
-  return NextResponse.json({ runId: run.id, ...result }, { status: 200 })
+  try {
+    const results = await syncFromSharePoint(db, { mode })
+    return NextResponse.json({ ok: true, mode, results })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
 }

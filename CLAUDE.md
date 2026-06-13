@@ -88,6 +88,22 @@ The new app triggers the existing Logic App by setting `ReturnRequested = true` 
 
 ---
 
+## SharePoint Sync (direct + daily) — Import & Sync page
+
+Three ways to bring SharePoint review data into Supabase, all sharing one importer
+(`lib/import/process.ts` → `processImport`; maps the Approver Picks + Document Approval
+list columns to `batches` / `document_versions` / `review_tasks`):
+- **CSV upload** (original) — `POST /api/admin/import`.
+- **Manual "Sync now"** — `POST /api/admin/sync-sharepoint` reads both lists live via Graph
+  (`readApproverPicks` / `readApprovalList` in `sharepoint-lists.ts`, paginated, booleans → 'True'/'False')
+  and runs the importer. Modes: full / dry_run.
+- **Daily automatic** — Vercel Cron `GET /api/cron/sharepoint-sync` at 02:00 UTC (see `vercel.json` → `crons`).
+  Shared engine: `lib/import/sharepoint-sync.ts` → `syncFromSharePoint`.
+
+**Setup:** set env `CRON_SECRET` (Vercel sends it as `Authorization: Bearer …`; the cron route rejects
+mismatches). NB `vercel.json` has `git.deploymentEnabled.main = false` — confirm how prod deploys
+(crons only register on a production deploy).
+
 ## MDDR — Master Document & Drawing Register
 
 A combined master of every deliverable across all registers, with progress tracked

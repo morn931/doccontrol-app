@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import Papa from 'papaparse'
-import { Upload, FileText, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react'
+import { Upload, FileText, CheckCircle, XCircle, Loader2, AlertTriangle, Cloud, RefreshCw } from 'lucide-react'
 
 type ImportMode = 'dry_run' | 'full' | 'incremental'
 type ImportSource = 'approver_picks' | 'document_approval_list'
@@ -26,6 +26,22 @@ export default function ImportPage() {
   const [result, setResult]     = useState<RunResult | null>(null)
   const [rowCount, setRowCount] = useState<number>(0)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // ── Direct SharePoint sync (via Graph) ──
+  const [spStatus, setSpStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [spResult, setSpResult] = useState<any>(null)
+  async function handleSpSync(syncMode: 'dry_run' | 'full') {
+    setSpStatus('running'); setSpResult(null)
+    try {
+      const res = await fetch('/api/admin/sync-sharepoint', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: syncMode }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setSpResult({ error: json.error }); setSpStatus('error') }
+      else { setSpResult(json); setSpStatus('done') }
+    } catch (e: any) { setSpResult({ error: e.message }); setSpStatus('error') }
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -92,7 +108,47 @@ export default function ImportPage() {
         </p>
       </div>
 
+      {/* Direct SharePoint sync */}
+      <div className="card p-6 space-y-4 border-navy-200">
+        <div className="flex items-start gap-3">
+          <Cloud className="h-6 w-6 text-navy-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h2 className="font-semibold text-gray-900">Automatic SharePoint Sync</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Pulls the Approver Picks and Document Approval lists straight from SharePoint via Microsoft Graph —
+              no CSV export needed. Runs <strong>automatically every day at 02:00 UTC</strong>; use the button to force an update now.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => handleSpSync('full')} disabled={spStatus === 'running'} className="btn-primary text-sm">
+            {spStatus === 'running' ? <><Loader2 className="h-4 w-4 animate-spin" /> Syncing…</> : <><RefreshCw className="h-4 w-4" /> Sync now (force update)</>}
+          </button>
+          <button onClick={() => handleSpSync('dry_run')} disabled={spStatus === 'running'} className="btn-secondary text-sm">
+            Preview (dry run)
+          </button>
+        </div>
+        {spResult && (
+          <div className={`rounded-md p-3 text-sm ${spResult.error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+            {spResult.error ? (
+              <p className="flex items-center gap-2"><XCircle className="h-4 w-4" /> {spResult.error}</p>
+            ) : (
+              <div className="space-y-1">
+                <p className="flex items-center gap-2 font-medium"><CheckCircle className="h-4 w-4" /> Sync {spResult.mode === 'dry_run' ? 'preview' : 'complete'}</p>
+                {Object.entries(spResult.results ?? {}).map(([src, r]: any) => (
+                  <p key={src} className="text-xs">
+                    <span className="font-mono">{src}</span>: read {r.read}, created {r.records_created}, failed {r.records_failed}
+                    {r.status === 'failed' && r.error_log ? ` — ${r.error_log.slice(0, 120)}` : ''}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="card p-6 space-y-5">
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Or import from a CSV export</div>
         {/* Source */}
         <div>
           <label className="label">Import Source</label>
