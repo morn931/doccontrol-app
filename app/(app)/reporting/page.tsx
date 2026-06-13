@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BarChart3, LineChart, Table2, Boxes, LayoutDashboard, ArrowRight } from 'lucide-react'
+import { BarChart3, LineChart, Table2, Boxes, LayoutDashboard, Network, ArrowRight } from 'lucide-react'
 
 const REPORTS = [
   {
@@ -28,6 +28,13 @@ const REPORTS = [
     title: 'PPE Phase 1 Engineering Deliverables',
     description: 'PPE CDDL deliverables grouped by WBS code — total docs, placeholders and 3-milestone completion (Rev A / Rev 0 / Approved). Filter by WBS.',
     icon: Boxes,
+    ready: true,
+  },
+  {
+    href: '/reporting/p6-export',
+    title: 'P6 Activity-ID Progress Export',
+    description: 'Physical % complete per P6 Activity ID, rolled up from document progress. Export a P6-ready CSV (Activity ID + % Complete) for the planner.',
+    icon: Network,
     ready: true,
   },
 ]

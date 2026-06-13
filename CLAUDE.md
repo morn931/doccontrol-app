@@ -177,6 +177,10 @@ Reports computed live off the MDDR. Charts use **recharts**.
 Reports computed live off the MDDR. Three detail reports:
 - **Engineering Tracker** (`/reporting/engineering-tracker`) — by package; EVM hours/progress.
 - **Package Progress Summary** (`/reporting/package-progress`) — by package; doc counts & progress.
+- **P6 Activity-ID Progress Export** (`/reporting/p6-export`) — rolls document progress up to one
+  Physical % Complete per P6 Activity ID; P6-ready CSV (Activity ID + % Complete). `lib/reporting/p6-export.ts`.
+  Activity IDs live on `mddr_entries.activity_id` (already mapped from the CDDL "Activity ID" column;
+  4,086 K124 docs loaded across 515 activities — vendor packages populate as their registers add them).
 - **PPE Phase 1 Engineering Deliverables** (`/reporting/phase1-deliverables`) — by **WBS code**,
   **PPE CDDL only**; 3-milestone completion (Rev A / Rev 0 / Approved, 1/3 each) derived from each
   doc's Aconex status (IFR/IFD/IFC/IFU) + Rev A/Rev 0 transmittal dates + revision; placeholders
