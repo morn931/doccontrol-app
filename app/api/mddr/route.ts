@@ -6,6 +6,24 @@ export const maxDuration = 60
 
 const PAGE = 1000   // PostgREST caps a single response at 1000 rows — page past it.
 
+// Explicit column list — NEVER select the heavy columns (embedding vector(1536),
+// raw JSONB, ai_text); `select *` dragged them and timed the query out.
+const COLS = [
+  'id', 'source_type', 'source_types', 'package_code', 'contract_number', 'project_number',
+  'package_description', 'sub_package', 'equipment_description', 'deliverable_name',
+  'service_provider_pkg_no', 'vendor_name', 'doc_owner', 'sub_supplier',
+  'document_number', 'normalized_document_number', 'ppe_doc_number', 'vendor_doc_id',
+  'document_title', 'document_description', 'sheet_number', 'discipline', 'document_type',
+  'document_category', 'area', 'system', 'sub_system', 'tag_number', 'revision', 'revision_status',
+  'review_outcome_code', 'document_status', 'planned_start_date', 'planned_ifr_date',
+  'planned_ifc_date', 'planned_completion_date', 'actual_submission_date', 'actual_review_date',
+  'actual_return_date', 'actual_completion_date', 'activity_id', 'wbs_code',
+  'weighting_primary', 'weighting_secondary', 'weighting_total', 'progress_percent',
+  'progress_milestone', 'progress_source', 'earned_value', 'issued_for', 'as_built_required',
+  'certified_final_required', 'schedule_status', 'aconex_doc_status', 'aconex_review_status',
+  'comments', 'remarks', 'vendor_comments', 'is_awarded', 'is_active', 'sector', 'file_link',
+].join(',')
+
 export async function GET(req: NextRequest) {
   const db     = createServiceClient()
   const url    = new URL(req.url)
@@ -31,7 +49,7 @@ export async function GET(req: NextRequest) {
   const build = (from: number, to: number) => {
     let query = db
       .from('mddr_entries')
-      .select('*')
+      .select(COLS)
       .eq('is_active', true)
       .order('activity_id', { ascending: true, nullsFirst: false })
       .order('document_number', { ascending: true })
