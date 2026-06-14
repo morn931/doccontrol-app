@@ -290,7 +290,7 @@ export default function DocumentsPage() {
                 )}
               </div>
               {r.file_link
-                ? <a href={r.file_link} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3 shrink-0"><ExternalLink className="h-3.5 w-3.5" /> Open</a>
+                ? <a href={`/api/mddr/open?id=${r.id}`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3 shrink-0"><ExternalLink className="h-3.5 w-3.5" /> Open</a>
                 : <span className="text-xs text-gray-300 shrink-0 mt-1.5">no file</span>}
             </div>
 
@@ -302,7 +302,7 @@ export default function DocumentsPage() {
                   ) : revRows.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-gray-400 flex items-center justify-between">
                       <span>No prior revisions tracked{r.file_link ? ' — current file:' : ''}</span>
-                      {r.file_link && <a href={r.file_link} target="_blank" rel="noopener noreferrer" className="text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>}
+                      {r.file_link && <a href={`/api/mddr/open?id=${r.id}`} target="_blank" rel="noopener noreferrer" className="text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>}
                     </div>
                   ) : revRows.map((rv: any, i: number) => (
                     <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
