@@ -6,7 +6,7 @@ For each link: confirm it resolves; if gone, look in the parent folder for the s
 document number (any revision) and repair the link; if still nothing, mark it dead
 (null) so the Open button hides.
 """
-import urllib.request, urllib.parse, json, base64, sys
+import urllib.request, urllib.parse, json, base64, sys, time
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 APPLY = '--apply' in sys.argv
 env = {}
@@ -16,17 +16,34 @@ for line in open('.env.local', encoding='utf-8'):
         k, v = line.split('=', 1); env[k] = v.strip().strip('"')
 URL = env['NEXT_PUBLIC_SUPABASE_URL']; KEY = env['SUPABASE_SERVICE_ROLE_KEY']
 SH = {'apikey': KEY, 'Authorization': f'Bearer {KEY}'}
-data = urllib.parse.urlencode({'client_id': env['MICROSOFT_CLIENT_ID'], 'client_secret': env['MICROSOFT_CLIENT_SECRET'],
-    'grant_type': 'client_credentials', 'scope': 'https://graph.microsoft.com/.default'}).encode()
-tok = json.load(urllib.request.urlopen(urllib.request.Request(
-    f"https://login.microsoftonline.com/{env['MICROSOFT_TENANT_ID']}/oauth2/v2.0/token", data=data)))['access_token']
-GH = {'Authorization': f'Bearer {tok}'}
 
-def graph(path):
+GH = {}; TOKEN_TS = 0.0
+def get_token():
+    global GH, TOKEN_TS
+    data = urllib.parse.urlencode({'client_id': env['MICROSOFT_CLIENT_ID'], 'client_secret': env['MICROSOFT_CLIENT_SECRET'],
+        'grant_type': 'client_credentials', 'scope': 'https://graph.microsoft.com/.default'}).encode()
+    tok = json.load(urllib.request.urlopen(urllib.request.Request(
+        f"https://login.microsoftonline.com/{env['MICROSOFT_TENANT_ID']}/oauth2/v2.0/token", data=data)))['access_token']
+    GH = {'Authorization': f'Bearer {tok}'}; TOKEN_TS = time.time()
+get_token()
+
+def graph(path, _retry=True):
+    if time.time() - TOKEN_TS > 2400: get_token()    # refresh well before the 60-min expiry
     try:
         return json.load(urllib.request.urlopen(urllib.request.Request('https://graph.microsoft.com/v1.0' + path, headers=GH)))
-    except urllib.error.HTTPError:
+    except urllib.error.HTTPError as e:
+        if e.code == 401 and _retry: get_token(); return graph(path, False)
         return None
+    except Exception:
+        return None
+
+def db_get(path, tries=4):
+    for t in range(tries):
+        try:
+            return json.load(urllib.request.urlopen(urllib.request.Request(URL + path, headers=SH), timeout=60))
+        except Exception as e:
+            if t == tries - 1: raise
+            time.sleep(2)
 
 def share_id(url):
     b = base64.b64encode(url.encode()).decode().rstrip('=').replace('/', '_').replace('+', '-')
@@ -51,8 +68,7 @@ def resolve(url, core):
 # pull rows with a file_link
 rows = []; frm = 0
 while True:
-    d = json.load(urllib.request.urlopen(urllib.request.Request(
-        f'{URL}/rest/v1/mddr_entries?select=id,source_type,file_link,normalized_document_number,document_number&file_link=not.is.null&order=id&offset={frm}&limit=1000', headers=SH)))
+    d = db_get(f'/rest/v1/mddr_entries?select=id,source_type,file_link,normalized_document_number,document_number&file_link=not.is.null&order=id&offset={frm}&limit=1000')
     rows += d
     if len(d) < 1000: break
     frm += 1000
