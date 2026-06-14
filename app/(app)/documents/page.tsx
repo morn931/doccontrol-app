@@ -33,6 +33,7 @@ export default function DocumentsPage() {
   const [statuses, setStatuses] = useState<string[]>([])
   const [sectors, setSectors] = useState<string[]>([])
   const [selSector, setSelSector] = useState('ALL')
+  const [produced, setProduced] = useState<'files' | 'all'>('files')   // default: only docs with a file
 
   const [selPackage, setSelPackage] = useState('ALL')
   const [selVendor, setSelVendor] = useState('ALL')
@@ -79,6 +80,7 @@ export default function DocumentsPage() {
       if (docType) p.set('document_type', docType)
       if (status) p.set('status', status)
       if (selSector !== 'ALL') p.set('sector', selSector)
+      if (produced === 'files') p.set('has_file', '1')
       if (docnum) p.set('docnum', docnum)
       if (title) p.set('title', title)
       const res = await fetch(`/api/mddr?${p}`)
@@ -88,7 +90,7 @@ export default function DocumentsPage() {
       else { setRows(data.rows ?? []); setTotal(data.total ?? 0) }
     } catch (e: any) { setError(e.message); setRows([]) }
     finally { setLoading(false) }
-  }, [awarded, selPackage, selVendor, selSource, discipline, docType, status, selSector, docnum, title])
+  }, [awarded, selPackage, selVendor, selSource, discipline, docType, status, selSector, produced, docnum, title])
 
   useEffect(() => {
     if (smart.trim()) { setLoading(false); return }   // Smart search owns the results — skip the filter query
@@ -122,7 +124,7 @@ export default function DocumentsPage() {
 
   function clearAll() {
     setSelPackage('ALL'); setSelVendor('ALL'); setSelSource('ALL'); setAwarded('true')
-    setDiscipline(''); setDocType(''); setStatus(''); setSelSector('ALL'); setDocnum(''); setTitle(''); setSmart('')
+    setDiscipline(''); setDocType(''); setStatus(''); setSelSector('ALL'); setProduced('files'); setDocnum(''); setTitle(''); setSmart('')
   }
 
   const isSmart = smart.trim().length > 0
@@ -213,6 +215,12 @@ export default function DocumentsPage() {
             {statuses.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <button onClick={clearAll} className="text-sm text-gray-400 hover:text-gray-600 ml-auto">Clear all</button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Scope:</span>
+          {([['files', 'With documents produced'], ['all', 'Full MDDR (incl. placeholders)']] as const).map(([v, l]) =>
+            <Chip key={v} color="navy" active={produced === v} onClick={() => setProduced(v)}>{l}</Chip>)}
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">

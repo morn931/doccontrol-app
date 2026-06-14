@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
   const status       = url.searchParams.get('status')        ?? ''
   const sector       = url.searchParams.get('sector')        ?? ''
   const excludeIndex = url.searchParams.get('exclude_index') === '1'   // register MDDR page
+  const hasFile      = url.searchParams.get('has_file') === '1'        // only docs with an actual file
   const limit  = Math.min(parseInt(url.searchParams.get('limit') ?? '2000'), 20000)
   const offset = parseInt(url.searchParams.get('offset') ?? '0')
 
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
     if (status)       query = query.eq('document_status', status)
     if (sector)       query = query.eq('sector', sector)
     if (excludeIndex) query = query.neq('source_type', 'INDEX')
+    if (hasFile)      query = query.not('file_link', 'is', null)
     if (docnum) {
       const t = `%${docnum}%`
       query = query.or(`document_number.ilike.${t},normalized_document_number.ilike.${t},ppe_doc_number.ilike.${t},vendor_doc_id.ilike.${t}`)
