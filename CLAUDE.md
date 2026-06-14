@@ -4,7 +4,7 @@
 A modern web-based document approval & control system for PPE Tech (PPE Technologies), replacing an existing SharePoint / Power Apps / Logic Apps system. The new app runs **in parallel** with the old system — both can be used simultaneously. Nothing in the old system has been removed or overridden.
 
 **Live URL:** https://doccontrol-app.vercel.app  
-**Stack:** Next.js 14 (App Router), TypeScript, Supabase (Postgres), Vercel, Microsoft Graph API, Azure Document Intelligence, Azure OpenAI  
+**Stack:** Next.js 14 (App Router), TypeScript, Supabase (Postgres + **pgvector**), Vercel, Microsoft Graph API, Azure Document Intelligence, Azure OpenAI (classification + **embeddings**), **recharts** (reporting), **xlsx** (register parsing)  
 **Repo:** `C:\Users\mornec\Claude\Projects\Document management (1)\doccontrol-app`  
 **Co-owners (equal, full authority):** Morné Cronjé — mornec@ppetech.co.za — **and** Liezl Cronjé — liezlc@ppetech.co.za. Both hold full repo write/merge rights, full Supabase access, and admin in the apps. **Either may review and merge their own PRs and run migrations/scripts — neither needs the other's sign-off for routine work; do NOT route actions through "ask Morné" / "ask Liezl".**
 
@@ -31,6 +31,7 @@ A modern web-based document approval & control system for PPE Tech (PPE Technolo
 - Central site: `https://ppetechcoza.sharepoint.com/sites/DocumentControl`
 - **Approver Picks list ID:** `b5978f12-495c-49b6-bff4-3392a8d2a681` (one row per batch, triggers return-to-vendor flow)
 - **Document Approval List ID:** `9711d630-daee-426e-b621-d941fc18c01f` (one row per doc per reviewer, write-back from new app)
+- **Document Index list ID:** `e348e9d5-3fb3-45b2-951d-7b299826ce0d` (display "Document Index", URL slug "Mater Site Document Index") — site-wide master of every file, with AISummary/AIKeywords + file URLs; source for MDDR sectors + `file_link`.
 
 ### Azure Resources (rg-vendor-approvals-prod, South Africa North)
 - Azure Document Intelligence: OCR/text extraction
@@ -179,9 +180,8 @@ The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the sam
   run it in the DocControl project `tjzeahdimbekuizegsky`, NOT CoreTime.
 
 ### Known gaps / next
-- **Activity IDs** are not populated in the supplied registers (CDDL column blank, GMDR has
-  none) → P6 export has nothing to carry yet; mapping is ready for when they appear.
-- **Reporting** off the MDDR (progress roll-ups by package/vendor; P6 Activity-ID export).
+- **Activity IDs**: 4,086 K124 (CDDL) docs now carry Activity IDs (loaded from the updated CDDL,
+  515 activities) → P6 export works for K124. Vendor packages populate as their registers add them.
 
 ## Reporting (menu: **Reporting**, `/reporting`)
 
@@ -194,7 +194,7 @@ Reports computed live off the MDDR. Charts use **recharts**.
   heading; KPI tiles + on-chart data labels make it print/screenshot-friendly. API
   `app/api/reporting/dashboard` (accepts the same filter params).
 
-Reports computed live off the MDDR. Three detail reports:
+Plus these detail reports (all live off the MDDR):
 - **Engineering Tracker** (`/reporting/engineering-tracker`) — by package; EVM hours/progress.
 - **Package Progress Summary** (`/reporting/package-progress`) — by package; doc counts & progress.
 - **P6 Activity-ID Progress Export** (`/reporting/p6-export`) — rolls document progress up to one
@@ -229,52 +229,51 @@ Rules-of-Credit progress, planned% = docs due ≤ "as of", variance). It backs t
 ## Key Files
 
 ```
-app/
-  (app)/
-    batches/          — batch list + detail pages
-    transmittals/     — transmittal history
-    reviews/          — reviewer queue
-    documents/        — document search/retrieval
-  api/
-    batches/[id]/
-      route.ts                    — batch CRUD
-      generate-transmittal/       — PDF generation + email + return trigger
-      debug-return/               — diagnostic (remove when done)
-      start-review/               — kicks off sequential review
-      reject/                     — reject batch before review
-    intake/webhook/               — receives vendor upload notifications
-    reviews/[id]/
-      route.ts                    — review task details
-      submit/                     — reviewer submits outcome
-      context/                    — loads review context + document URL
-    admin/import/                 — imports batches from old SharePoint system
+app/(app)/
+  batches/ transmittals/ reviews/        — core review workflow
+  documents/                             — DOCUMENT SEARCH (MDDR-backed: filters, scope toggle,
+                                           Doc#/Title + Smart search, Open + revisions drawer)
+  mddr/page.tsx                          — MDDR master table (filters, Excel header menus, upload)
+  reporting/                             — landing + dashboard, engineering-tracker, package-progress,
+                                           phase1-deliverables, p6-export
+  admin/import/                          — Import & Sync (CSV + direct SharePoint sync)
+  admin/vendors/                         — Vendors & Packages (awarded vendor per package)
+app/api/
+  batches/[id]/ reviews/[id]/ intake/webhook/   — review workflow + intake
+  admin/import/                          — CSV import (POST)
+  admin/sync-sharepoint/                 — manual direct Graph sync (POST)
+  cron/sharepoint-sync/                  — daily Vercel cron (GET, CRON_SECRET)
+  mddr/        route.ts                  — list (filters, sector, exclude_index, has_file, paginated)
+  mddr/meta/ upload/ sync/ semantic/ revisions/ open/   — MDDR APIs
+  reporting/dashboard|engineering-tracker|package-progress|phase1-deliverables|p6-export/
 lib/
-  services/
-    graph.ts                      — Microsoft Graph API client
-    sharepoint-lists.ts           — SP list read/write (DAL + Approver Picks)
-    document-intelligence.ts      — Azure OCR
-    openai.ts                     — AI classification
-    email-templates.ts            — HTML email templates
-  utils/
-    outcome-codes.ts              — outcome code definitions
-supabase/
-  migrations/
-    001_initial_schema.sql
-    002_search_indexes.sql
-    003_rls_policies.sql
-    20260608_seed_vendor_sites.sql — vendor registry from CSV
+  services/  graph.ts · sharepoint-lists.ts (read/write + list readers) · document-intelligence.ts
+             · openai.ts · embeddings.ts (Azure embeddings) · sp-resolve.ts (live link resolver)
+             · email-templates.ts
+  mddr/      mapping.ts · rules-of-credit.ts · import.ts · sync.ts
+  import/    process.ts (shared importer) · sharepoint-sync.ts
+  reporting/ package-progress.ts · engineering-tracker.ts · eng-tracker-config.ts · phase1-wbs.ts · p6-export.ts
+  package-vendors.ts                     — package → awarded vendor map
+  utils/     outcome-codes.ts · document-number-parser.ts
+scripts/     import-direct.ts · sync-direct.ts · embed-mddr.ts   (tsx)
+             import-docindex.py · backfill-filelinks.py · validate-filelinks.py   (python, Graph)
+supabase/migrations/  001_initial_schema · 002_search_indexes · 003_rls_policies
+             · 20260608_seed_vendor_sites · 004_mddr_schema · 005_mddr_semantic
+             · 006_mddr_sectors · 007_match_mddr_filelink
 ```
 
 ---
 
 ## Pending / Next Steps
 
-1. **Confirm return-to-vendor end-to-end** on a clean production batch (K108 test batch had stale DAL data — not a code bug)
-2. **Remove debug endpoint** `app/api/batches/[id]/debug-return/route.ts` once confirmed
-3. **Run vendor_sites migration** in Supabase SQL editor if not yet done (`20260608_seed_vendor_sites.sql`)
-4. Vendor portal upload interface (currently vendors still upload to SharePoint; long-term: direct upload to new app)
-5. Engineering Manager override / escalation flow
-6. Return-to-vendor status update (`ReturnComplete = true`) after Logic App completes
+1. Run `scripts/validate-filelinks.py --apply` periodically (repairs stale links, nulls dead ones);
+   optionally fold embed + link-refresh into the daily cron so sectors/links stay current automatically.
+2. Optional: full Document-Index revision history (store all index file rows) so the revisions drawer
+   covers index-only docs, not just `document_versions`.
+3. Optional: normalise vendor-name variants ("PPE Technologies" vs "PPE - Technologies", "Other").
+4. **Remove debug endpoint** `app/api/batches/[id]/debug-return/route.ts` once return-to-vendor confirmed.
+5. Vendor portal upload interface (vendors still upload to SharePoint today).
+6. Engineering Manager override / escalation flow; return-to-vendor `ReturnComplete=true` write-back.
 
 ---
 
@@ -291,10 +290,17 @@ CONTROLLER_EMAIL=liezlc@ppetech.co.za
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT
 AZURE_DOCUMENT_INTELLIGENCE_KEY
 AZURE_OPENAI_ENDPOINT
-AZURE_OPENAI_KEY
+AZURE_OPENAI_API_KEY
+AZURE_OPENAI_INTAKE_DEPLOYMENT            # chat model for classification (gpt-4o-mini)
+AZURE_OPENAI_REVIEW_SUMMARY_DEPLOYMENT
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT         # text-embedding-3-small — semantic search
+CRON_SECRET                              # Vercel cron auth (Bearer); set before deploy
 PDF_ANNOTATION_FUNCTION_URL
+PDF_ANNOTATION_FUNCTION_KEY
+INTAKE_WEBHOOK_SECRET
 VENDOR_PORTAL_URL
 ```
+Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, South Africa North).
 
 ---
 
@@ -305,45 +311,56 @@ VENDOR_PORTAL_URL
 3. Claude will read this file and be fully up to speed immediately
 
 This file should be updated at the end of each work session with new progress.
-**Last updated: 2026-06-09** — MDDR module built, loaded & live in production
-(`doccontrol-app.vercel.app/mddr`). Migration 004 applied to project `tjzeahdimbekuizegsky`.
-All 9 registers imported and reconciled to ONE master per document number: **6,078 awarded
-docs + ~87,400 unawarded scope rows**. The discipline/type delimiter reconciliation merged
-636 SDDR↔GMDR duplicate pairs (e.g. `…-E-GAD-…` ↔ `…-EGAD-…`); 1,039 docs now carry both
-master + vendor-register data in one row. Rules-of-Credit progress (25/75/85/100) synced
-**470 docs** from the live review system (85 @25%, 120 @75%, 265 @85%; no 100% yet — none at
-numeric Rev 0 IFC/IFD). UI: package→vendor→source + awarded/scope filters, frozen
-Doc#/Title columns with always-visible horizontal scroll, top-left Doc Number quick-filter,
-column picker, CSV export, Upload (merge/override), Sync Progress. Fixed a sync pagination
-bug (offset paging without `.order` undercounted matches) and made `--wipe` batch-delete.
-**Reporting menu added with three live reports off the MDDR:** (1) Engineering Tracker
-(by package; EVM tracker — reproduces the workbook budget columns exactly: K125 F=2138,
-E102 F=1063, Eng subtotal F=63,675; fixed the sheet's % of Proj / % of Discpl ratio errors);
-(2) Package Progress Summary (by package; doc counts, planned vs actual %, variance — backed by
-the shared `aggregatePackages`); (3) PPE Phase 1 Engineering Deliverables (by **WBS code**,
-**CDDL only**; 3-milestone Rev A/Rev 0/Approved completion; placeholders = 0%). Each is
-package/WBS-filterable with CSV export. Next: print/PDF views + P6 Activity-ID export
-(Activity IDs not yet present in source registers).
-**Document Search** reworked to query the MDDR (the full register, not just the 790 live docs):
-MDDR-style filters (package/vendor/source/awarded) + discipline/doc-type/status dropdowns +
-separate **Doc Number** and **Title** search boxes (`/api/mddr` gained `docnum`, `title`,
-`discipline`, `document_type`, `status` params; `/api/mddr/meta` now also returns distinct
-disciplines/documentTypes/statuses). **Vendors & Packages** now shows the awarded vendor per
-package (`lib/package-vendors.ts`; default "Not awarded yet"; K124 = PPE).
-**Semantic search** (Document Search "Smart search" box): pgvector embeddings of each doc's
-AI summary. `migration 005_mddr_semantic.sql` (pgvector + `mddr_entries.ai_text`/`embedding`
-+ `match_mddr` RPC); `lib/services/embeddings.ts` (Azure `text-embedding-3-small`, 1536 dims);
-Sync Progress copies `ai_text` onto matched rows; `scripts/embed-mddr.ts` backfills;
-`POST /api/mddr/semantic` embeds the query and calls `match_mddr`. **Setup:** deploy an Azure
-embeddings model, set env `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, apply migration 005, run Sync
-Progress, then `npx tsx scripts/embed-mddr.ts`.
-**Document Index → MDDR sectors** (`migration 006`): the site-wide SharePoint "Document Index"
-list (display name "Document Index", URL slug "Mater Site Document Index", id e348e9d5-…) is the
-master of every file. `scripts/import-docindex.py` brings in the balance not in the registers:
-(A) ~22 docs in current packages as register rows, and (B) ~2,926 as `source_type='INDEX'` rows
-with a `sector` (K038 Early Works · SHERQ/Safety · QC · Plans/Procedures · Specs/Datasheets) +
-`file_link` + `ai_text` (AISummary). INDEX rows are EXCLUDED from the register MDDR page
-(`exclude_index=1`) and the EVM reports (`.neq('source_type','INDEX')`), but searchable in
-**Document Search** via a new **Sector** filter; re-run `scripts/embed-mddr.ts` to embed them.
-**Prior:** Transmittal PDF, email send, return-to-vendor Logic App trigger working; vendor
-site registry seeded; Graph API pagination fix.
+
+## Changelog (most recent first)
+- **2026-06-14 — Open links + revisions + scope toggle.**
+  Document Search gained a **Scope** toggle — *With documents produced* (default; only docs that
+  have a `file_link`) vs *Full MDDR (incl. placeholders)*. Each result has an **Open** button that
+  resolves the file's CURRENT SharePoint location live via Graph (`/api/mddr/open` →
+  `lib/services/sp-resolve.ts`; falls back to a parent-folder lookup for renames/revision drift —
+  fixes the stale "404 NOT FOUND" on Document-Index links). Click a row to expand a **revisions
+  drawer** (all revisions, latest tagged, each openable — `/api/mddr/revisions`). `file_link`
+  backfilled for register docs (`scripts/backfill-filelinks.py` from Document Index + central_file_url);
+  `scripts/validate-filelinks.py` audits/repairs/nulls links (token-refresh safe).
+  **Perf fixes:** the list API selects an explicit column list (NEVER the heavy `embedding`/`raw`/
+  `ai_text`) and dropped the exact `count` — resolved the slowness + "statement timeout".
+- **2026-06-13/14 — Document Index → MDDR sectors (migration 006).**
+  The site-wide SharePoint **"Document Index"** (display "Document Index", URL slug
+  "Mater Site Document Index", id `e348e9d5-3fb3-45b2-951d-7b299826ce0d`) is the master of every
+  file. `scripts/import-docindex.py` imported the balance not in the registers: **22 register
+  gap-fills** + **2,926 `source_type='INDEX'` rows** across 5 `sector`s (K038 Early Works · SHERQ/
+  Safety · QC · Plans/Procedures · Specs/Datasheets) with `file_link` + `ai_text`. INDEX rows are
+  EXCLUDED from the register MDDR page (`exclude_index=1`) and EVM reports, but searchable in
+  Document Search via a **Sector** filter.
+- **Semantic search (migrations 005 + 007).** pgvector embeddings of each doc's AI summary;
+  **Smart search** box in Document Search (`POST /api/mddr/semantic` → `match_mddr` RPC, returns
+  `file_link`/`ai_text`/`similarity`). `lib/services/embeddings.ts` (Azure `text-embedding-3-small`,
+  1536 dims); `scripts/embed-mddr.ts` backfills (~9,000 awarded + INDEX docs embedded). Env
+  `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` required.
+- **Document Search overhaul.** Repointed at the MDDR (full register, not just the 790 live docs):
+  package/vendor/source/awarded chips + discipline/doc-type/status dropdowns + sector + scope +
+  separate **Doc Number** and **Title** searches. **Vendors & Packages** shows the awarded vendor
+  per package (`lib/package-vendors.ts`; default "Not awarded yet"; K124 = PPE).
+- **SharePoint sync (direct + daily).** Import & Sync page: CSV upload (orig) + "Sync now"
+  (full/incremental/dry) + daily Vercel Cron 02:00 UTC. Shared importer `lib/import/process.ts`;
+  Graph readers in `sharepoint-lists.ts`. Env `CRON_SECRET`.
+- **Reporting menu (recharts).** Progress Dashboard (S-curve + 3 charts), Engineering Tracker (EVM),
+  Package Progress Summary, PPE Phase 1 Deliverables (by WBS), P6 Activity-ID export.
+- **MDDR module (migration 004).** All registers reconciled to ONE master per doc number; Rules of
+  Credit progress (25/75/85/100); Excel-style header menus; frozen Doc#/Title; merge/override upload.
+- **2026-06-08 — Prior.** Transmittal PDF + email (Graph) + return-to-vendor Logic App trigger;
+  vendor site registry seeded; Graph pagination fix.
+
+## Current data state (project `tjzeahdimbekuizegsky`)
+- `mddr_entries` ≈ 96k rows = **6,100 awarded register docs** + **~87k unawarded scope** +
+  **2,926 INDEX sector docs**. ~3,700 docs have a `file_link` (openable). All awarded + INDEX docs
+  embedded for semantic search.
+- **Migrations applied:** 001, 002, 003, `20260608_seed_vendor_sites`, 004, 005, 006, 007.
+
+## Deploy & migration process
+- **Production deploys are MANUAL.** `vercel.json` has `git.deploymentEnabled.main = false`, so a
+  push to `main` does NOT auto-deploy. Run `vercel --prod` from the repo to deploy. **Vercel crons
+  register only on a production deploy.**
+- **DB migrations are applied by hand** in the Supabase SQL editor (DocControl project
+  `tjzeahdimbekuizegsky` — NOT CoreTime `ssyvxiqlcxfqomdklakr`). All migrations are idempotent.
+- Commit to `main`; end commit messages with the Co-Authored-By trailer.
