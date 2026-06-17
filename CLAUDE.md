@@ -1,5 +1,17 @@
 # DocControl App — Project Context for Claude
 
+## ⚠️ Supabase row limit rule (applies to every query)
+
+PostgREST's default `max_rows = 1000` silently truncates any `.select()` that returns
+more rows — **no error, no warning**. Every query that might exceed 1000 rows MUST use:
+- `.limit(N)` with N > 1000 for queries with a known upper bound
+- `fetchAll()` from `lib/supabase/fetch-all.ts` for unbounded tables (mddr_entries has 87k+ rows)
+- `.range(from, to)` in a loop (the pattern already used in `sync.ts`, `phase1-wbs.ts`, `package-progress.ts`)
+
+The MDDR sync and reporting files already implement this correctly. Maintain the pattern in all new queries.
+
+---
+
 ## What This Is
 A modern web-based document approval & control system for PPE Tech (PPE Technologies), replacing an existing SharePoint / Power Apps / Logic Apps system. The new app runs **in parallel** with the old system — both can be used simultaneously. Nothing in the old system has been removed or overridden.
 
