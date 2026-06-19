@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { readCoreflowPpeEmail } from '@/lib/coreflow-auth'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -25,7 +26,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public routes that don't need auth
-  const publicRoutes = ['/login', '/auth/callback']
+  const publicRoutes = ['/login', '/auth/callback', '/auth/coreflow-bridge']
   if (publicRoutes.some(r => pathname.startsWith(r))) {
     // If already logged in, redirect to dashboard
     if (user && pathname === '/login') {
@@ -37,8 +38,15 @@ export async function middleware(request: NextRequest) {
   // API intake webhook is authenticated by shared secret, not session
   if (pathname.startsWith('/api/intake/webhook')) return supabaseResponse
 
-  // All other routes require authentication
+  // All other routes require authentication.
   if (!user) {
+    // Internal PPE staff: if they carry a valid Coreflow session, bridge them in
+    // instead of bouncing to CoreDocs' own login. External users (no shared session)
+    // fall through to the normal login.
+    const ppeEmail = await readCoreflowPpeEmail(request.cookies.getAll())
+    if (ppeEmail) {
+      return NextResponse.redirect(new URL('/auth/coreflow-bridge', request.url))
+    }
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
