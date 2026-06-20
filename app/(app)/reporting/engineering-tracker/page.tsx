@@ -100,13 +100,13 @@ export default function EngineeringTrackerPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/reporting" className="text-xs text-gray-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
+          <Link href="/reporting" className="text-xs text-slate-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
             <ArrowLeft className="h-3 w-3" /> Reporting
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <LineChart className="h-6 w-6 text-navy-600" /> Engineering Tracker
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <p className="text-slate-500 text-sm mt-0.5">
             Live from the MDDR · progress per the agreed Rules of Credit
             {generatedAt && ` · generated ${new Date(generatedAt).toLocaleString()}`}
           </p>
@@ -122,26 +122,26 @@ export default function EngineeringTrackerPage() {
       {/* Controls */}
       <div className="flex flex-wrap gap-x-6 gap-y-2 items-center">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Package:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Package:</span>
           {['ALL', ...PACKAGES].map(p => (
             <button key={p} onClick={() => setSelPackage(p)}
               className={cn('px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
                 selPackage === p ? 'bg-navy-700 text-white border-navy-700'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400 hover:text-navy-700')}>
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
               {p}
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-xs text-gray-600">
-          <span className="font-semibold text-gray-500 uppercase tracking-wide">As of:</span>
+        <label className="flex items-center gap-2 text-xs text-slate-600">
+          <span className="font-semibold text-slate-500 uppercase tracking-wide">As of:</span>
           <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input py-1 text-xs" />
         </label>
         <div className="flex items-center gap-1">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">% of Discpl by:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mr-1">% of Discpl by:</span>
           {(['hours', 'docs'] as const).map(b => (
             <button key={b} onClick={() => setBasis(b)}
               className={cn('px-2.5 py-1 rounded-full text-xs font-semibold border capitalize',
-                basis === b ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-300')}>
+                basis === b ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-600 border-slate-300')}>
               {b}
             </button>
           ))}
@@ -156,12 +156,12 @@ export default function EngineeringTrackerPage() {
           <thead className="sticky top-0 z-20">
             <tr>
               <th rowSpan={2} style={{ position: 'sticky', left: 0, minWidth: 280 }}
-                className="z-30 bg-navy-50 border-b border-r border-gray-200 px-3 py-2 text-left font-bold text-gray-700 align-bottom">
+                className="z-30 bg-navy-50 border-b border-r border-slate-200 px-3 py-2 text-left font-bold text-slate-700 align-bottom">
                 Description
               </th>
               {GROUPS.map(g => (
                 <th key={g.name} colSpan={g.span}
-                  className="bg-gray-100 border-b border-l border-gray-200 px-3 py-1.5 text-center font-bold text-gray-600 uppercase tracking-wide whitespace-nowrap">
+                  className="bg-slate-100 border-b border-l border-slate-200 px-3 py-1.5 text-center font-bold text-slate-600 uppercase tracking-wide whitespace-nowrap">
                   {g.name}
                 </th>
               ))}
@@ -169,7 +169,7 @@ export default function EngineeringTrackerPage() {
             <tr>
               {COLS.map((c, i) => (
                 <th key={c.key as string} style={{ minWidth: c.width }}
-                  className={cn('bg-gray-50 border-b border-gray-200 px-2 py-1.5 text-right font-semibold text-gray-500 whitespace-nowrap',
+                  className={cn('bg-slate-50 border-b border-slate-200 px-2 py-1.5 text-right font-semibold text-slate-500 whitespace-nowrap',
                     (i === 0 || COLS[i - 1].group !== c.group) && 'border-l')}>
                   {c.label}
                 </th>
@@ -189,10 +189,10 @@ export default function EngineeringTrackerPage() {
               )
               const heavy = r.kind === 'subtotal' || r.kind === 'grand'
               return (
-                <tr key={ri} className={cn('group', heavy ? 'bg-gray-50 font-semibold' : 'hover:bg-amber-50')}>
+                <tr key={ri} className={cn('group', heavy ? 'bg-slate-50 font-semibold' : 'hover:bg-amber-50')}>
                   <td style={{ position: 'sticky', left: 0 }}
-                    className={cn('border-b border-r border-gray-200 px-3 py-1.5 text-gray-800 align-middle',
-                      heavy ? 'bg-gray-100 font-semibold' : 'bg-white group-hover:bg-amber-50',
+                    className={cn('border-b border-r border-slate-200 px-3 py-1.5 text-slate-800 align-middle',
+                      heavy ? 'bg-slate-100 font-semibold' : 'bg-white group-hover:bg-amber-50',
                       r.kind === 'grand' && 'border-t-2 border-t-navy-300')}>
                     {r.description}
                   </td>
@@ -201,8 +201,8 @@ export default function EngineeringTrackerPage() {
                     const n = Number(r[c.key] ?? 0)
                     return (
                       <td key={c.key as string}
-                        className={cn('border-b border-gray-100 px-2 py-1.5 align-middle whitespace-nowrap',
-                          c.kind === 'text' ? 'text-left text-gray-500 truncate max-w-[320px]' : 'text-right tabular-nums',
+                        className={cn('border-b border-slate-100 px-2 py-1.5 align-middle whitespace-nowrap',
+                          c.kind === 'text' ? 'text-left text-slate-500 truncate max-w-[320px]' : 'text-right tabular-nums',
                           isVar && (n >= 0 ? 'text-green-700' : 'text-red-600'),
                           r.kind === 'grand' && 'border-t-2 border-t-navy-300')}>
                         {isVar && n > 0 ? '+' : ''}{fmt(r, c)}
@@ -217,7 +217,7 @@ export default function EngineeringTrackerPage() {
       </div>
 
       {/* Methodology note */}
-      <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-gray-600 flex gap-2">
+      <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-slate-600 flex gap-2">
         <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p><b>How this is calculated.</b> Budget hours are the fixed inputs from the Engineering Tracker workbook.

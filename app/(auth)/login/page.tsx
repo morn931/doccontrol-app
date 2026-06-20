@@ -35,13 +35,22 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-xl p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Sign in to your account</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-6">Sign in to your account</h2>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
               {error}
             </div>
           )}
+
+          {/* PPE staff: one-login via Coreflow. External users use the form below. */}
+          <a href="/auth/coreflow-bridge"
+            className="mb-4 flex w-full items-center justify-center gap-2 rounded-md border border-navy-200 bg-navy-50 px-4 py-2.5 text-sm font-medium text-navy-800 hover:bg-navy-100">
+            Continue with Coreflow <span className="text-navy-400">— PPE staff</span>
+          </a>
+          <div className="mb-4 flex items-center gap-3 text-xs text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" /> or sign in with your CoreDocs account <span className="h-px flex-1 bg-slate-200" />
+          </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>

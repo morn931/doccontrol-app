@@ -55,7 +55,7 @@ export default function UsersPage() {
     admin: 'bg-purple-100 text-purple-700',
     document_controller: 'bg-navy-100 text-navy-700',
     engineering_manager: 'bg-blue-100 text-blue-700',
-    reviewer: 'bg-gray-100 text-gray-600',
+    reviewer: 'bg-slate-100 text-slate-600',
     project_manager: 'bg-teal-100 text-teal-700',
     vendor: 'bg-orange-100 text-orange-700',
   }
@@ -64,8 +64,8 @@ export default function UsersPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Users</h1>
-          <p className="text-gray-500 text-sm mt-1">Manage who can access the Document Control platform</p>
+          <h1 className="text-2xl font-bold text-slate-900">Users</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage who can access the Document Control platform</p>
         </div>
         <button onClick={() => setShowAdd(!showAdd)} className="btn-primary">
           <Plus className="h-4 w-4" /> Add User
@@ -75,7 +75,7 @@ export default function UsersPage() {
       {/* Add user form */}
       {showAdd && (
         <div className="card p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Add New User</h2>
+          <h2 className="font-semibold text-slate-900 mb-4">Add New User</h2>
           <form onSubmit={handleAdd} className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Email address *</label>
@@ -111,14 +111,14 @@ export default function UsersPage() {
 
       {/* Users table */}
       <div className="card">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-          <Users className="h-4 w-4 text-gray-500" />
-          <h2 className="font-semibold text-gray-900">All Users ({users.length})</h2>
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <Users className="h-4 w-4 text-slate-500" />
+          <h2 className="font-semibold text-slate-900">All Users ({users.length})</h2>
         </div>
         {loading ? (
-          <div className="py-10 text-center text-gray-400">Loading…</div>
+          <div className="py-10 text-center text-slate-400">Loading…</div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-slate-50">
             {users.map(u => (
               <div key={u.id} className="px-6 py-4 flex items-center gap-4">
                 <div className="w-9 h-9 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-bold text-sm shrink-0">
@@ -137,13 +137,13 @@ export default function UsersPage() {
                 ) : (
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-gray-900">{u.full_name}</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleColors[u.role] ?? 'bg-gray-100'}`}>
+                      <span className="font-medium text-sm text-slate-900">{u.full_name}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${roleColors[u.role] ?? 'bg-slate-100'}`}>
                         {u.role.replace(/_/g,' ')}
                       </span>
                       {!u.active && <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded text-xs">Inactive</span>}
                     </div>
-                    <p className="text-xs text-gray-400">{u.email}{u.discipline ? ` · ${u.discipline}` : ''}</p>
+                    <p className="text-xs text-slate-400">{u.email}{u.discipline ? ` · ${u.discipline}` : ''}</p>
                   </div>
                 )}
                 <div className="flex items-center gap-2 shrink-0">

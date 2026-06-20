@@ -84,12 +84,12 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-navy-600" />
             Upload Register
           </h2>
-          <button onClick={onClose} disabled={loading} className="text-gray-400 hover:text-gray-600 disabled:opacity-40">
+          <button onClick={onClose} disabled={loading} className="text-slate-400 hover:text-slate-600 disabled:opacity-40">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -103,7 +103,7 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
             onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0] ?? null) }}
             className={cn(
               'border-2 border-dashed rounded-lg px-4 py-8 text-center cursor-pointer transition-colors',
-              file ? 'border-navy-400 bg-navy-50' : 'border-gray-300 hover:border-navy-400 hover:bg-gray-50'
+              file ? 'border-navy-400 bg-navy-50' : 'border-slate-300 hover:border-navy-400 hover:bg-slate-50'
             )}
           >
             <input
@@ -118,18 +118,18 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
                 <FileSpreadsheet className="h-8 w-8 text-navy-500" />
                 <div className="text-left">
                   <p className="font-medium text-navy-700 text-sm">{file.name}</p>
-                  <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(0)} KB</p>
+                  <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(0)} KB</p>
                 </div>
                 <button type="button" onClick={e => { e.stopPropagation(); setFile(null) }}
-                  className="ml-2 text-gray-400 hover:text-red-500">
+                  className="ml-2 text-slate-400 hover:text-red-500">
                   <X className="h-4 w-4" />
                 </button>
               </div>
             ) : (
               <>
-                <Upload className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-600">Drop an Excel file here or click to browse</p>
-                <p className="text-xs text-gray-400 mt-1">.xlsx or .xls · SDDR, CDDL, or MDDR</p>
+                <Upload className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-medium text-slate-600">Drop an Excel file here or click to browse</p>
+                <p className="text-xs text-slate-400 mt-1">.xlsx or .xls · SDDR, CDDL, or MDDR</p>
               </>
             )}
           </div>
@@ -146,7 +146,7 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
                     'flex-1 py-2 rounded-md text-sm font-semibold border transition-colors',
                     regType === t
                       ? 'bg-navy-700 text-white border-navy-700'
-                      : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400'
+                      : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400'
                   )}
                 >
                   {t}
@@ -158,7 +158,7 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
           {/* Package & Vendor */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Package Code <span className="text-gray-400 font-normal">(e.g. K137)</span></label>
+              <label className="label">Package Code <span className="text-slate-400 font-normal">(e.g. K137)</span></label>
               <input type="text" value={packageCode} onChange={e => setPackageCode(e.target.value.toUpperCase())}
                 placeholder="K137" className="input" />
             </div>
@@ -175,22 +175,22 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <label className={cn(
                 'flex gap-3 p-3 border rounded-lg cursor-pointer transition-colors',
-                mode === 'merge' ? 'border-navy-500 bg-navy-50' : 'border-gray-200 hover:border-gray-300'
+                mode === 'merge' ? 'border-navy-500 bg-navy-50' : 'border-slate-200 hover:border-slate-300'
               )}>
                 <input type="radio" name="mode" value="merge" checked={mode === 'merge'} onChange={() => setMode('merge')} className="mt-0.5" />
                 <div>
-                  <p className="font-semibold text-gray-800">Merge / Update</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Add new rows, update existing ones by document number. Existing entries not in the file are kept.</p>
+                  <p className="font-semibold text-slate-800">Merge / Update</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Add new rows, update existing ones by document number. Existing entries not in the file are kept.</p>
                 </div>
               </label>
               <label className={cn(
                 'flex gap-3 p-3 border rounded-lg cursor-pointer transition-colors',
-                mode === 'override' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                mode === 'override' ? 'border-red-400 bg-red-50' : 'border-slate-200 hover:border-slate-300'
               )}>
                 <input type="radio" name="mode" value="override" checked={mode === 'override'} onChange={() => setMode('override')} className="mt-0.5" />
                 <div>
-                  <p className="font-semibold text-gray-800">Replace / Override</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Delete all existing entries from this register source, then reload from this file.</p>
+                  <p className="font-semibold text-slate-800">Replace / Override</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Delete all existing entries from this register source, then reload from this file.</p>
                 </div>
               </label>
             </div>

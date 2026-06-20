@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
   transmittal_generated:        'bg-cyan-100 text-cyan-800',
   returned_to_vendor:           'bg-green-100 text-green-800',
   rejected_before_review:       'bg-red-100 text-red-800',
-  cancelled:                    'bg-gray-100 text-gray-600',
+  cancelled:                    'bg-slate-100 text-slate-600',
   failed:                       'bg-red-200 text-red-900',
 }
 const STATUS_LABELS: Record<string, string> = {
@@ -180,10 +180,10 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-700" />
     </div>
   )
-  if (!batch) return <div className="card p-8 text-center text-gray-400">Batch not found.</div>
+  if (!batch) return <div className="card p-8 text-center text-slate-400">Batch not found.</div>
 
   const docVersions = batch.document_versions ?? []
-  const statusColor = STATUS_COLORS[batch.status] ?? 'bg-gray-100 text-gray-600'
+  const statusColor = STATUS_COLORS[batch.status] ?? 'bg-slate-100 text-slate-600'
   const statusLabel = STATUS_LABELS[batch.status] ?? batch.status
   const canReject = ['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status)
   const canEdit   = ['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status)
@@ -212,32 +212,32 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-xl font-bold text-slate-900">
                 {batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package'}
               </h1>
               <span className={`px-2.5 py-1 rounded-full text-sm font-medium ${statusColor}`}>{statusLabel}</span>
             </div>
 
             {docTitles.slice(0, 3).map((t: any, i: number) => (
-              <p key={i} className="text-sm text-gray-600 font-medium mt-1">{t}</p>
+              <p key={i} className="text-sm text-slate-600 font-medium mt-1">{t}</p>
             ))}
-            {docTitles.length > 3 && <p className="text-xs text-gray-400 mt-0.5">+{docTitles.length - 3} more</p>}
+            {docTitles.length > 3 && <p className="text-xs text-slate-400 mt-0.5">+{docTitles.length - 3} more</p>}
 
-            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
-              <span><span className="font-medium text-gray-700">Package:</span> {batch.packages?.package_code ?? '—'}</span>
-              <span><span className="font-medium text-gray-700">Received:</span> {format(new Date(batch.received_at), 'd MMM yyyy')}</span>
-              <span><span className="font-medium text-gray-700">Documents:</span> {docVersions.length}</span>
-              {batch.vendor_email && <span><span className="font-medium text-gray-700">Vendor email:</span> {batch.vendor_email}</span>}
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
+              <span><span className="font-medium text-slate-700">Package:</span> {batch.packages?.package_code ?? '—'}</span>
+              <span><span className="font-medium text-slate-700">Received:</span> {format(new Date(batch.received_at), 'd MMM yyyy')}</span>
+              <span><span className="font-medium text-slate-700">Documents:</span> {docVersions.length}</span>
+              {batch.vendor_email && <span><span className="font-medium text-slate-700">Vendor email:</span> {batch.vendor_email}</span>}
             </div>
 
             {uniqueReviewers.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2 items-center">
-                <span className="text-xs font-medium text-gray-500">Reviewers:</span>
+                <span className="text-xs font-medium text-slate-500">Reviewers:</span>
                 {uniqueReviewers.map((r, i) => {
                   const allDone  = r.statuses.every(s => s === 'completed')
                   const anyActive = r.statuses.some(s => ['sent','in_progress','opened'].includes(s))
                   return (
-                    <span key={r.email} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>
+                    <span key={r.email} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>
                       <span className="w-4 h-4 rounded-full bg-white bg-opacity-60 flex items-center justify-center font-bold text-xs">{i+1}</span>
                       {reviewerDisplayName(r.email)}
                     </span>
@@ -246,7 +246,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
 
-            <p className="mt-3 text-xs text-gray-400 font-mono">{batch.batch_guid}</p>
+            <p className="mt-3 text-xs text-slate-400 font-mono">{batch.batch_guid}</p>
           </div>
 
           {/* Actions */}
@@ -306,14 +306,14 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2">
                 <XCircle className="h-5 w-5 text-red-500" /> Reject Batch Before Review
               </h2>
               <button onClick={() => { setShowReject(false); setRejectReason(''); setRejectError('') }}>
-                <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                <X className="h-5 w-5 text-slate-400 hover:text-slate-600" />
               </button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-slate-600 mb-4">
               The vendor will be notified by email. Provide a clear reason so they can correct and resubmit.
             </p>
             <label className="label">Rejection Reason <span className="text-red-500">*</span></label>
@@ -339,16 +339,16 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Documents */}
       <div className="card">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-          <FileText className="h-4 w-4 text-gray-500" />
-          <h2 className="font-semibold text-gray-900">Documents ({docVersions.length})</h2>
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <FileText className="h-4 w-4 text-slate-500" />
+          <h2 className="font-semibold text-slate-900">Documents ({docVersions.length})</h2>
           {uniqueReviewers.length > 0 && (
             <div className="ml-auto flex flex-wrap gap-1.5">
               {uniqueReviewers.map((r, i) => {
                 const allDone = r.statuses.every(s => s === 'completed')
                 const anyActive = r.statuses.some(s => ['sent','in_progress','opened'].includes(s))
                 return (
-                  <span key={r.email} className={`px-2 py-0.5 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`} title={r.email}>
+                  <span key={r.email} className={`px-2 py-0.5 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`} title={r.email}>
                     {i+1}. {reviewerDisplayName(r.email)}
                   </span>
                 )
@@ -357,15 +357,15 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
 
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-slate-50">
           {docVersions.length === 0 ? (
-            <div className="px-6 py-8 text-center text-gray-400 text-sm">No documents linked yet.</div>
+            <div className="px-6 py-8 text-center text-slate-400 text-sm">No documents linked yet.</div>
           ) : docVersions.map((dv: any) => (
             <div key={dv.id} className="px-6 py-4">
               {editingDv === dv.id ? (
                 // ── Edit mode ──────────────────────────────────────────────
                 <div className="space-y-3">
-                  <p className="font-mono text-sm font-semibold text-gray-900">{dv.file_name}</p>
+                  <p className="font-mono text-sm font-semibold text-slate-900">{dv.file_name}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="label text-xs">Document Title</label>
@@ -411,18 +411,18 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 <div className="flex items-start gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-semibold text-gray-900">{dv.file_name}</span>
+                      <span className="font-mono text-sm font-semibold text-slate-900">{dv.file_name}</span>
                       {dv.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {dv.revision}</span>}
                       <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                         dv.ai_metadata_source === 'manually_overridden' ? 'bg-purple-100 text-purple-700' :
                         dv.ai_metadata_source === 'manually_confirmed'  ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-500'
+                        'bg-slate-100 text-slate-500'
                       }`}>
                         {dv.ai_metadata_source === 'manually_overridden' ? 'Manual' : dv.ai_metadata_source === 'manually_confirmed' ? 'AI (confirmed)' : 'AI'}
                       </span>
                     </div>
-                    {dv.doc_name && dv.doc_name !== dv.file_name && <p className="text-sm text-gray-700 font-medium mt-0.5">{dv.doc_name}</p>}
-                    <div className="flex flex-wrap gap-x-3 text-xs text-gray-400 mt-0.5">
+                    {dv.doc_name && dv.doc_name !== dv.file_name && <p className="text-sm text-slate-700 font-medium mt-0.5">{dv.doc_name}</p>}
+                    <div className="flex flex-wrap gap-x-3 text-xs text-slate-400 mt-0.5">
                       {dv.discipline    && <span>{dv.discipline}</span>}
                       {dv.document_type && <span>· {dv.document_type}</span>}
                       {dv.topic         && <span>· {dv.topic}</span>}
@@ -453,12 +453,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2">
                 <Download className="h-5 w-5 text-blue-600" />
                 Send Transmittal — {batch.packages?.package_name ?? ''}
               </h2>
               <button onClick={() => { setShowTransmittalModal(false); setTransmittalError('') }}>
-                <X className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                <X className="h-5 w-5 text-slate-400 hover:text-slate-600" />
               </button>
             </div>
 
@@ -547,22 +547,22 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         return (
           <div ref={transmittalRef} className="card">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSent ? 'bg-teal-100' : 'bg-blue-100'}`}>
                   {isSent ? <Download className="h-4 w-4 text-teal-700" /> : <FileText className="h-4 w-4 text-blue-700" />}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900">
+                    <p className="font-semibold text-slate-900">
                       {isSent ? transmittalSent.transmittalNumber : 'Transmittal Preview'}
                     </p>
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${codeColor(header?.overallCode)}`}>
                       {header?.overallCode}
                     </span>
                     {isSent
-                      ? <span className="text-xs text-gray-400">Sent to {transmittalSent.toEmail} · {transmittalSent.transmittalDate}</span>
-                      : <span className="text-xs text-gray-400">{header?.vendorName} · {header?.packageCode}</span>
+                      ? <span className="text-xs text-slate-400">Sent to {transmittalSent.toEmail} · {transmittalSent.transmittalDate}</span>
+                      : <span className="text-xs text-slate-400">{header?.vendorName} · {header?.packageCode}</span>
                     }
                   </div>
                 </div>
@@ -573,7 +573,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                     <Download className="h-4 w-4" /> Convert to PDF &amp; Send
                   </button>
                 )}
-                <button onClick={() => { setTransmittalPreview(null); setTransmittalSent(null) }} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => { setTransmittalPreview(null); setTransmittalSent(null) }} className="text-slate-400 hover:text-slate-600">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -582,27 +582,27 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             {/* Document list */}
             <div className="px-6 py-4 space-y-3">
               {(!docs || docs.length === 0) && (
-                <p className="text-sm text-gray-400 py-4 text-center">No documents found — check that reviews have been submitted for this batch.</p>
+                <p className="text-sm text-slate-400 py-4 text-center">No documents found — check that reviews have been submitted for this batch.</p>
               )}
               {(docs ?? []).map((doc: any, i: number) => (
-                <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
-                  <div className="px-4 py-2 bg-gray-50 flex items-center justify-between gap-2">
+                <div key={i} className="border border-slate-100 rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 bg-slate-50 flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="font-mono text-sm font-semibold text-gray-800 block truncate">{doc.fileName}</span>
+                      <span className="font-mono text-sm font-semibold text-slate-800 block truncate">{doc.fileName}</span>
                       {doc.docName && doc.docName !== doc.fileName && (
-                        <span className="text-xs text-gray-500">{doc.docName}</span>
+                        <span className="text-xs text-slate-500">{doc.docName}</span>
                       )}
                     </div>
                     <span className={`px-2 py-0.5 rounded text-xs font-bold shrink-0 ${codeColor(doc.outcomeCode)}`}>
                       {doc.outcomeCode}
                     </span>
                   </div>
-                  <div className="px-4 py-2 divide-y divide-gray-50">
+                  <div className="px-4 py-2 divide-y divide-slate-50">
                     {doc.reviewers?.map((r: any, j: number) => (
                       <div key={j} className="py-1.5 flex items-start gap-3 text-sm">
-                        <span className="font-medium text-gray-700 w-28 shrink-0">{r.name}</span>
+                        <span className="font-medium text-slate-700 w-28 shrink-0">{r.name}</span>
                         <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${codeColor(r.code)}`}>{r.code}</span>
-                        <span className="text-gray-500 text-xs">{r.comment || '—'}</span>
+                        <span className="text-slate-500 text-xs">{r.comment || '—'}</span>
                       </div>
                     ))}
                   </div>
@@ -625,21 +625,21 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       {/* Review sequence */}
       {reviewTasks.length > 0 && (
         <div className="card">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-            <Users className="h-4 w-4 text-gray-500" />
-            <h2 className="font-semibold text-gray-900">Review Sequence</h2>
-            <span className="ml-auto text-xs text-gray-400">{reviewTasks.length} task{reviewTasks.length !== 1 ? 's' : ''}</span>
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <Users className="h-4 w-4 text-slate-500" />
+            <h2 className="font-semibold text-slate-900">Review Sequence</h2>
+            <span className="ml-auto text-xs text-slate-400">{reviewTasks.length} task{reviewTasks.length !== 1 ? 's' : ''}</span>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-slate-50">
             {reviewTasks.map((task: any) => (
               <div key={task.id} className="px-6 py-3 flex items-center gap-4">
                 <div className="w-7 h-7 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-bold text-xs shrink-0">
                   {task.sequence_number}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-gray-900">{reviewerDisplayName(task.reviewer_email)}</p>
-                  <p className="text-xs text-gray-400">{task.reviewer_email}</p>
-                  {task.comment && <p className="text-xs text-gray-500 mt-0.5 italic">"{task.comment}"</p>}
+                  <p className="font-medium text-sm text-slate-900">{reviewerDisplayName(task.reviewer_email)}</p>
+                  <p className="text-xs text-slate-400">{task.reviewer_email}</p>
+                  {task.comment && <p className="text-xs text-slate-500 mt-0.5 italic">"{task.comment}"</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {task.review_outcome_code && (
@@ -652,7 +652,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                     task.status === 'sent'        ? 'bg-blue-100 text-blue-700' :
                     task.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
                     task.status === 'overdue'     ? 'bg-red-100 text-red-700' :
-                    'bg-gray-100 text-gray-600'
+                    'bg-slate-100 text-slate-600'
                   }`}>
                     {task.status}
                   </span>

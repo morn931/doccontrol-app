@@ -101,8 +101,8 @@ export default function ImportPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Import & Sync</h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900">Import & Sync</h1>
+        <p className="text-slate-500 text-sm mt-1">
           Import existing SharePoint data into the new database.
           Always run a <strong>dry run</strong> first to preview results before committing.
         </p>
@@ -113,8 +113,8 @@ export default function ImportPage() {
         <div className="flex items-start gap-3">
           <Cloud className="h-6 w-6 text-navy-600 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h2 className="font-semibold text-gray-900">Automatic SharePoint Sync</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h2 className="font-semibold text-slate-900">Automatic SharePoint Sync</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
               Pulls the Approver Picks and Document Approval lists straight from SharePoint via Microsoft Graph —
               no CSV export needed. Runs <strong>automatically every day at 02:00 UTC</strong>; use the button to force an update now.
             </p>
@@ -151,7 +151,7 @@ export default function ImportPage() {
       </div>
 
       <div className="card p-6 space-y-5">
-        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Or import from a CSV export</div>
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Or import from a CSV export</div>
         {/* Source */}
         <div>
           <label className="label">Import Source</label>
@@ -160,7 +160,7 @@ export default function ImportPage() {
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-slate-400 mt-1">
             {source === 'approver_picks'
               ? 'Export from SharePoint: Document Control → Approver Picks (Agent) → Export to CSV'
               : 'Export from SharePoint: Document Control → Document Approval List (Agent) → Export to CSV'}
@@ -173,12 +173,12 @@ export default function ImportPage() {
           <div className="grid grid-cols-3 gap-3">
             {(['dry_run','full','incremental'] as ImportMode[]).map(m => (
               <label key={m} className={`flex flex-col p-3 border rounded-lg cursor-pointer transition-colors ${
-                mode === m ? 'border-navy-500 bg-navy-50' : 'border-gray-200 hover:border-gray-300'
+                mode === m ? 'border-navy-500 bg-navy-50' : 'border-slate-200 hover:border-slate-300'
               }`}>
                 <input type="radio" name="mode" value={m} checked={mode === m}
                   onChange={() => setMode(m)} className="sr-only" />
-                <span className="font-medium text-sm text-gray-900 capitalize">{m.replace('_', ' ')}</span>
-                <span className="text-xs text-gray-500 mt-0.5">
+                <span className="font-medium text-sm text-slate-900 capitalize">{m.replace('_', ' ')}</span>
+                <span className="text-xs text-slate-500 mt-0.5">
                   {m === 'dry_run'     && 'Validate only — no changes made'}
                   {m === 'full'        && 'Insert/update all records'}
                   {m === 'incremental' && 'Only process new records'}
@@ -200,20 +200,20 @@ export default function ImportPage() {
           <div
             onClick={() => fileRef.current?.click()}
             className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              file ? 'border-navy-300 bg-navy-50' : 'border-gray-200 hover:border-gray-300'
+              file ? 'border-navy-300 bg-navy-50' : 'border-slate-200 hover:border-slate-300'
             }`}>
             <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFileChange} />
             {file ? (
               <div>
                 <FileText className="h-8 w-8 text-navy-500 mx-auto mb-2" />
-                <p className="font-medium text-gray-900">{file.name}</p>
-                <p className="text-sm text-gray-500 mt-0.5">{rowCount.toLocaleString()} rows detected</p>
+                <p className="font-medium text-slate-900">{file.name}</p>
+                <p className="text-sm text-slate-500 mt-0.5">{rowCount.toLocaleString()} rows detected</p>
               </div>
             ) : (
               <div>
-                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="font-medium text-gray-700">Click to select CSV file</p>
-                <p className="text-sm text-gray-400 mt-0.5">Export from SharePoint as CSV</p>
+                <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+                <p className="font-medium text-slate-700">Click to select CSV file</p>
+                <p className="text-sm text-slate-400 mt-0.5">Export from SharePoint as CSV</p>
               </div>
             )}
           </div>
@@ -239,7 +239,7 @@ export default function ImportPage() {
             {result.error || result.status === 'failed'
               ? <XCircle className="h-6 w-6 text-red-500 shrink-0" />
               : <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />}
-            <h3 className="font-semibold text-gray-900">
+            <h3 className="font-semibold text-slate-900">
               {result.error ? 'Import Failed' :
                result.status === 'partial' ? 'Import Completed with Errors' :
                mode === 'dry_run' ? 'Dry Run Complete' : 'Import Complete'}
@@ -251,14 +251,14 @@ export default function ImportPage() {
           {result.records_scanned !== undefined && (
             <div className="grid grid-cols-4 gap-4">
               {[
-                { label: 'Scanned', value: result.records_scanned, color: 'text-gray-900' },
+                { label: 'Scanned', value: result.records_scanned, color: 'text-slate-900' },
                 { label: 'Created', value: result.records_created, color: 'text-green-700' },
                 { label: 'Updated', value: result.records_updated, color: 'text-blue-700' },
                 { label: 'Failed',  value: result.records_failed,  color: 'text-red-700' },
               ].map(s => (
                 <div key={s.label} className="text-center">
                   <p className={`text-2xl font-bold ${s.color}`}>{s.value ?? 0}</p>
-                  <p className="text-xs text-gray-500">{s.label}</p>
+                  <p className="text-xs text-slate-500">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -266,7 +266,7 @@ export default function ImportPage() {
 
           {result.error_log && (
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-1">Error log (first 100):</p>
+              <p className="text-sm font-medium text-slate-700 mb-1">Error log (first 100):</p>
               <pre className="text-xs text-red-700 bg-red-50 rounded p-3 overflow-auto max-h-48 whitespace-pre-wrap">
                 {result.error_log}
               </pre>
@@ -274,7 +274,7 @@ export default function ImportPage() {
           )}
 
           {mode === 'dry_run' && !result.error && (
-            <p className="text-sm text-gray-600 bg-blue-50 border border-blue-100 rounded-md p-3">
+            <p className="text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-md p-3">
               Dry run complete. No changes were made. Switch to <strong>Full</strong> mode and run again to commit.
             </p>
           )}

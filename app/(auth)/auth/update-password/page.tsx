@@ -37,8 +37,8 @@ export default function UpdatePasswordPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-xl p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Set your password</h2>
-          <p className="text-sm text-gray-500 mb-6">Choose a password to secure your account.</p>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Set your password</h2>
+          <p className="text-sm text-slate-500 mb-6">Choose a password to secure your account.</p>
 
           {success ? (
             <div className="p-4 bg-green-50 border border-green-200 rounded-md text-sm text-green-700 text-center">

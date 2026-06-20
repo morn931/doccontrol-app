@@ -27,7 +27,7 @@ function Chip({ active, onClick, children, color = 'navy' }: any) {
   return (
     <button onClick={onClick}
       className={cn('px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
-        active ? `${on} text-white` : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400 hover:text-navy-700')}>
+        active ? `${on} text-white` : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
       {children}
     </button>
   )
@@ -37,8 +37,8 @@ function Card({ title, subtitle, children }: { title: string; subtitle: string; 
   return (
     <div className="card p-4 flex flex-col break-inside-avoid">
       <div className="mb-2">
-        <h2 className="font-semibold text-gray-800 text-sm">{title}</h2>
-        <p className="text-xs text-gray-400">{subtitle}</p>
+        <h2 className="font-semibold text-slate-800 text-sm">{title}</h2>
+        <p className="text-xs text-slate-400">{subtitle}</p>
       </div>
       <div className="h-[300px]">{children}</div>
     </div>
@@ -48,8 +48,8 @@ function Card({ title, subtitle, children }: { title: string; subtitle: string; 
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'green' | 'red' }) {
   return (
     <div className="card px-4 py-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className={cn('text-xl font-bold', tone === 'green' ? 'text-green-600' : tone === 'red' ? 'text-red-600' : 'text-gray-900')}>{value}</p>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={cn('text-xl font-bold', tone === 'green' ? 'text-green-600' : tone === 'red' ? 'text-red-600' : 'text-slate-900')}>{value}</p>
     </div>
   )
 }
@@ -106,14 +106,14 @@ export default function ReportingDashboard() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/reporting" className="text-xs text-gray-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
+          <Link href="/reporting" className="text-xs text-slate-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
             <ArrowLeft className="h-3 w-3" /> Reporting
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <LayoutDashboard className="h-6 w-6 text-navy-600" /> Progress Dashboard
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            <span className="font-medium text-gray-700">{scope}</span>
+          <p className="text-slate-500 text-sm mt-0.5">
+            <span className="font-medium text-slate-700">{scope}</span>
             {data?.generatedAt && ` · as of ${new Date(data.generatedAt).toLocaleDateString()}`}
           </p>
         </div>
@@ -125,24 +125,24 @@ export default function ReportingDashboard() {
       {/* Filters */}
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Package:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Package:</span>
           {['ALL', ...packages].map(p => <Chip key={p} active={selPackage === p} onClick={() => { setSelPackage(p); setSelVendor('ALL') }}>{p}</Chip>)}
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Vendor:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Vendor:</span>
           {['ALL', ...vendors].map(v => <Chip key={v} color="teal" active={selVendor === v} onClick={() => setSelVendor(v)}>{v}</Chip>)}
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Source:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Source:</span>
           {SOURCES.map(s => <Chip key={s} color="purple" active={selSource === s} onClick={() => setSelSource(s)}>{s}</Chip>)}
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide ml-3">Show:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide ml-3">Show:</span>
           {([['true', 'Awarded docs'], ['false', 'Unawarded scope']] as const).map(([v, l]) =>
             <Chip key={v} color="amber" active={awarded === v} onClick={() => setAwarded(v)}>{l}</Chip>)}
         </div>
       </div>
 
       {error && <div className="card p-3 text-red-700 bg-red-50 text-sm">{error}</div>}
-      {!data && loading && <div className="card p-20 text-center text-gray-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
+      {!data && loading && <div className="card p-20 text-center text-slate-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
 
       {data && (
         <>

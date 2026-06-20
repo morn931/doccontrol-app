@@ -83,11 +83,11 @@ function BatchReviewChain({ chain }: { chain: ReviewChain }) {
         </span>
       )}
       {chain.pending.length > 0 ? (
-        <span className="text-gray-400">
+        <span className="text-slate-400">
           → {joinNames(chain.pending)} still to review
         </span>
       ) : chain.active.length > 0 && (
-        <span className="text-gray-400 italic">
+        <span className="text-slate-400 italic">
           No more reviews after this
         </span>
       )}
@@ -177,20 +177,20 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Incoming Batches</h1>
-          <p className="text-gray-500 text-sm mt-1">Document batches received from vendors</p>
+          <h1 className="text-2xl font-bold text-slate-900">Incoming Batches</h1>
+          <p className="text-slate-500 text-sm mt-1">Document batches received from vendors</p>
         </div>
       </div>
 
       {/* Status filter tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit flex-wrap">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit flex-wrap">
         {FILTER_TABS.map(tab => (
           <Link key={tab.key}
             href={`/batches${tab.key === 'all' ? '' : `?status=${tab.key}`}`}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}>
             {tab.label}
           </Link>
@@ -201,9 +201,9 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
         <div className="card p-4 text-red-700 bg-red-50">Error loading batches: {error.message}</div>
       )}
 
-      <div className="card divide-y divide-gray-50">
+      <div className="card divide-y divide-slate-50">
         {!batches.length ? (
-          <div className="py-16 text-center text-gray-400">
+          <div className="py-16 text-center text-slate-400">
             <Inbox className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="font-medium">No batches found</p>
             <p className="text-sm mt-1">Run the import to load existing SharePoint data.</p>
@@ -219,17 +219,17 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
 
             return (
               <Link key={batch.id} href={`/batches/${batch.id}`}
-                className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group">
+                className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 truncate">
+                    <p className="font-semibold text-slate-900 truncate">
                       {batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package'}
                     </p>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${BATCH_STATUS_COLORS[batch.status as BatchStatus] ?? 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${BATCH_STATUS_COLORS[batch.status as BatchStatus] ?? 'bg-slate-100 text-slate-600'}`}>
                       {BATCH_STATUS_LABELS[batch.status as BatchStatus] ?? batch.status}
                     </span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-gray-500">
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-slate-500">
                     <span>{batch.vendors?.name ?? 'Unknown Vendor'}</span>
                     <span>· {batch.file_count} file{batch.file_count !== 1 ? 's' : ''}</span>
                     <span>· Received {formatDistanceToNow(new Date(batch.received_at), { addSuffix: true })}</span>
@@ -240,12 +240,12 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     <p className="text-xs text-indigo-500 mt-1">{contextLine}</p>
                   )}
                   {batch.comments && (
-                    <p className="text-xs text-gray-400 mt-1 truncate">{batch.comments}</p>
+                    <p className="text-xs text-slate-400 mt-1 truncate">{batch.comments}</p>
                   )}
                 </div>
-                <div className="text-xs font-mono text-gray-400 shrink-0 text-right">
+                <div className="text-xs font-mono text-slate-400 shrink-0 text-right">
                   <div>{format(new Date(batch.received_at), 'd MMM yyyy')}</div>
-                  <div className="text-gray-300">{batch.batch_guid?.slice(0,8)}…</div>
+                  <div className="text-slate-300">{batch.batch_guid?.slice(0,8)}…</div>
                 </div>
               </Link>
             )

@@ -43,10 +43,10 @@ export default function ReportingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <BarChart3 className="h-6 w-6 text-navy-600" /> Reporting
         </h1>
-        <p className="text-gray-500 text-sm mt-0.5">Progress and performance reports off the Master Register.</p>
+        <p className="text-slate-500 text-sm mt-0.5">Progress and performance reports off the Master Register.</p>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -57,7 +57,7 @@ export default function ReportingPage() {
               <r.icon className="h-5 w-5" />
               <span className="font-semibold">{r.title}</span>
             </div>
-            <p className="text-sm text-gray-500 mt-2">{r.description}</p>
+            <p className="text-sm text-slate-500 mt-2">{r.description}</p>
             <span className="inline-flex items-center gap-1 text-xs font-medium text-navy-600 mt-3 group-hover:gap-2 transition-all">
               Open report <ArrowRight className="h-3.5 w-3.5" />
             </span>
