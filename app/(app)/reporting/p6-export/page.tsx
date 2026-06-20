@@ -10,7 +10,7 @@ function Bar({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-2 min-w-[130px]">
       <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className={cn('h-full rounded-full', pct >= 100 ? 'bg-green-500' : pct >= 50 ? 'bg-teal-500' : pct > 0 ? 'bg-amber-500' : 'bg-slate-200')}
+        <div className={cn('h-full rounded-full', pct >= 100 ? 'bg-emerald-500' : pct >= 50 ? 'bg-teal-500' : pct > 0 ? 'bg-amber-500' : 'bg-slate-200')}
           style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
       <span className="text-xs font-medium w-11 text-right tabular-nums">{(value * 100).toFixed(1)}%</span>
@@ -126,7 +126,7 @@ export default function P6ExportPage() {
       </div>
 
       <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-slate-600 flex gap-2">
-        <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+        <Info className="h-4 w-4 text-teal-500 shrink-0 mt-0.5" />
         <p>
           Each P6 <b>Activity ID</b> rolls up the Rules-of-Credit progress of all MDDR documents
           linked to it (Physical % Complete = average of those documents&apos; progress). The

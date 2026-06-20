@@ -40,20 +40,32 @@ async function getDashboardStats() {
   return { awaitingAction, inReview, reviewComplete, returned, rejected, recentBatches, overdueReviews }
 }
 
-interface StatCardProps {
-  label: string; value: number | null; icon: React.ComponentType<{ className?: string }>
-  color: string; href?: string
+// Soft, CoreTime-aligned icon treatment: thin-outlined circle ring + muted icon
+// (no solid vibrant fills). Teal-forward, with restrained amber/rose for warnings.
+const STAT_TONES: Record<string, { ring: string; icon: string }> = {
+  teal:    { ring: 'border-teal-200',    icon: 'text-teal-600' },
+  amber:   { ring: 'border-amber-200',   icon: 'text-amber-600' },
+  emerald: { ring: 'border-emerald-200', icon: 'text-emerald-600' },
+  sky:     { ring: 'border-sky-200',     icon: 'text-sky-600' },
+  rose:    { ring: 'border-rose-200',    icon: 'text-rose-500' },
+  slate:   { ring: 'border-slate-200',   icon: 'text-slate-400' },
 }
-function StatCard({ label, value, icon: Icon, color, href }: StatCardProps) {
+interface StatCardProps {
+  label: string; value: number | null
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  tone?: keyof typeof STAT_TONES; href?: string
+}
+function StatCard({ label, value, icon: Icon, tone = 'teal', href }: StatCardProps) {
+  const t = STAT_TONES[tone]
   const content = (
-    <div className={`card p-5 ${href ? 'hover:shadow-md transition-shadow cursor-pointer' : ''}`}>
+    <div className={`card p-5 ${href ? 'hover:shadow-md hover:border-teal-300 transition-all cursor-pointer' : ''}`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-slate-500 font-medium">{label}</p>
           <p className="text-3xl font-bold text-slate-900 mt-1">{value ?? 0}</p>
         </div>
-        <div className={`flex items-center justify-center w-12 h-12 rounded-xl ${color}`}>
-          <Icon className="h-6 w-6 text-white" />
+        <div className={`flex items-center justify-center w-12 h-12 rounded-full border-2 ${t.ring}`}>
+          <Icon className={`h-5 w-5 ${t.icon}`} strokeWidth={1.5} />
         </div>
       </div>
     </div>
@@ -74,15 +86,15 @@ export default async function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Awaiting Action"   value={awaitingAction}  icon={Inbox}        color="bg-blue-500"   href="/batches?status=pending" />
-        <StatCard label="In Review"         value={inReview}        icon={Clock}        color="bg-orange-500" href="/batches?status=in_review" />
-        <StatCard label="Ready to Return"   value={reviewComplete}  icon={CheckCircle}  color="bg-teal-500"   href="/batches?status=complete" />
-        <StatCard label="Returned to Vendor" value={returned}       icon={Send}         color="bg-green-500"  href="/batches?status=returned" />
+        <StatCard label="Awaiting Action"   value={awaitingAction}  icon={Inbox}        tone="teal"    href="/batches?status=pending" />
+        <StatCard label="In Review"         value={inReview}        icon={Clock}        tone="amber"   href="/batches?status=in_review" />
+        <StatCard label="Ready to Return"   value={reviewComplete}  icon={CheckCircle}  tone="emerald" href="/batches?status=complete" />
+        <StatCard label="Returned to Vendor" value={returned}       icon={Send}         tone="sky"     href="/batches?status=returned" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Rejected Batches"  value={rejected}        icon={XCircle}      color="bg-red-500"    href="/batches?status=rejected" />
-        <StatCard label="Overdue Reviews"   value={overdueReviews}  icon={AlertTriangle} color="bg-amber-500" href="/reviews?status=overdue" />
+        <StatCard label="Rejected Batches"  value={rejected}        icon={XCircle}      tone="rose"    href="/batches?status=rejected" />
+        <StatCard label="Overdue Reviews"   value={overdueReviews}  icon={AlertTriangle} tone="amber"  href="/reviews?status=overdue" />
       </div>
 
       {/* Recent batches */}

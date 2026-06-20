@@ -73,12 +73,12 @@ function BatchReviewChain({ chain }: { chain: ReviewChain }) {
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs">
       {chain.active.length > 0 && (
-        <span className="text-orange-600 font-medium">
+        <span className="text-amber-600 font-medium">
           With {joinNames(chain.active)}
         </span>
       )}
       {chain.done.length > 0 && (
-        <span className="text-green-600">
+        <span className="text-emerald-600">
           ✓ {joinNames(chain.done)} reviewed
         </span>
       )}

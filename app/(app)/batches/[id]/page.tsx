@@ -11,14 +11,14 @@ const DOC_TYPES    = ['Specification','Drawing','Calculation','Datasheet','RFI',
 const TOPICS       = ['Technical','SHERQ','Contractual','Not sure']
 
 const STATUS_COLORS: Record<string, string> = {
-  intake_received:              'bg-blue-100 text-blue-800',
-  metadata_pending:             'bg-yellow-100 text-yellow-800',
+  intake_received:              'bg-blue-100 text-teal-800',
+  metadata_pending:             'bg-amber-100 text-amber-800',
   ready_for_reviewer_assignment:'bg-indigo-100 text-indigo-800',
-  review_ready_to_start:        'bg-purple-100 text-purple-800',
-  review_in_progress:           'bg-orange-100 text-orange-800',
+  review_ready_to_start:        'bg-teal-100 text-teal-800',
+  review_in_progress:           'bg-amber-100 text-amber-800',
   review_complete:              'bg-teal-100 text-teal-800',
   transmittal_generated:        'bg-cyan-100 text-cyan-800',
-  returned_to_vendor:           'bg-green-100 text-green-800',
+  returned_to_vendor:           'bg-green-100 text-emerald-800',
   rejected_before_review:       'bg-red-100 text-red-800',
   cancelled:                    'bg-slate-100 text-slate-600',
   failed:                       'bg-red-200 text-red-900',
@@ -237,7 +237,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                   const allDone  = r.statuses.every(s => s === 'completed')
                   const anyActive = r.statuses.some(s => ['sent','in_progress','opened'].includes(s))
                   return (
-                    <span key={r.email} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>
+                    <span key={r.email} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-emerald-700' : anyActive ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
                       <span className="w-4 h-4 rounded-full bg-white bg-opacity-60 flex items-center justify-center font-bold text-xs">{i+1}</span>
                       {reviewerDisplayName(r.email)}
                     </span>
@@ -279,7 +279,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         </div>
 
         {batch.comments && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-blue-800 border border-blue-100">
+          <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-teal-800 border border-blue-100">
             <p className="font-medium mb-1">Controller Notes</p>
             <p>{batch.comments}</p>
           </div>
@@ -348,7 +348,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 const allDone = r.statuses.every(s => s === 'completed')
                 const anyActive = r.statuses.some(s => ['sent','in_progress','opened'].includes(s))
                 return (
-                  <span key={r.email} className={`px-2 py-0.5 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-green-700' : anyActive ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`} title={r.email}>
+                  <span key={r.email} className={`px-2 py-0.5 rounded-full text-xs font-medium ${allDone ? 'bg-green-100 text-emerald-700' : anyActive ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`} title={r.email}>
                     {i+1}. {reviewerDisplayName(r.email)}
                   </span>
                 )
@@ -394,7 +394,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
                   {dv.ai_text && (
-                    <div className="p-3 bg-blue-50 rounded text-xs text-blue-700 max-h-32 overflow-auto">
+                    <div className="p-3 bg-blue-50 rounded text-xs text-teal-700 max-h-32 overflow-auto">
                       <strong>AI Output:</strong><br />
                       <pre className="whitespace-pre-wrap font-sans">{dv.ai_text}</pre>
                     </div>
@@ -414,8 +414,8 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                       <span className="font-mono text-sm font-semibold text-slate-900">{dv.file_name}</span>
                       {dv.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {dv.revision}</span>}
                       <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                        dv.ai_metadata_source === 'manually_overridden' ? 'bg-purple-100 text-purple-700' :
-                        dv.ai_metadata_source === 'manually_confirmed'  ? 'bg-blue-100 text-blue-700' :
+                        dv.ai_metadata_source === 'manually_overridden' ? 'bg-teal-100 text-teal-700' :
+                        dv.ai_metadata_source === 'manually_confirmed'  ? 'bg-blue-100 text-teal-700' :
                         'bg-slate-100 text-slate-500'
                       }`}>
                         {dv.ai_metadata_source === 'manually_overridden' ? 'Manual' : dv.ai_metadata_source === 'manually_confirmed' ? 'AI (confirmed)' : 'AI'}
@@ -454,7 +454,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-                <Download className="h-5 w-5 text-blue-600" />
+                <Download className="h-5 w-5 text-teal-600" />
                 Send Transmittal — {batch.packages?.package_name ?? ''}
               </h2>
               <button onClick={() => { setShowTransmittalModal(false); setTransmittalError('') }}>
@@ -484,7 +484,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               <label className="label">CC</label>
               <div className="flex flex-wrap gap-2 mb-2">
                 {ccEmails.map((email, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
+                  <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-teal-700 rounded-full text-sm">
                     {email}
                     <button onClick={() => setCcEmails(ccEmails.filter((_,j) => j !== i))} className="hover:text-red-500">
                       <X className="h-3.5 w-3.5" />
@@ -509,7 +509,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             {/* Info note */}
-            <div className="mb-5 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            <div className="mb-5 p-3 bg-blue-50 rounded-lg text-sm text-teal-800">
               The transmittal PDF will be attached to the email. The vendor will be informed that
               marked-up documents are available in their SharePoint portal as of today.
             </div>
@@ -541,8 +541,8 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         const docs      = isSent ? transmittalSent.transmittalData?.documents : transmittalPreview?.documents
         const header    = isSent ? transmittalSent.transmittalData : transmittalPreview
         const codeColor = (c: string) =>
-          c === 'A1' ? 'bg-green-100 text-green-800' : c === 'D1' ? 'bg-blue-100 text-blue-800' :
-          c === 'B1' ? 'bg-yellow-100 text-yellow-800' : c === 'B2' ? 'bg-orange-100 text-orange-800' :
+          c === 'A1' ? 'bg-green-100 text-emerald-800' : c === 'D1' ? 'bg-blue-100 text-teal-800' :
+          c === 'B1' ? 'bg-amber-100 text-amber-800' : c === 'B2' ? 'bg-amber-100 text-amber-800' :
           'bg-red-100 text-red-800'
         return (
           <div ref={transmittalRef} className="card">
@@ -550,7 +550,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isSent ? 'bg-teal-100' : 'bg-blue-100'}`}>
-                  {isSent ? <Download className="h-4 w-4 text-teal-700" /> : <FileText className="h-4 w-4 text-blue-700" />}
+                  {isSent ? <Download className="h-4 w-4 text-teal-700" /> : <FileText className="h-4 w-4 text-teal-700" />}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -648,9 +648,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                     </span>
                   )}
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    task.status === 'completed'   ? 'bg-green-100 text-green-700' :
-                    task.status === 'sent'        ? 'bg-blue-100 text-blue-700' :
-                    task.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
+                    task.status === 'completed'   ? 'bg-green-100 text-emerald-700' :
+                    task.status === 'sent'        ? 'bg-blue-100 text-teal-700' :
+                    task.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
                     task.status === 'overdue'     ? 'bg-red-100 text-red-700' :
                     'bg-slate-100 text-slate-600'
                   }`}>

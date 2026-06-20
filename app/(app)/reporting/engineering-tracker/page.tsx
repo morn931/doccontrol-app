@@ -203,7 +203,7 @@ export default function EngineeringTrackerPage() {
                       <td key={c.key as string}
                         className={cn('border-b border-slate-100 px-2 py-1.5 align-middle whitespace-nowrap',
                           c.kind === 'text' ? 'text-left text-slate-500 truncate max-w-[320px]' : 'text-right tabular-nums',
-                          isVar && (n >= 0 ? 'text-green-700' : 'text-red-600'),
+                          isVar && (n >= 0 ? 'text-emerald-700' : 'text-red-600'),
                           r.kind === 'grand' && 'border-t-2 border-t-navy-300')}>
                         {isVar && n > 0 ? '+' : ''}{fmt(r, c)}
                       </td>
@@ -218,7 +218,7 @@ export default function EngineeringTrackerPage() {
 
       {/* Methodology note */}
       <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-slate-600 flex gap-2">
-        <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+        <Info className="h-4 w-4 text-teal-500 shrink-0 mt-0.5" />
         <div className="space-y-1">
           <p><b>How this is calculated.</b> Budget hours are the fixed inputs from the Engineering Tracker workbook.
             <b> Actual progress</b> is the average Rules-of-Credit progress (25/75/85/100) of each package's documents in the MDDR;

@@ -41,7 +41,7 @@ export default function UpdatePasswordPage() {
           <p className="text-sm text-slate-500 mb-6">Choose a password to secure your account.</p>
 
           {success ? (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-md text-sm text-green-700 text-center">
+            <div className="p-4 bg-green-50 border border-green-200 rounded-md text-sm text-emerald-700 text-center">
               ✓ Password set successfully. Redirecting to dashboard…
             </div>
           ) : (

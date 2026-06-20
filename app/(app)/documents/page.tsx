@@ -5,15 +5,15 @@ import { cn } from '@/lib/utils/cn'
 
 const SOURCES = ['ALL', 'SDDR', 'CDDL', 'MDDR']
 const OUTCOME_COLORS: Record<string, string> = {
-  A1: 'bg-green-100 text-green-800', B1: 'bg-blue-100 text-blue-800', B2: 'bg-blue-100 text-blue-700',
-  C1: 'bg-yellow-100 text-yellow-800', D1: 'bg-orange-100 text-orange-800', Q1: 'bg-red-100 text-red-700',
+  A1: 'bg-green-100 text-emerald-800', B1: 'bg-blue-100 text-teal-800', B2: 'bg-blue-100 text-teal-700',
+  C1: 'bg-amber-100 text-amber-800', D1: 'bg-amber-100 text-amber-800', Q1: 'bg-red-100 text-red-700',
 }
 const SOURCE_COLORS: Record<string, string> = {
-  SDDR: 'bg-purple-100 text-purple-700', CDDL: 'bg-teal-100 text-teal-700', MDDR: 'bg-navy-100 text-navy-700',
+  SDDR: 'bg-teal-100 text-teal-700', CDDL: 'bg-teal-100 text-teal-700', MDDR: 'bg-navy-100 text-navy-700',
 }
 
 function Chip({ active, onClick, children, color = 'navy' }: any) {
-  const on = color === 'teal' ? 'bg-teal-600 border-teal-600' : color === 'purple' ? 'bg-purple-600 border-purple-600'
+  const on = color === 'teal' ? 'bg-teal-600 border-teal-600' : color === 'purple' ? 'bg-teal-600 border-teal-600'
     : color === 'amber' ? 'bg-amber-500 border-amber-500' : color === 'rose' ? 'bg-rose-600 border-rose-600'
     : 'bg-navy-700 border-navy-700'
   return (
@@ -307,7 +307,7 @@ export default function DocumentsPage() {
                   ) : revRows.map((rv: any, i: number) => (
                     <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
                       <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono font-bold">Rev {rv.revision ?? '—'}</span>
-                      {i === 0 && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-semibold">LATEST</span>}
+                      {i === 0 && <span className="px-1.5 py-0.5 bg-green-100 text-emerald-700 rounded font-semibold">LATEST</span>}
                       {rv.status && <span className="text-slate-500">{rv.status}</span>}
                       {rv.date && <span className="text-slate-400">{fmtD(rv.date)}</span>}
                       {rv.url

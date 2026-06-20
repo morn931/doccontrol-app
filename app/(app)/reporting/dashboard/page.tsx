@@ -22,7 +22,7 @@ const MILESTONE_COLORS = ['#cbd5e1', '#fbbf24', '#38bdf8', '#0d9488', '#16a34a']
 const SOURCES = ['ALL', 'SDDR', 'CDDL', 'MDDR']
 
 function Chip({ active, onClick, children, color = 'navy' }: any) {
-  const on = color === 'teal' ? 'bg-teal-600 border-teal-600' : color === 'purple' ? 'bg-purple-600 border-purple-600'
+  const on = color === 'teal' ? 'bg-teal-600 border-teal-600' : color === 'purple' ? 'bg-teal-600 border-teal-600'
     : color === 'amber' ? 'bg-amber-500 border-amber-500' : 'bg-navy-700 border-navy-700'
   return (
     <button onClick={onClick}
@@ -49,7 +49,7 @@ function Kpi({ label, value, tone }: { label: string; value: string; tone?: 'gre
   return (
     <div className="card px-4 py-3">
       <p className="text-xs text-slate-500">{label}</p>
-      <p className={cn('text-xl font-bold', tone === 'green' ? 'text-green-600' : tone === 'red' ? 'text-red-600' : 'text-slate-900')}>{value}</p>
+      <p className={cn('text-xl font-bold', tone === 'green' ? 'text-emerald-600' : tone === 'red' ? 'text-red-600' : 'text-slate-900')}>{value}</p>
     </div>
   )
 }

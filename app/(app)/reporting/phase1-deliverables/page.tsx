@@ -13,7 +13,7 @@ function Bar({ value }: { value: number }) {
     <div className="flex items-center gap-2 min-w-[120px]">
       <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
         <div className={cn('h-full rounded-full',
-          pct >= 100 ? 'bg-green-500' : pct >= 67 ? 'bg-teal-500' : pct >= 33 ? 'bg-amber-500' : pct > 0 ? 'bg-orange-400' : 'bg-slate-200')}
+          pct >= 100 ? 'bg-emerald-500' : pct >= 67 ? 'bg-teal-500' : pct >= 33 ? 'bg-amber-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-200')}
           style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
       <span className="text-xs font-medium w-11 text-right tabular-nums">{fmtPct(value)}</span>
@@ -134,7 +134,7 @@ export default function Phase1DeliverablesPage() {
       </div>
 
       <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-slate-600 flex gap-2">
-        <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+        <Info className="h-4 w-4 text-teal-500 shrink-0 mt-0.5" />
         <p>
           Grouped by the CDDL <b>Area / WBS No.</b>, PPE CDDL deliverables only. Each document earns the
           tracker's 3 milestones (Rev A submitted · Rev 0 submitted · Approved), 1/3 each, derived from its

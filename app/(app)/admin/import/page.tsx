@@ -132,7 +132,7 @@ export default function ImportPage() {
           </button>
         </div>
         {spResult && (
-          <div className={`rounded-md p-3 text-sm ${spResult.error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+          <div className={`rounded-md p-3 text-sm ${spResult.error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-emerald-800'}`}>
             {spResult.error ? (
               <p className="flex items-center gap-2"><XCircle className="h-4 w-4" /> {spResult.error}</p>
             ) : (
@@ -238,7 +238,7 @@ export default function ImportPage() {
           <div className="flex items-center gap-3">
             {result.error || result.status === 'failed'
               ? <XCircle className="h-6 w-6 text-red-500 shrink-0" />
-              : <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />}
+              : <CheckCircle className="h-6 w-6 text-emerald-500 shrink-0" />}
             <h3 className="font-semibold text-slate-900">
               {result.error ? 'Import Failed' :
                result.status === 'partial' ? 'Import Completed with Errors' :
@@ -252,8 +252,8 @@ export default function ImportPage() {
             <div className="grid grid-cols-4 gap-4">
               {[
                 { label: 'Scanned', value: result.records_scanned, color: 'text-slate-900' },
-                { label: 'Created', value: result.records_created, color: 'text-green-700' },
-                { label: 'Updated', value: result.records_updated, color: 'text-blue-700' },
+                { label: 'Created', value: result.records_created, color: 'text-emerald-700' },
+                { label: 'Updated', value: result.records_updated, color: 'text-teal-700' },
                 { label: 'Failed',  value: result.records_failed,  color: 'text-red-700' },
               ].map(s => (
                 <div key={s.label} className="text-center">

@@ -52,12 +52,12 @@ export default function UsersPage() {
   }
 
   const roleColors: Record<string, string> = {
-    admin: 'bg-purple-100 text-purple-700',
+    admin: 'bg-teal-100 text-teal-700',
     document_controller: 'bg-navy-100 text-navy-700',
-    engineering_manager: 'bg-blue-100 text-blue-700',
+    engineering_manager: 'bg-blue-100 text-teal-700',
     reviewer: 'bg-slate-100 text-slate-600',
     project_manager: 'bg-teal-100 text-teal-700',
-    vendor: 'bg-orange-100 text-orange-700',
+    vendor: 'bg-amber-100 text-amber-700',
   }
 
   return (

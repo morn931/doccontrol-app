@@ -198,7 +198,7 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
 
           {/* Result feedback */}
           {result && (
-            <div className={cn('p-3 rounded-lg text-sm', isDone ? 'bg-green-50 text-green-800' : 'bg-yellow-50 text-yellow-800')}>
+            <div className={cn('p-3 rounded-lg text-sm', isDone ? 'bg-green-50 text-emerald-800' : 'bg-amber-50 text-amber-800')}>
               {isDone
                 ? <p className="flex items-center gap-2"><CheckCircle className="h-4 w-4" /> Import complete — {result.inserted} inserted, {result.updated} updated, {result.skipped} skipped</p>
                 : (

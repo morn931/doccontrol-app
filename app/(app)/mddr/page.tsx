@@ -69,10 +69,10 @@ const DATE_COLS = new Set([
 ])
 
 const OUTCOME_COLORS: Record<string, string> = {
-  A1: 'bg-green-100 text-green-800',
-  B1: 'bg-blue-100 text-blue-800',
-  B2: 'bg-blue-100 text-blue-700',
-  C1: 'bg-yellow-100 text-yellow-800',
+  A1: 'bg-green-100 text-emerald-800',
+  B1: 'bg-blue-100 text-teal-800',
+  B2: 'bg-blue-100 text-teal-700',
+  C1: 'bg-amber-100 text-amber-800',
   D1: 'bg-red-100 text-red-800',
 }
 
@@ -362,7 +362,7 @@ export default function MddrPage() {
             <div
               className={cn(
                 'h-full rounded-full',
-                pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-blue-500' : pct > 0 ? 'bg-yellow-500' : 'bg-slate-200'
+                pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-teal-500' : pct > 0 ? 'bg-amber-500' : 'bg-slate-200'
               )}
               style={{ width: `${Math.min(pct, 100)}%` }}
             />
@@ -382,7 +382,7 @@ export default function MddrPage() {
 
     if (col.key === 'source_type') {
       const colors: Record<string, string> = {
-        SDDR: 'bg-purple-100 text-purple-700',
+        SDDR: 'bg-teal-100 text-teal-700',
         CDDL: 'bg-teal-100 text-teal-700',
         MDDR: 'bg-navy-100 text-navy-700',
       }
@@ -502,8 +502,8 @@ export default function MddrPage() {
             className={cn(
               'px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
               selSource === s
-                ? 'bg-purple-600 text-white border-purple-600'
-                : 'bg-white text-slate-600 border-slate-300 hover:border-purple-400 hover:text-purple-700'
+                ? 'bg-teal-600 text-white border-teal-600'
+                : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 hover:text-teal-700'
             )}
           >
             {s}

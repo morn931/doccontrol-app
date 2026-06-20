@@ -8,10 +8,10 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 
 const OUTCOME_CODES = [
-  { code: 'A1', label: 'Data Complete — No Comments — Do Not Resubmit',          color: 'border-green-500  bg-green-50  text-green-800'  },
-  { code: 'D1', label: 'Received for Info Only — No Comment — Do Not Resubmit',  color: 'border-blue-500   bg-blue-50   text-blue-800'   },
-  { code: 'B1', label: 'Data Complete — With Comments — Proceed — Resubmit',     color: 'border-yellow-500 bg-yellow-50 text-yellow-800' },
-  { code: 'B2', label: 'Data Incomplete — With Comments — Proceed — Resubmit',   color: 'border-orange-500 bg-orange-50 text-orange-800' },
+  { code: 'A1', label: 'Data Complete — No Comments — Do Not Resubmit',          color: 'border-emerald-500  bg-green-50  text-emerald-800'  },
+  { code: 'D1', label: 'Received for Info Only — No Comment — Do Not Resubmit',  color: 'border-teal-500   bg-blue-50   text-teal-800'   },
+  { code: 'B1', label: 'Data Complete — With Comments — Proceed — Resubmit',     color: 'border-amber-500 bg-amber-50 text-amber-800' },
+  { code: 'B2', label: 'Data Incomplete — With Comments — Proceed — Resubmit',   color: 'border-amber-500 bg-amber-50 text-amber-800' },
   { code: 'C1', label: 'Data Incomplete — With Comments — Hold Work — Resubmit', color: 'border-red-500    bg-red-50    text-red-800'    },
   { code: 'Q1', label: 'Quality is below Standard — Revise and Resubmit',         color: 'border-red-700    bg-red-100   text-red-900'    },
   { code: 'V1', label: 'Cancelled',                                               color: 'border-slate-400   bg-slate-50   text-slate-600'  },
@@ -19,8 +19,8 @@ const OUTCOME_CODES = [
 ]
 
 const OUTCOME_COLORS: Record<string, string> = {
-  A1:'bg-green-100 text-green-700', D1:'bg-blue-100 text-blue-700',
-  B1:'bg-yellow-100 text-yellow-700', B2:'bg-orange-100 text-orange-700',
+  A1:'bg-green-100 text-emerald-700', D1:'bg-blue-100 text-teal-700',
+  B1:'bg-amber-100 text-amber-700', B2:'bg-amber-100 text-amber-700',
   C1:'bg-red-100 text-red-700', Q1:'bg-red-200 text-red-800',
   V1:'bg-slate-100 text-slate-500', S1:'bg-slate-100 text-slate-400',
 }
@@ -149,7 +149,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
     <div className="space-y-4 max-w-4xl">
       <Link href="/reviews" className="btn-secondary text-xs py-1.5 px-3"><ArrowLeft className="h-3.5 w-3.5" /> My Reviews</Link>
       <div className="card p-10 text-center">
-        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+        <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-slate-900 mb-2">Review Submitted</h2>
         <p className="text-slate-500 mb-1">Outcome: <strong>{outcome || 'Escalated for more review'}</strong></p>
         <p className="text-slate-400 text-sm">
@@ -176,7 +176,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                   t.id === id
                     ? 'bg-navy-700 text-white border-navy-700'
                     : t.status === 'completed'
-                    ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
+                    ? 'bg-green-100 text-emerald-700 border-green-200 hover:bg-green-200'
                     : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
                 }`}>
                 {(t.document_versions as any)?.file_name?.replace(/\.[^.]+$/, '').slice(-20) ?? `Doc ${t.id.slice(0, 6)}`}
@@ -199,14 +199,14 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 </span>
               )}
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                isCompleted ? 'bg-green-100 text-green-700' :
+                isCompleted ? 'bg-green-100 text-emerald-700' :
                 task.status === 'overdue' ? 'bg-red-100 text-red-700' :
-                'bg-orange-100 text-orange-700'
+                'bg-amber-100 text-amber-700'
               }`}>
                 {isCompleted ? 'Completed' : task.status}
               </span>
               {task.is_manager_override && (
-                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">Manager Override</span>
+                <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-semibold">Manager Override</span>
               )}
             </div>
             {dv.doc_name && <p className="text-slate-700 font-medium">{dv.doc_name}</p>}
@@ -241,7 +241,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
 
         {/* AI Summary */}
         {dv.ai_text && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-blue-800">
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md text-sm text-teal-800">
             <p className="font-semibold mb-1">AI Summary</p>
             <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{dv.ai_text}</pre>
           </div>
@@ -256,7 +256,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
             <Users className="h-4 w-4 text-slate-500" />
             <span className="font-semibold text-slate-900">Review Chain ({docChain.length} reviewer{docChain.length !== 1 ? 's' : ''})</span>
             {completedBefore.length > 0 && (
-              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">{completedBefore.length} completed</span>
+              <span className="px-2 py-0.5 bg-green-100 text-emerald-700 rounded text-xs">{completedBefore.length} completed</span>
             )}
           </div>
           {showChain ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
@@ -272,7 +272,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 return (
                   <div key={t.id} className={`px-5 py-3 flex items-start gap-3 ${isCurrent ? 'bg-navy-50' : ''}`}>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                      isDone ? 'bg-green-500 text-white' :
+                      isDone ? 'bg-emerald-500 text-white' :
                       isCurrent ? 'bg-navy-700 text-white' :
                       'bg-slate-200 text-slate-500'
                     }`}>
@@ -289,9 +289,9 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                           </span>
                         )}
                         <span className={`px-2 py-0.5 rounded-full text-xs ${
-                          isDone ? 'bg-green-100 text-green-600' :
-                          t.status === 'sent' ? 'bg-blue-100 text-blue-600' :
-                          isCurrent ? 'bg-orange-100 text-orange-600' :
+                          isDone ? 'bg-green-100 text-emerald-600' :
+                          t.status === 'sent' ? 'bg-blue-100 text-teal-600' :
+                          isCurrent ? 'bg-amber-100 text-amber-600' :
                           'bg-slate-100 text-slate-500'
                         }`}>
                           {isDone ? 'Completed' : isCurrent ? 'In progress' : t.status === 'sent' ? 'Notified' : 'Pending'}

@@ -103,7 +103,7 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
                     </span>
                   )}
                   {v.is_latest && (
-                    <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-semibold">LATEST</span>
+                    <span className="px-1.5 py-0.5 bg-green-100 text-emerald-700 rounded text-xs font-semibold">LATEST</span>
                   )}
                   {v.review_outcome_code && (
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${outcomeColorClass(v.review_outcome_code as ReviewOutcomeCode)}`}>

@@ -83,9 +83,9 @@ export default async function ReviewsPage() {
       <Link href={`/reviews/${firstPendingTaskId}`}
         className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
         <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
-          allComplete   ? 'bg-green-100 text-green-700' :
+          allComplete   ? 'bg-green-100 text-emerald-700' :
           isOverdue     ? 'bg-red-100 text-red-700' :
-          inProgress    ? 'bg-orange-100 text-orange-700' :
+          inProgress    ? 'bg-amber-100 text-amber-700' :
           'bg-navy-100 text-navy-700'
         }`}>
           {seqNum}
@@ -113,8 +113,8 @@ export default async function ReviewsPage() {
               return (
                 <div key={t.id} className="flex items-center gap-1.5 text-xs text-slate-500">
                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    t.status === 'completed'   ? 'bg-green-500' :
-                    t.status === 'in_progress' ? 'bg-orange-400' :
+                    t.status === 'completed'   ? 'bg-emerald-500' :
+                    t.status === 'in_progress' ? 'bg-amber-400' :
                     'bg-slate-300'
                   }`} />
                   <span className="font-mono">{label}</span>
@@ -139,10 +139,10 @@ export default async function ReviewsPage() {
           </div>
         </div>
         <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
-          allComplete ? 'bg-green-100 text-green-700' :
+          allComplete ? 'bg-green-100 text-emerald-700' :
           isOverdue   ? 'bg-red-100 text-red-700' :
-          inProgress  ? 'bg-orange-100 text-orange-700' :
-          'bg-blue-100 text-blue-700'
+          inProgress  ? 'bg-amber-100 text-amber-700' :
+          'bg-blue-100 text-teal-700'
         }`}>
           {allComplete ? 'completed' : isOverdue ? 'overdue' : inProgress ? 'in progress' : 'sent'}
         </span>
@@ -170,7 +170,7 @@ export default async function ReviewsPage() {
       {/* Pending batches */}
       <div className="card">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-          <Clock className="h-4 w-4 text-orange-500" />
+          <Clock className="h-4 w-4 text-amber-500" />
           <h2 className="font-semibold text-slate-900">Pending / In Progress</h2>
           <span className="ml-auto text-sm text-slate-400">{pendingBatches.length}</span>
         </div>
@@ -190,7 +190,7 @@ export default async function ReviewsPage() {
       {completedBatches.length > 0 && (
         <div className="card">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircle className="h-4 w-4 text-emerald-500" />
             <h2 className="font-semibold text-slate-900">Completed</h2>
             <span className="ml-auto text-sm text-slate-400">{completedBatches.length}</span>
           </div>
