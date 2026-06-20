@@ -47,11 +47,11 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
             <FileText className="h-6 w-6 text-navy-700" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-gray-900 font-mono">
+            <h1 className="text-xl font-bold text-slate-900 font-mono">
               {doc.normalized_document_number ?? doc.display_document_number ?? 'Unknown'}
             </h1>
-            <p className="text-gray-700 mt-1">{latest?.doc_name ?? doc.title ?? latest?.file_name}</p>
-            <div className="flex flex-wrap gap-3 mt-3 text-sm text-gray-600">
+            <p className="text-slate-700 mt-1">{latest?.doc_name ?? doc.title ?? latest?.file_name}</p>
+            <div className="flex flex-wrap gap-3 mt-3 text-sm text-slate-600">
               {(doc.vendors as any)?.name && <span className="font-medium">{(doc.vendors as any).name}</span>}
               {(doc.packages as any)?.package_name && <span>· {(doc.packages as any).package_name}</span>}
               {doc.discipline    && <span>· {doc.discipline}</span>}
@@ -71,14 +71,14 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
       {/* AI Summary */}
       {latest?.ai_text && (
         <div className="card p-6">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <h2 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
             AI Classification Summary
-            <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded">
+            <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
               {latest.ai_metadata_source === 'manually_overridden' ? 'Manually overridden' :
                latest.ai_metadata_source === 'manually_confirmed' ? 'AI (confirmed)' : 'AI generated'}
             </span>
           </h2>
-          <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
+          <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
             {latest.ai_text}
           </pre>
         </div>
@@ -86,17 +86,17 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
 
       {/* Revision history */}
       <div className="card">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-          <History className="h-4 w-4 text-gray-500" />
-          <h2 className="font-semibold text-gray-900">Revision History</h2>
-          <span className="ml-auto text-sm text-gray-400">{versions?.length ?? 0} revision{(versions?.length ?? 0) !== 1 ? 's' : ''}</span>
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <History className="h-4 w-4 text-slate-500" />
+          <h2 className="font-semibold text-slate-900">Revision History</h2>
+          <span className="ml-auto text-sm text-slate-400">{versions?.length ?? 0} revision{(versions?.length ?? 0) !== 1 ? 's' : ''}</span>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-slate-50">
           {versions?.map((v: any) => (
             <div key={v.id} className="px-6 py-4 flex items-center gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-medium text-gray-900">{v.file_name}</span>
+                  <span className="font-mono text-sm font-medium text-slate-900">{v.file_name}</span>
                   {v.revision && (
                     <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">
                       Rev {v.revision}
@@ -111,7 +111,7 @@ export default async function DocumentDetailPage({ params }: { params: Promise<{
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-gray-500 mt-1 space-x-3">
+                <div className="text-xs text-slate-500 mt-1 space-x-3">
                   <span>Uploaded {format(new Date(v.uploaded_at), 'd MMM yyyy')}</span>
                   {v.returned_at && <span>· Returned {format(new Date(v.returned_at), 'd MMM yyyy')}</span>}
                   {v.batches && <span>· Batch {v.batches.batch_guid}</span>}

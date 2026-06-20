@@ -151,49 +151,49 @@ function ColumnMenu({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="fixed z-50 w-64 bg-white rounded-lg shadow-xl border border-gray-200 text-xs"
+      <div className="fixed z-50 w-64 bg-white rounded-lg shadow-xl border border-slate-200 text-xs"
         style={{ left, top: anchor.bottom + 2 }} onClick={e => e.stopPropagation()}>
-        <div className="px-3 py-2 border-b border-gray-100 font-semibold text-gray-700 truncate">{label}</div>
+        <div className="px-3 py-2 border-b border-slate-100 font-semibold text-slate-700 truncate">{label}</div>
 
         {/* Sort */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-slate-100">
           <button onClick={() => { onSort('asc'); onClose() }}
-            className={cn('flex-1 px-3 py-2 flex items-center gap-1.5 hover:bg-gray-50', sortDir === 'asc' && 'text-navy-700 font-semibold')}>
+            className={cn('flex-1 px-3 py-2 flex items-center gap-1.5 hover:bg-slate-50', sortDir === 'asc' && 'text-navy-700 font-semibold')}>
             <ChevronUp className="h-3.5 w-3.5" /> Sort A → Z
           </button>
           <button onClick={() => { onSort('desc'); onClose() }}
-            className={cn('flex-1 px-3 py-2 flex items-center gap-1.5 border-l border-gray-100 hover:bg-gray-50', sortDir === 'desc' && 'text-navy-700 font-semibold')}>
+            className={cn('flex-1 px-3 py-2 flex items-center gap-1.5 border-l border-slate-100 hover:bg-slate-50', sortDir === 'desc' && 'text-navy-700 font-semibold')}>
             <ChevronDown className="h-3.5 w-3.5" /> Sort Z → A
           </button>
         </div>
 
         {/* Search */}
-        <div className="p-2 border-b border-gray-100 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+        <div className="p-2 border-b border-slate-100 relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           <input autoFocus value={q}
             onChange={e => onApply({ search: e.target.value, selected: filter.selected })}
             placeholder="Search…" className="input pl-7 pr-2 py-1 text-xs w-full" />
         </div>
 
         {/* Value checklist */}
-        <label className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 cursor-pointer select-none hover:bg-gray-50">
+        <label className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100 cursor-pointer select-none hover:bg-slate-50">
           <input type="checkbox" checked={allShownChecked} onChange={e => selectAllShown(e.target.checked)} className="rounded" />
-          <span className="font-medium text-gray-600">{q ? 'Select all (results)' : 'Select all'}</span>
+          <span className="font-medium text-slate-600">{q ? 'Select all (results)' : 'Select all'}</span>
         </label>
         <div className="max-h-52 overflow-y-auto py-1">
-          {shown.length === 0 && <p className="px-3 py-2 text-gray-400">No matches</p>}
+          {shown.length === 0 && <p className="px-3 py-2 text-slate-400">No matches</p>}
           {shown.map(v => (
-            <label key={v} className="flex items-center gap-2 px-3 py-1 cursor-pointer select-none hover:bg-gray-50">
+            <label key={v} className="flex items-center gap-2 px-3 py-1 cursor-pointer select-none hover:bg-slate-50">
               <input type="checkbox" checked={isChecked(v)} onChange={() => toggle(v)} className="rounded" />
-              <span className={cn('truncate', v === BLANKS && 'text-gray-400 italic')}>{v}</span>
+              <span className={cn('truncate', v === BLANKS && 'text-slate-400 italic')}>{v}</span>
             </label>
           ))}
-          {values.length > 1000 && <p className="px-3 py-1 text-gray-400">…refine with search ({values.length.toLocaleString()} values)</p>}
+          {values.length > 1000 && <p className="px-3 py-1 text-slate-400">…refine with search ({values.length.toLocaleString()} values)</p>}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100">
-          <button onClick={onClear} className="text-gray-500 hover:text-red-600">Clear filter</button>
+        <div className="flex items-center justify-between px-3 py-2 border-t border-slate-100">
+          <button onClick={onClear} className="text-slate-500 hover:text-red-600">Clear filter</button>
           <button onClick={onClose} className="btn-primary text-xs py-1 px-3">Done</button>
         </div>
       </div>
@@ -350,7 +350,7 @@ export default function MddrPage() {
 
   function renderCell(row: any, col: ColDef) {
     const v = row[col.key]
-    if (v == null || v === '') return <span className="text-gray-300">—</span>
+    if (v == null || v === '') return <span className="text-slate-300">—</span>
 
     if (DATE_COLS.has(col.key)) return <span className="whitespace-nowrap">{fmtDate(v)}</span>
 
@@ -358,11 +358,11 @@ export default function MddrPage() {
       const pct = Number(v)
       return (
         <div className="flex items-center gap-2 min-w-[80px]">
-          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div
               className={cn(
                 'h-full rounded-full',
-                pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-blue-500' : pct > 0 ? 'bg-yellow-500' : 'bg-gray-200'
+                pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-blue-500' : pct > 0 ? 'bg-yellow-500' : 'bg-slate-200'
               )}
               style={{ width: `${Math.min(pct, 100)}%` }}
             />
@@ -374,7 +374,7 @@ export default function MddrPage() {
 
     if (col.key === 'review_outcome_code') {
       return (
-        <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[v] ?? 'bg-gray-100 text-gray-700')}>
+        <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[v] ?? 'bg-slate-100 text-slate-700')}>
           {v}
         </span>
       )
@@ -386,7 +386,7 @@ export default function MddrPage() {
         CDDL: 'bg-teal-100 text-teal-700',
         MDDR: 'bg-navy-100 text-navy-700',
       }
-      return <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', colors[v] ?? 'bg-gray-100 text-gray-700')}>{v}</span>
+      return <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', colors[v] ?? 'bg-slate-100 text-slate-700')}>{v}</span>
     }
 
     if (col.key === 'weighting_total' || col.key === 'weighting_primary' || col.key === 'weighting_secondary') {
@@ -438,11 +438,11 @@ export default function MddrPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <ListChecks className="h-6 w-6 text-navy-600" />
             Master Document & Drawing Register
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <p className="text-slate-500 text-sm mt-0.5">
             Combined SDDR · CDDL · MDDR — {totalCount.toLocaleString()} entries
           </p>
         </div>
@@ -459,7 +459,7 @@ export default function MddrPage() {
 
       {/* Package filter chips */}
       <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Package:</span>
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide mr-1">Package:</span>
         {['ALL', ...packages].map(pkg => (
           <button
             key={pkg}
@@ -468,7 +468,7 @@ export default function MddrPage() {
               'px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
               selPackage === pkg
                 ? 'bg-navy-700 text-white border-navy-700'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400 hover:text-navy-700'
+                : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700'
             )}
           >
             {pkg}
@@ -478,7 +478,7 @@ export default function MddrPage() {
 
       {/* Vendor + Source + Search row */}
       <div className="flex flex-wrap gap-3 items-center">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor:</span>
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Vendor:</span>
         {['ALL', ...vendors].map(v => (
           <button
             key={v}
@@ -487,14 +487,14 @@ export default function MddrPage() {
               'px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
               selVendor === v
                 ? 'bg-teal-600 text-white border-teal-600'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-teal-400 hover:text-teal-700'
+                : 'bg-white text-slate-600 border-slate-300 hover:border-teal-400 hover:text-teal-700'
             )}
           >
             {v}
           </button>
         ))}
 
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide ml-2">Source:</span>
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide ml-2">Source:</span>
         {['ALL','SDDR','CDDL','MDDR'].map(s => (
           <button
             key={s}
@@ -503,14 +503,14 @@ export default function MddrPage() {
               'px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
               selSource === s
                 ? 'bg-purple-600 text-white border-purple-600'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-purple-400 hover:text-purple-700'
+                : 'bg-white text-slate-600 border-slate-300 hover:border-purple-400 hover:text-purple-700'
             )}
           >
             {s}
           </button>
         ))}
 
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide ml-2">Show:</span>
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide ml-2">Show:</span>
         {([['true', 'Awarded docs'], ['false', 'Unawarded scope']] as const).map(([val, label]) => (
           <button
             key={val}
@@ -519,7 +519,7 @@ export default function MddrPage() {
               'px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
               awarded === val
                 ? 'bg-amber-500 text-white border-amber-500'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-amber-400 hover:text-amber-700'
+                : 'bg-white text-slate-600 border-slate-300 hover:border-amber-400 hover:text-amber-700'
             )}
           >
             {label}
@@ -528,7 +528,7 @@ export default function MddrPage() {
 
         {/* Free-text search */}
         <div className="relative ml-auto">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           <input
             type="text"
             value={search}
@@ -537,14 +537,14 @@ export default function MddrPage() {
             className="input pl-8 pr-8 py-1.5 text-xs w-64"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
         {loading && <Loader2 className="h-4 w-4 text-navy-500 animate-spin" />}
-        <button onClick={() => fetchRows(selPackage, selVendor, selSource, search)} className="text-gray-400 hover:text-navy-600">
+        <button onClick={() => fetchRows(selPackage, selVendor, selSource, search)} className="text-slate-400 hover:text-navy-600">
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
@@ -553,12 +553,12 @@ export default function MddrPage() {
       {showColPicker && (
         <div className="card p-4 border-navy-200">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-gray-700">Visible Columns</span>
-            <button onClick={() => setShowColPicker(false)} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+            <span className="text-sm font-semibold text-slate-700">Visible Columns</span>
+            <button onClick={() => setShowColPicker(false)} className="text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
           </div>
           <div className="grid grid-cols-3 gap-x-6 gap-y-2">
             {COLUMNS.map(col => (
-              <label key={col.key} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
+              <label key={col.key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={visibleCols.has(col.key)}
@@ -578,7 +578,7 @@ export default function MddrPage() {
       {/* Doc Number quick filter (top-left of the table) */}
       <div className="flex items-center gap-3">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           <input
             type="text"
             value={docSearch}
@@ -587,7 +587,7 @@ export default function MddrPage() {
             className="input pl-8 pr-8 py-1.5 text-xs w-80"
           />
           {docSearch && (
-            <button onClick={() => setDocSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={() => setDocSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -598,16 +598,16 @@ export default function MddrPage() {
             <Filter className="h-3 w-3" /> {activeFilterCols.length} column filter{activeFilterCols.length === 1 ? '' : 's'} · Clear
           </button>
         )}
-        <span className="text-xs text-gray-500 ml-auto">{viewRows.length.toLocaleString()} of {rows.length.toLocaleString()} shown</span>
+        <span className="text-xs text-slate-500 ml-auto">{viewRows.length.toLocaleString()} of {rows.length.toLocaleString()} shown</span>
       </div>
 
       {/* Table — bounded height so the horizontal scrollbar stays visible while
           scrolling rows; leftmost columns (through Title) are frozen. */}
       <div className="card overflow-auto max-h-[calc(100vh-16rem)]">
         {viewRows.length === 0 && !loading ? (
-          <div className="py-20 text-center text-gray-400">
+          <div className="py-20 text-center text-slate-400">
             <ListChecks className="h-12 w-12 mx-auto mb-3 opacity-20" />
-            <p className="font-medium text-gray-500">No entries found</p>
+            <p className="font-medium text-slate-500">No entries found</p>
             <p className="text-sm mt-1">{docSearch ? 'No document number matches that search' : 'Upload registers or adjust your filters'}</p>
           </div>
         ) : (
@@ -623,9 +623,9 @@ export default function MddrPage() {
                       onClick={e => { setMenuCol(col.key); setMenuAnchor((e.currentTarget as HTMLElement).getBoundingClientRect()) }}
                       style={{ minWidth: col.width ?? 100, ...(pinned ? { position: 'sticky', left: leftOffsets[i], top: 0 } : {}) }}
                       className={cn(
-                        'px-3 py-2.5 text-left font-semibold text-gray-600 cursor-pointer hover:bg-gray-100 whitespace-nowrap select-none bg-gray-50 border-b border-gray-200',
+                        'px-3 py-2.5 text-left font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 whitespace-nowrap select-none bg-slate-50 border-b border-slate-200',
                         pinned && 'z-30',
-                        i === pinnedCount - 1 && 'border-r border-gray-200',
+                        i === pinnedCount - 1 && 'border-r border-slate-200',
                       )}
                     >
                       <span className="flex items-center gap-1 w-full">
@@ -635,7 +635,7 @@ export default function MddrPage() {
                             ? <ChevronUp   className="h-3 w-3 shrink-0" />
                             : <ChevronDown className="h-3 w-3 shrink-0" />
                         )}
-                        <Filter className={cn('h-3 w-3 ml-auto shrink-0', hasFilter ? 'text-navy-600 fill-navy-200' : 'text-gray-300')} />
+                        <Filter className={cn('h-3 w-3 ml-auto shrink-0', hasFilter ? 'text-navy-600 fill-navy-200' : 'text-slate-300')} />
                       </span>
                     </th>
                   )
@@ -644,7 +644,7 @@ export default function MddrPage() {
             </thead>
             <tbody>
               {viewRows.map((row, ri) => (
-                <tr key={row.id ?? ri} className="group hover:bg-gray-50 transition-colors">
+                <tr key={row.id ?? ri} className="group hover:bg-slate-50 transition-colors">
                   {displayedCols.map((col, i) => {
                     const pinned = i < pinnedCount
                     return (
@@ -652,9 +652,9 @@ export default function MddrPage() {
                         key={col.key}
                         style={pinned ? { position: 'sticky', left: leftOffsets[i] } : undefined}
                         className={cn(
-                          'px-3 py-2 text-gray-700 align-middle border-b border-gray-50',
-                          pinned && 'bg-white group-hover:bg-gray-50 z-10',
-                          i === pinnedCount - 1 && 'border-r border-gray-200',
+                          'px-3 py-2 text-slate-700 align-middle border-b border-slate-50',
+                          pinned && 'bg-white group-hover:bg-slate-50 z-10',
+                          i === pinnedCount - 1 && 'border-r border-slate-200',
                         )}
                       >
                         {renderCell(row, col)}
@@ -685,7 +685,7 @@ export default function MddrPage() {
 
       {/* Footer count */}
       {rows.length > 0 && (
-        <div className="text-xs text-gray-400 text-right pr-1">
+        <div className="text-xs text-slate-400 text-right pr-1">
           Showing {viewRows.length.toLocaleString()} of {totalCount.toLocaleString()} entries
           {docSearch && ` · filtered by "${docSearch}"`}
           {selPackage !== 'ALL' && ` · Package ${selPackage}`}

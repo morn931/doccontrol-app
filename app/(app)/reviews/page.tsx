@@ -81,7 +81,7 @@ export default async function ReviewsPage() {
 
     return (
       <Link href={`/reviews/${firstPendingTaskId}`}
-        className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
+        className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50 transition-colors">
         <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
           allComplete   ? 'bg-green-100 text-green-700' :
           isOverdue     ? 'bg-red-100 text-red-700' :
@@ -92,10 +92,10 @@ export default async function ReviewsPage() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-gray-900">
+            <span className="font-semibold text-slate-900">
               {batch?.packages?.package_name ?? batch?.packages?.package_code ?? 'Unknown Package'}
             </span>
-            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-medium">
               <FileText className="h-3 w-3" />
               {docCount} doc{docCount !== 1 ? 's' : ''}
             </span>
@@ -111,11 +111,11 @@ export default async function ReviewsPage() {
               const dv = t.document_versions as any
               const label = dv?.documents?.normalized_document_number ?? dv?.file_name ?? 'Unknown'
               return (
-                <div key={t.id} className="flex items-center gap-1.5 text-xs text-gray-500">
+                <div key={t.id} className="flex items-center gap-1.5 text-xs text-slate-500">
                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                     t.status === 'completed'   ? 'bg-green-500' :
                     t.status === 'in_progress' ? 'bg-orange-400' :
-                    'bg-gray-300'
+                    'bg-slate-300'
                   }`} />
                   <span className="font-mono">{label}</span>
                   {dv?.revision && <span className="px-1 bg-navy-50 text-navy-600 rounded font-mono">Rev {dv.revision}</span>}
@@ -123,10 +123,10 @@ export default async function ReviewsPage() {
               )
             })}
             {bTasks.length > 4 && (
-              <div className="text-xs text-gray-400 pl-3">+{bTasks.length - 4} more</div>
+              <div className="text-xs text-slate-400 pl-3">+{bTasks.length - 4} more</div>
             )}
           </div>
-          <div className="flex flex-wrap gap-x-3 text-xs text-gray-400 mt-1">
+          <div className="flex flex-wrap gap-x-3 text-xs text-slate-400 mt-1">
             {batch?.vendors?.name && <span>{batch.vendors.name}</span>}
             {latestSent && <span>· Sent {formatDistanceToNow(new Date(latestSent), { addSuffix: true })}</span>}
             {earliestDue && (
@@ -153,8 +153,8 @@ export default async function ReviewsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Reviews</h1>
-        <p className="text-gray-500 text-sm mt-1">Your assigned document batches for review</p>
+        <h1 className="text-2xl font-bold text-slate-900">My Reviews</h1>
+        <p className="text-slate-500 text-sm mt-1">Your assigned document batches for review</p>
       </div>
 
       {overdueCount > 0 && (
@@ -169,18 +169,18 @@ export default async function ReviewsPage() {
 
       {/* Pending batches */}
       <div className="card">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
           <Clock className="h-4 w-4 text-orange-500" />
-          <h2 className="font-semibold text-gray-900">Pending / In Progress</h2>
-          <span className="ml-auto text-sm text-gray-400">{pendingBatches.length}</span>
+          <h2 className="font-semibold text-slate-900">Pending / In Progress</h2>
+          <span className="ml-auto text-sm text-slate-400">{pendingBatches.length}</span>
         </div>
         {pendingBatches.length === 0 ? (
-          <div className="py-10 text-center text-gray-400">
+          <div className="py-10 text-center text-slate-400">
             <CheckCircle className="h-10 w-10 mx-auto mb-2 opacity-30" />
             <p>No pending reviews. You&apos;re all caught up!</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-slate-50">
             {pendingBatches.map(entry => <BatchCard key={entry.key} entry={entry} />)}
           </div>
         )}
@@ -189,16 +189,16 @@ export default async function ReviewsPage() {
       {/* Completed batches */}
       {completedBatches.length > 0 && (
         <div className="card">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-green-500" />
-            <h2 className="font-semibold text-gray-900">Completed</h2>
-            <span className="ml-auto text-sm text-gray-400">{completedBatches.length}</span>
+            <h2 className="font-semibold text-slate-900">Completed</h2>
+            <span className="ml-auto text-sm text-slate-400">{completedBatches.length}</span>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-slate-50">
             {completedBatches.slice(0, 20).map(entry => <BatchCard key={entry.key} entry={entry} />)}
           </div>
           {completedBatches.length > 20 && (
-            <div className="px-6 py-3 text-sm text-gray-400 text-center">
+            <div className="px-6 py-3 text-sm text-slate-400 text-center">
               Showing 20 of {completedBatches.length} completed batches.
             </div>
           )}

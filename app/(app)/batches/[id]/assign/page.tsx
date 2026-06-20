@@ -121,8 +121,8 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Assign Reviewers</h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-slate-900">Assign Reviewers</h1>
+        <p className="text-slate-500 text-sm mt-1">
           {batch?.packages?.package_name ?? 'Unknown Package'} — {batch?.document_versions?.length ?? 0} document{(batch?.document_versions?.length ?? 0) !== 1 ? 's' : ''}
         </p>
       </div>
@@ -132,8 +132,8 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="h-4 w-4 text-navy-500" />
-            <h2 className="font-semibold text-gray-900 text-sm">Suggested Reviewers</h2>
-            <span className="text-xs text-gray-400">Based on historical review patterns for this package</span>
+            <h2 className="font-semibold text-slate-900 text-sm">Suggested Reviewers</h2>
+            <span className="text-xs text-slate-400">Based on historical review patterns for this package</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {unusedSuggestions.slice(0, 6).map(s => (
@@ -150,10 +150,10 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
 
       {/* Reviewer sequence */}
       <div className="card">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-gray-500" />
-            <h2 className="font-semibold text-gray-900">Review Sequence ({reviewers.length})</h2>
+            <Users className="h-4 w-4 text-slate-500" />
+            <h2 className="font-semibold text-slate-900">Review Sequence ({reviewers.length})</h2>
           </div>
           <button onClick={() => setShowPicker(!showPicker)} className="btn-secondary text-xs py-1.5 px-3">
             <Plus className="h-3.5 w-3.5" /> Add Reviewer
@@ -162,7 +162,7 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
 
         {/* Reviewer picker */}
         {showPicker && (
-          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
             <input
               type="text" value={emailSearch}
               onChange={e => setEmailSearch(e.target.value)}
@@ -177,12 +177,12 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
                   <div className="w-8 h-8 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-semibold text-sm shrink-0">+</div>
                   <div>
                     <p className="text-sm font-medium text-navy-700">Add "{emailSearch.trim()}"</p>
-                    <p className="text-xs text-gray-400">Not in user list — add directly by email</p>
+                    <p className="text-xs text-slate-400">Not in user list — add directly by email</p>
                   </div>
                 </button>
               )}
               {filteredUsers.length === 0 && !emailSearch.includes('@') && emailSearch && (
-                <p className="text-sm text-gray-400 py-2">No users found. Type a full email address to add directly.</p>
+                <p className="text-sm text-slate-400 py-2">No users found. Type a full email address to add directly.</p>
               )}
               {filteredUsers.map(u => (
                 <button key={u.email} onClick={() => addReviewer(u.email, u.full_name ?? u.email)}
@@ -191,8 +191,8 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
                     {(u.full_name ?? u.email)[0].toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{u.full_name ?? u.email}</p>
-                    <p className="text-xs text-gray-400">{u.email} · {u.role}</p>
+                    <p className="text-sm font-medium text-slate-900">{u.full_name ?? u.email}</p>
+                    <p className="text-xs text-slate-400">{u.email} · {u.role}</p>
                   </div>
                 </button>
               ))}
@@ -200,9 +200,9 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-slate-50">
           {reviewers.length === 0 ? (
-            <div className="px-6 py-10 text-center text-gray-400">
+            <div className="px-6 py-10 text-center text-slate-400">
               <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
               <p>No reviewers added yet. Use suggestions above or click Add Reviewer.</p>
             </div>
@@ -212,20 +212,20 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
                 {r.sequenceNumber}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm text-gray-900">{r.name}</p>
-                <p className="text-xs text-gray-400">{r.email}</p>
+                <p className="font-medium text-sm text-slate-900">{r.name}</p>
+                <p className="text-xs text-slate-400">{r.email}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => moveUp(i)} disabled={i === 0}
-                  className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
+                  className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30">
                   <ChevronUp className="h-4 w-4" />
                 </button>
                 <button onClick={() => moveDown(i)} disabled={i === reviewers.length - 1}
-                  className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30">
+                  className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30">
                   <ChevronDown className="h-4 w-4" />
                 </button>
                 <button onClick={() => removeReviewer(r.email)}
-                  className="p-1 text-gray-400 hover:text-red-500 ml-1">
+                  className="p-1 text-slate-400 hover:text-red-500 ml-1">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -236,7 +236,7 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
 
       {/* Settings */}
       <div className="card p-6 space-y-4">
-        <h2 className="font-semibold text-gray-900">Review Settings</h2>
+        <h2 className="font-semibold text-slate-900">Review Settings</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Due Date (optional)</label>
@@ -265,7 +265,7 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
         <Link href={`/batches/${id}`} className="btn-secondary px-6">Cancel</Link>
       </div>
 
-      <p className="text-xs text-gray-400 text-center">
+      <p className="text-xs text-slate-400 text-center">
         Reviewers will receive email notifications one at a time in the order shown above.
         The first reviewer ({reviewers[0]?.name ?? '—'}) will be notified immediately.
       </p>

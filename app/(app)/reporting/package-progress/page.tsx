@@ -75,10 +75,10 @@ export default function PackageProgressPage() {
 
   function renderRow(r: PackageProgress, heavy = false) {
     return (
-      <tr key={r.packageCode} className={cn('group', heavy ? 'bg-gray-100 font-semibold' : 'hover:bg-amber-50')}>
+      <tr key={r.packageCode} className={cn('group', heavy ? 'bg-slate-100 font-semibold' : 'hover:bg-amber-50')}>
         <td style={{ position: 'sticky', left: 0 }}
-          className={cn('border-b border-r border-gray-200 px-3 py-2 font-medium text-gray-800',
-            heavy ? 'bg-gray-100' : 'bg-white group-hover:bg-amber-50')}>
+          className={cn('border-b border-r border-slate-200 px-3 py-2 font-medium text-slate-800',
+            heavy ? 'bg-slate-100' : 'bg-white group-hover:bg-amber-50')}>
           {r.packageCode}
         </td>
         {COLS.map(c => {
@@ -86,8 +86,8 @@ export default function PackageProgressPage() {
           const n = Number(r[c.key] ?? 0)
           return (
             <td key={c.key as string}
-              className={cn('border-b border-gray-100 px-2 py-2 whitespace-nowrap',
-                c.kind === 'text' ? 'text-left text-gray-500' : 'text-right tabular-nums',
+              className={cn('border-b border-slate-100 px-2 py-2 whitespace-nowrap',
+                c.kind === 'text' ? 'text-left text-slate-500' : 'text-right tabular-nums',
                 isVar && (n >= 0 ? 'text-green-700' : 'text-red-600'))}>
               {isVar && n > 0 ? '+' : ''}{cell(r, c)}
             </td>
@@ -102,13 +102,13 @@ export default function PackageProgressPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/reporting" className="text-xs text-gray-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
+          <Link href="/reporting" className="text-xs text-slate-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
             <ArrowLeft className="h-3 w-3" /> Reporting
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Table2 className="h-6 w-6 text-navy-600" /> Package Progress Summary
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <p className="text-slate-500 text-sm mt-0.5">
             Per-package document counts & progress, live from the MDDR
             {generatedAt && ` · generated ${new Date(generatedAt).toLocaleString()}`}
           </p>
@@ -124,18 +124,18 @@ export default function PackageProgressPage() {
       {/* Controls */}
       <div className="flex flex-wrap gap-x-6 gap-y-2 items-center">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Package:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Package:</span>
           {['ALL', ...packages].map(p => (
             <button key={p} onClick={() => setSelPackage(p)}
               className={cn('px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
                 selPackage === p ? 'bg-navy-700 text-white border-navy-700'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400 hover:text-navy-700')}>
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
               {p}
             </button>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-xs text-gray-600">
-          <span className="font-semibold text-gray-500 uppercase tracking-wide">As of:</span>
+        <label className="flex items-center gap-2 text-xs text-slate-600">
+          <span className="font-semibold text-slate-500 uppercase tracking-wide">As of:</span>
           <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input py-1 text-xs" />
         </label>
       </div>
@@ -148,12 +148,12 @@ export default function PackageProgressPage() {
           <thead className="sticky top-0 z-20">
             <tr>
               <th style={{ position: 'sticky', left: 0, minWidth: 110 }}
-                className="z-30 bg-navy-50 border-b border-r border-gray-200 px-3 py-2 text-left font-bold text-gray-700">
+                className="z-30 bg-navy-50 border-b border-r border-slate-200 px-3 py-2 text-left font-bold text-slate-700">
                 Package
               </th>
               {COLS.map(c => (
                 <th key={c.key as string} style={{ minWidth: c.width }}
-                  className="bg-gray-50 border-b border-gray-200 px-2 py-2 text-right font-semibold text-gray-500 whitespace-nowrap last:text-left">
+                  className="bg-slate-50 border-b border-slate-200 px-2 py-2 text-right font-semibold text-slate-500 whitespace-nowrap last:text-left">
                   {c.label}
                 </th>
               ))}
@@ -167,7 +167,7 @@ export default function PackageProgressPage() {
       </div>
 
       {/* Note */}
-      <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-gray-600 flex gap-2">
+      <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-slate-600 flex gap-2">
         <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
         <p>
           <b>Active Docs</b> = awarded documents in the MDDR for the package.

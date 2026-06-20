@@ -11,9 +11,9 @@ function Bar({ value }: { value: number }) {
   const pct = Math.round(value * 100)
   return (
     <div className="flex items-center gap-2 min-w-[120px]">
-      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
         <div className={cn('h-full rounded-full',
-          pct >= 100 ? 'bg-green-500' : pct >= 67 ? 'bg-teal-500' : pct >= 33 ? 'bg-amber-500' : pct > 0 ? 'bg-orange-400' : 'bg-gray-200')}
+          pct >= 100 ? 'bg-green-500' : pct >= 67 ? 'bg-teal-500' : pct >= 33 ? 'bg-amber-500' : pct > 0 ? 'bg-orange-400' : 'bg-slate-200')}
           style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
       <span className="text-xs font-medium w-11 text-right tabular-nums">{fmtPct(value)}</span>
@@ -59,18 +59,18 @@ export default function Phase1DeliverablesPage() {
 
   function row(r: WbsRow, heavy = false) {
     return (
-      <tr key={r.wbs} className={cn('group', heavy ? 'bg-gray-100 font-semibold' : 'hover:bg-amber-50')}>
+      <tr key={r.wbs} className={cn('group', heavy ? 'bg-slate-100 font-semibold' : 'hover:bg-amber-50')}>
         <td style={{ position: 'sticky', left: 0 }}
-          className={cn('border-b border-r border-gray-200 px-3 py-2 whitespace-nowrap',
-            heavy ? 'bg-gray-100' : 'bg-white group-hover:bg-amber-50')}>
-          <span className="font-semibold text-gray-800">{r.wbs}</span>
-          {r.name && <span className="text-gray-500"> — {r.name}</span>}
+          className={cn('border-b border-r border-slate-200 px-3 py-2 whitespace-nowrap',
+            heavy ? 'bg-slate-100' : 'bg-white group-hover:bg-amber-50')}>
+          <span className="font-semibold text-slate-800">{r.wbs}</span>
+          {r.name && <span className="text-slate-500"> — {r.name}</span>}
         </td>
-        <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums">{r.totalDocs.toLocaleString()}</td>
-        <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums text-gray-500">{r.placeholders.toLocaleString()}</td>
-        <td className="border-b border-gray-100 px-3 py-2 text-right tabular-nums">{r.activeDocs.toLocaleString()}</td>
-        <td className="border-b border-gray-100 px-3 py-2"><Bar value={r.completionOverall} /></td>
-        <td className="border-b border-gray-100 px-3 py-2"><Bar value={r.completionExclPlace} /></td>
+        <td className="border-b border-slate-100 px-3 py-2 text-right tabular-nums">{r.totalDocs.toLocaleString()}</td>
+        <td className="border-b border-slate-100 px-3 py-2 text-right tabular-nums text-slate-500">{r.placeholders.toLocaleString()}</td>
+        <td className="border-b border-slate-100 px-3 py-2 text-right tabular-nums">{r.activeDocs.toLocaleString()}</td>
+        <td className="border-b border-slate-100 px-3 py-2"><Bar value={r.completionOverall} /></td>
+        <td className="border-b border-slate-100 px-3 py-2"><Bar value={r.completionExclPlace} /></td>
       </tr>
     )
   }
@@ -79,13 +79,13 @@ export default function Phase1DeliverablesPage() {
     <div className="space-y-4 flex flex-col h-full">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Link href="/reporting" className="text-xs text-gray-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
+          <Link href="/reporting" className="text-xs text-slate-400 hover:text-navy-600 inline-flex items-center gap-1 mb-1">
             <ArrowLeft className="h-3 w-3" /> Reporting
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Boxes className="h-6 w-6 text-navy-600" /> PPE Phase 1 Engineering Deliverables
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">
+          <p className="text-slate-500 text-sm mt-0.5">
             By WBS code · PPE CDDL only · 3-milestone completion (Rev A / Rev 0 / Approved)
             {generatedAt && ` · generated ${new Date(generatedAt).toLocaleString()}`}
           </p>
@@ -100,12 +100,12 @@ export default function Phase1DeliverablesPage() {
 
       {/* WBS filter */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">WBS:</span>
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">WBS:</span>
         {['ALL', ...rows.map(r => r.wbs)].map(w => (
           <button key={w} onClick={() => setSelWbs(w)}
             className={cn('px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
               selWbs === w ? 'bg-navy-700 text-white border-navy-700'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400 hover:text-navy-700')}>
+                : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
             {w}
           </button>
         ))}
@@ -118,12 +118,12 @@ export default function Phase1DeliverablesPage() {
           <thead className="sticky top-0 z-20">
             <tr>
               <th style={{ position: 'sticky', left: 0, minWidth: 320 }}
-                className="z-30 bg-navy-50 border-b border-r border-gray-200 px-3 py-2 text-left font-bold text-gray-700">WBS</th>
-              <th className="bg-gray-50 border-b border-gray-200 px-3 py-2 text-right font-semibold text-gray-500">Total Docs</th>
-              <th className="bg-gray-50 border-b border-gray-200 px-3 py-2 text-right font-semibold text-gray-500">Placeholders</th>
-              <th className="bg-gray-50 border-b border-gray-200 px-3 py-2 text-right font-semibold text-gray-500">Active Docs</th>
-              <th className="bg-gray-50 border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-500 min-w-[150px]">Overall Completion %</th>
-              <th className="bg-gray-50 border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-500 min-w-[150px]">Completion % (excl. placeholders)</th>
+                className="z-30 bg-navy-50 border-b border-r border-slate-200 px-3 py-2 text-left font-bold text-slate-700">WBS</th>
+              <th className="bg-slate-50 border-b border-slate-200 px-3 py-2 text-right font-semibold text-slate-500">Total Docs</th>
+              <th className="bg-slate-50 border-b border-slate-200 px-3 py-2 text-right font-semibold text-slate-500">Placeholders</th>
+              <th className="bg-slate-50 border-b border-slate-200 px-3 py-2 text-right font-semibold text-slate-500">Active Docs</th>
+              <th className="bg-slate-50 border-b border-slate-200 px-3 py-2 text-left font-semibold text-slate-500 min-w-[150px]">Overall Completion %</th>
+              <th className="bg-slate-50 border-b border-slate-200 px-3 py-2 text-left font-semibold text-slate-500 min-w-[150px]">Completion % (excl. placeholders)</th>
             </tr>
           </thead>
           <tbody>
@@ -133,7 +133,7 @@ export default function Phase1DeliverablesPage() {
         </table>
       </div>
 
-      <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-gray-600 flex gap-2">
+      <div className="card p-3 bg-blue-50/50 border-blue-100 text-xs text-slate-600 flex gap-2">
         <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
         <p>
           Grouped by the CDDL <b>Area / WBS No.</b>, PPE CDDL deliverables only. Each document earns the

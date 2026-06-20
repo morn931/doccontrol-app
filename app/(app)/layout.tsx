@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { Header } from '@/components/layout/header'
 import { Sidebar } from '@/components/layout/sidebar'
 import type { UserRole } from '@/lib/types/database'
 
@@ -17,13 +18,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const role = (profile?.role ?? 'reviewer') as UserRole
   const name = profile?.full_name ?? user.email ?? 'User'
-  const email = profile?.email ?? user.email ?? ''
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar role={role} userName={name} userEmail={email} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <main className="flex-1 p-6 overflow-auto">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Header userName={name} role={role} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar role={role} />
+        <main className="flex-1 overflow-auto px-6 py-6">
           {children}
         </main>
       </div>

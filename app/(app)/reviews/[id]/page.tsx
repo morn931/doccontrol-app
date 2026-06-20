@@ -14,15 +14,15 @@ const OUTCOME_CODES = [
   { code: 'B2', label: 'Data Incomplete — With Comments — Proceed — Resubmit',   color: 'border-orange-500 bg-orange-50 text-orange-800' },
   { code: 'C1', label: 'Data Incomplete — With Comments — Hold Work — Resubmit', color: 'border-red-500    bg-red-50    text-red-800'    },
   { code: 'Q1', label: 'Quality is below Standard — Revise and Resubmit',         color: 'border-red-700    bg-red-100   text-red-900'    },
-  { code: 'V1', label: 'Cancelled',                                               color: 'border-gray-400   bg-gray-50   text-gray-600'  },
-  { code: 'S1', label: 'Superseded',                                              color: 'border-gray-400   bg-gray-50   text-gray-600'  },
+  { code: 'V1', label: 'Cancelled',                                               color: 'border-slate-400   bg-slate-50   text-slate-600'  },
+  { code: 'S1', label: 'Superseded',                                              color: 'border-slate-400   bg-slate-50   text-slate-600'  },
 ]
 
 const OUTCOME_COLORS: Record<string, string> = {
   A1:'bg-green-100 text-green-700', D1:'bg-blue-100 text-blue-700',
   B1:'bg-yellow-100 text-yellow-700', B2:'bg-orange-100 text-orange-700',
   C1:'bg-red-100 text-red-700', Q1:'bg-red-200 text-red-800',
-  V1:'bg-gray-100 text-gray-500', S1:'bg-gray-100 text-gray-400',
+  V1:'bg-slate-100 text-slate-500', S1:'bg-slate-100 text-slate-400',
 }
 
 function reviewerName(email: string) {
@@ -126,7 +126,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   if (!ctx) return (
     <div className="space-y-4 max-w-4xl">
       <Link href="/reviews" className="btn-secondary text-xs py-1.5 px-3"><ArrowLeft className="h-3.5 w-3.5" /> My Reviews</Link>
-      <div className="card p-8 text-center text-gray-400">Review task not found or you are not assigned to this review.</div>
+      <div className="card p-8 text-center text-slate-400">Review task not found or you are not assigned to this review.</div>
     </div>
   )
 
@@ -150,9 +150,9 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
       <Link href="/reviews" className="btn-secondary text-xs py-1.5 px-3"><ArrowLeft className="h-3.5 w-3.5" /> My Reviews</Link>
       <div className="card p-10 text-center">
         <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Review Submitted</h2>
-        <p className="text-gray-500 mb-1">Outcome: <strong>{outcome || 'Escalated for more review'}</strong></p>
-        <p className="text-gray-400 text-sm">
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Review Submitted</h2>
+        <p className="text-slate-500 mb-1">Outcome: <strong>{outcome || 'Escalated for more review'}</strong></p>
+        <p className="text-slate-400 text-sm">
           {isLastReviewer ? 'You were the final reviewer. The document controller has been notified.' : 'The next reviewer has been notified automatically.'}
         </p>
         <Link href="/reviews" className="btn-primary mt-6 inline-flex">Back to My Reviews</Link>
@@ -169,7 +169,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
         </Link>
         {myBatchTasks.length > 1 && (
           <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-xs text-gray-500">Documents in this batch:</span>
+            <span className="text-xs text-slate-500">Documents in this batch:</span>
             {myBatchTasks.map((t: any) => (
               <Link key={t.id} href={`/reviews/${t.id}`}
                 className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
@@ -177,7 +177,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                     ? 'bg-navy-700 text-white border-navy-700'
                     : t.status === 'completed'
                     ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
                 }`}>
                 {(t.document_versions as any)?.file_name?.replace(/\.[^.]+$/, '').slice(-20) ?? `Doc ${t.id.slice(0, 6)}`}
                 {t.review_outcome_code && <span className="ml-1 font-bold">{t.review_outcome_code}</span>}
@@ -192,7 +192,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="font-mono text-sm font-semibold text-gray-900">{dv.file_name}</span>
+              <span className="font-mono text-sm font-semibold text-slate-900">{dv.file_name}</span>
               {dv.revision && (
                 <span className="px-2 py-0.5 bg-navy-600 text-white rounded text-xs font-mono font-bold">
                   Rev {dv.revision}
@@ -209,8 +209,8 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">Manager Override</span>
               )}
             </div>
-            {dv.doc_name && <p className="text-gray-700 font-medium">{dv.doc_name}</p>}
-            <div className="flex flex-wrap gap-x-4 text-sm text-gray-500 mt-1">
+            {dv.doc_name && <p className="text-slate-700 font-medium">{dv.doc_name}</p>}
+            <div className="flex flex-wrap gap-x-4 text-sm text-slate-500 mt-1">
               {batch.packages?.package_name && <span>{batch.packages.package_name}</span>}
               {dv.discipline    && <span>· {dv.discipline}</span>}
               {dv.document_type && <span>· {dv.document_type}</span>}
@@ -232,7 +232,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 <ExternalLink className="h-4 w-4" /> Open Document
               </a>
             ) : (
-              <div className="text-xs text-gray-400 max-w-[160px] text-right">
+              <div className="text-xs text-slate-400 max-w-[160px] text-right">
                 Document URL not yet available — check back shortly after the file has been processed.
               </div>
             )}
@@ -251,20 +251,20 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
       {/* ── REVIEWER CHAIN PANEL ─────────────────────────────────────────────── */}
       <div className="card">
         <button onClick={() => setShowChain(!showChain)}
-          className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+          className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-gray-500" />
-            <span className="font-semibold text-gray-900">Review Chain ({docChain.length} reviewer{docChain.length !== 1 ? 's' : ''})</span>
+            <Users className="h-4 w-4 text-slate-500" />
+            <span className="font-semibold text-slate-900">Review Chain ({docChain.length} reviewer{docChain.length !== 1 ? 's' : ''})</span>
             {completedBefore.length > 0 && (
               <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">{completedBefore.length} completed</span>
             )}
           </div>
-          {showChain ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+          {showChain ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
         </button>
 
         {showChain && (
-          <div className="border-t border-gray-100">
-            <div className="divide-y divide-gray-50">
+          <div className="border-t border-slate-100">
+            <div className="divide-y divide-slate-50">
               {docChain.map((t: any) => {
                 const isMe = t.id === id
                 const isDone = t.status === 'completed'
@@ -274,17 +274,17 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                       isDone ? 'bg-green-500 text-white' :
                       isCurrent ? 'bg-navy-700 text-white' :
-                      'bg-gray-200 text-gray-500'
+                      'bg-slate-200 text-slate-500'
                     }`}>
                       {t.sequence_number}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm text-gray-900">{reviewerName(t.reviewer_email)}</span>
-                        <span className="text-xs text-gray-400">{t.reviewer_email}</span>
+                        <span className="font-medium text-sm text-slate-900">{reviewerName(t.reviewer_email)}</span>
+                        <span className="text-xs text-slate-400">{t.reviewer_email}</span>
                         {isCurrent && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-semibold">You</span>}
                         {t.review_outcome_code && (
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${OUTCOME_COLORS[t.review_outcome_code] ?? 'bg-gray-100 text-gray-600'}`}>
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${OUTCOME_COLORS[t.review_outcome_code] ?? 'bg-slate-100 text-slate-600'}`}>
                             {t.review_outcome_code}
                           </span>
                         )}
@@ -292,19 +292,19 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                           isDone ? 'bg-green-100 text-green-600' :
                           t.status === 'sent' ? 'bg-blue-100 text-blue-600' :
                           isCurrent ? 'bg-orange-100 text-orange-600' :
-                          'bg-gray-100 text-gray-500'
+                          'bg-slate-100 text-slate-500'
                         }`}>
                           {isDone ? 'Completed' : isCurrent ? 'In progress' : t.status === 'sent' ? 'Notified' : 'Pending'}
                         </span>
                       </div>
                       {/* Show comment from previous reviewers */}
                       {isDone && t.comment && (
-                        <div className="mt-1 text-xs text-gray-600 bg-gray-50 rounded px-2 py-1.5 italic">
+                        <div className="mt-1 text-xs text-slate-600 bg-slate-50 rounded px-2 py-1.5 italic">
                           "{t.comment}"
                         </div>
                       )}
                       {isDone && t.date_completed && (
-                        <p className="text-xs text-gray-400 mt-0.5">Completed {format(new Date(t.date_completed), 'd MMM yyyy')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Completed {format(new Date(t.date_completed), 'd MMM yyyy')}</p>
                       )}
                     </div>
                   </div>
@@ -314,7 +314,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
 
             {/* Add reviewer button */}
             {canSubmit && (
-              <div className="px-5 py-3 border-t border-gray-100">
+              <div className="px-5 py-3 border-t border-slate-100">
                 {!showAddReviewer ? (
                   <button onClick={() => setShowAddReviewer(true)}
                     className="flex items-center gap-2 text-sm text-navy-600 hover:text-navy-800 font-medium">
@@ -322,7 +322,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                   </button>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Add reviewer after your position ({task.sequence_number}):</p>
+                    <p className="text-sm font-medium text-slate-700">Add reviewer after your position ({task.sequence_number}):</p>
                     <input value={newReviewerEmail} onChange={e => setNewReviewerEmail(e.target.value)}
                       placeholder="reviewer@ppetech.co.za" className="input text-sm" />
                     <input value={newReviewerReason} onChange={e => setNewReviewerReason(e.target.value)}
@@ -347,29 +347,29 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
       {previousRevisions.length > 0 && (
         <div className="card">
           <button onClick={() => setShowHistory(!showHistory)}
-            className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+            className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
             <div className="flex items-center gap-2">
-              <History className="h-4 w-4 text-gray-500" />
-              <span className="font-semibold text-gray-900">Previous Revisions ({previousRevisions.length})</span>
-              <span className="text-xs text-gray-400">— read-only reference</span>
+              <History className="h-4 w-4 text-slate-500" />
+              <span className="font-semibold text-slate-900">Previous Revisions ({previousRevisions.length})</span>
+              <span className="text-xs text-slate-400">— read-only reference</span>
             </div>
-            {showHistory ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+            {showHistory ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
           </button>
 
           {showHistory && (
-            <div className="border-t border-gray-100 divide-y divide-gray-50">
+            <div className="border-t border-slate-100 divide-y divide-slate-50">
               {previousRevisions.map((pv: any) => (
                 <div key={pv.id} className="px-5 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-sm font-semibold text-gray-700">{pv.file_name}</span>
+                        <span className="font-mono text-sm font-semibold text-slate-700">{pv.file_name}</span>
                         {pv.revision && (
-                          <span className="px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded text-xs font-mono font-bold">
+                          <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-xs font-mono font-bold">
                             Rev {pv.revision}
                           </span>
                         )}
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-slate-400">
                           {pv.returned_at ? `Returned ${format(new Date(pv.returned_at), 'd MMM yyyy')}` :
                            pv.uploaded_at ? `Uploaded ${format(new Date(pv.uploaded_at), 'd MMM yyyy')}` : ''}
                         </span>
@@ -379,11 +379,11 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                         <div className="mt-2 space-y-1">
                           {pv.completedReviews.map((cr: any, i: number) => (
                             <div key={i} className="flex items-start gap-2 text-xs">
-                              <span className={`px-1.5 py-0.5 rounded font-bold shrink-0 ${OUTCOME_COLORS[cr.review_outcome_code] ?? 'bg-gray-100 text-gray-500'}`}>
+                              <span className={`px-1.5 py-0.5 rounded font-bold shrink-0 ${OUTCOME_COLORS[cr.review_outcome_code] ?? 'bg-slate-100 text-slate-500'}`}>
                                 {cr.review_outcome_code ?? '—'}
                               </span>
-                              <span className="font-medium text-gray-600 shrink-0">{reviewerName(cr.reviewer_email)}</span>
-                              {cr.comment && <span className="text-gray-500 italic">"{cr.comment}"</span>}
+                              <span className="font-medium text-slate-600 shrink-0">{reviewerName(cr.reviewer_email)}</span>
+                              {cr.comment && <span className="text-slate-500 italic">"{cr.comment}"</span>}
                             </div>
                           ))}
                         </div>
@@ -407,14 +407,14 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
       {canSubmit && (
         <>
           <div className="card p-5">
-            <h2 className="font-semibold text-gray-900 mb-3">
+            <h2 className="font-semibold text-slate-900 mb-3">
               Select Review Outcome <span className="text-red-500">*</span>
             </h2>
             <div className="space-y-2">
               {OUTCOME_CODES.map(oc => (
                 <label key={oc.code}
                   className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                    outcome === oc.code ? oc.color + ' border-2' : 'border-gray-200 hover:border-gray-300 bg-white'
+                    outcome === oc.code ? oc.color + ' border-2' : 'border-slate-200 hover:border-slate-300 bg-white'
                   }`}>
                   <input type="radio" name="outcome" value={oc.code}
                     checked={outcome === oc.code} onChange={() => setOutcome(oc.code)} className="shrink-0" />
@@ -427,8 +427,8 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-gray-900">Review Comments</h2>
-              <button onClick={saveDraft} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+              <h2 className="font-semibold text-slate-900">Review Comments</h2>
+              <button onClick={saveDraft} className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
                 <Save className="h-3.5 w-3.5" /> Save Draft
               </button>
             </div>
@@ -461,7 +461,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
             </button>
             {showNMR && (
               <div className="mt-3 space-y-3">
-                <p className="text-xs text-gray-500">Explain why additional review is needed. The document controller will be notified and can add a reviewer.</p>
+                <p className="text-xs text-slate-500">Explain why additional review is needed. The document controller will be notified and can add a reviewer.</p>
                 <textarea value={nmrReason} onChange={e => setNmrReason(e.target.value)}
                   rows={3} className="input resize-none"
                   placeholder="Explain why additional review is needed…" />
@@ -479,20 +479,20 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
       {/* Read-only completed view */}
       {isCompleted && !submitted && (
         <div className="card p-5 space-y-3">
-          <h2 className="font-semibold text-gray-900">Your Review (Submitted)</h2>
+          <h2 className="font-semibold text-slate-900">Your Review (Submitted)</h2>
           {task.review_outcome_code && (
             <div className="flex items-center gap-3">
-              <span className={`px-3 py-1.5 rounded font-bold text-lg ${OUTCOME_COLORS[task.review_outcome_code] ?? 'bg-gray-100'}`}>
+              <span className={`px-3 py-1.5 rounded font-bold text-lg ${OUTCOME_COLORS[task.review_outcome_code] ?? 'bg-slate-100'}`}>
                 {task.review_outcome_code}
               </span>
-              <span className="text-gray-600 text-sm">
+              <span className="text-slate-600 text-sm">
                 {OUTCOME_CODES.find(o => o.code === task.review_outcome_code)?.label}
               </span>
             </div>
           )}
-          {task.comment && <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-md">{task.comment}</p>}
+          {task.comment && <p className="text-sm text-slate-700 bg-slate-50 p-3 rounded-md">{task.comment}</p>}
           {task.date_completed && (
-            <p className="text-xs text-gray-400">Submitted {format(new Date(task.date_completed), 'd MMM yyyy HH:mm')}</p>
+            <p className="text-xs text-slate-400">Submitted {format(new Date(task.date_completed), 'd MMM yyyy HH:mm')}</p>
           )}
         </div>
       )}

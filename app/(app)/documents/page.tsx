@@ -19,7 +19,7 @@ function Chip({ active, onClick, children, color = 'navy' }: any) {
   return (
     <button onClick={onClick}
       className={cn('px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
-        active ? `${on} text-white` : 'bg-white text-gray-600 border-gray-300 hover:border-navy-400 hover:text-navy-700')}>
+        active ? `${on} text-white` : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
       {children}
     </button>
   )
@@ -153,8 +153,8 @@ export default function DocumentsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Document Search</h1>
-        <p className="text-gray-500 text-sm mt-1">Find any document across the Master Register (SDDR · CDDL · MDDR). Filters and searches narrow live.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Document Search</h1>
+        <p className="text-slate-500 text-sm mt-1">Find any document across the Master Register (SDDR · CDDL · MDDR). Filters and searches narrow live.</p>
       </div>
 
       {/* Smart (semantic) search */}
@@ -169,9 +169,9 @@ export default function DocumentsPage() {
           <input value={smart} onChange={e => setSmart(e.target.value)}
             placeholder="e.g.  earthing layout for the 220kV substation   ·   overhead line tension calculations"
             className="input pl-9 pr-9" />
-          {smart && <button onClick={() => setSmart('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>}
+          {smart && <button onClick={() => setSmart('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
         </div>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-slate-400 mt-1">
           Meaning-based — finds documents by what they're about (from the AI summaries), even without exact keywords. Respects the Package / Source / Show filters below.
         </p>
       </div>
@@ -179,24 +179,24 @@ export default function DocumentsPage() {
       {/* Filters */}
       <div className={cn('card p-4 space-y-3', isSmart && 'opacity-60')}>
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Package:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Package:</span>
           {['ALL', ...packages].map(p => <Chip key={p} active={selPackage === p} onClick={() => { setSelPackage(p); setSelVendor('ALL') }}>{p}</Chip>)}
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Vendor:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Vendor:</span>
           {['ALL', ...vendors].map(v => <Chip key={v} color="teal" active={selVendor === v} onClick={() => setSelVendor(v)}>{v}</Chip>)}
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Source:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Source:</span>
           {SOURCES.map(s => <Chip key={s} color="purple" active={selSource === s} onClick={() => setSelSource(s)}>{s}</Chip>)}
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide ml-3">Show:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide ml-3">Show:</span>
           {([['true', 'Awarded docs'], ['false', 'Unawarded scope']] as const).map(([v, l]) =>
             <Chip key={v} color="amber" active={awarded === v} onClick={() => setAwarded(v)}>{l}</Chip>)}
         </div>
 
         {sectors.length > 0 && (
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Sector:</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Sector:</span>
             {['ALL', ...sectors].map(s => <Chip key={s} color="rose" active={selSector === s} onClick={() => setSelSector(s)}>{s}</Chip>)}
           </div>
         )}
@@ -214,25 +214,25 @@ export default function DocumentsPage() {
             <option value="">All Statuses</option>
             {statuses.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button onClick={clearAll} className="text-sm text-gray-400 hover:text-gray-600 ml-auto">Clear all</button>
+          <button onClick={clearAll} className="text-sm text-slate-400 hover:text-slate-600 ml-auto">Clear all</button>
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide w-16">Scope:</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Scope:</span>
           {([['files', 'With documents produced'], ['all', 'Full MDDR (incl. placeholders)']] as const).map(([v, l]) =>
             <Chip key={v} color="navy" active={produced === v} onClick={() => setProduced(v)}>{l}</Chip>)}
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input value={docnum} onChange={e => setDocnum(e.target.value)} placeholder="Search Document Number…" className="input pl-9 pr-8" />
-            {docnum && <button onClick={() => setDocnum('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>}
+            {docnum && <button onClick={() => setDocnum('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Search within Title…" className="input pl-9 pr-8" />
-            {title && <button onClick={() => setTitle('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>}
+            {title && <button onClick={() => setTitle('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
           </div>
         </div>
       </div>
@@ -240,8 +240,8 @@ export default function DocumentsPage() {
       {error && <div className="card p-3 text-red-700 bg-red-50 text-sm">{error}</div>}
 
       {/* Result count */}
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        {(loading || smartLoading) ? <Loader2 className="h-4 w-4 animate-spin text-navy-500" /> : <FileText className="h-4 w-4 text-gray-400" />}
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        {(loading || smartLoading) ? <Loader2 className="h-4 w-4 animate-spin text-navy-500" /> : <FileText className="h-4 w-4 text-slate-400" />}
         {isSmart
           ? <span>{displayRows.length.toLocaleString()} best matches for “{smart.trim()}”</span>
           : <><span>{total.toLocaleString()} document{total !== 1 ? 's' : ''}</span>
@@ -249,9 +249,9 @@ export default function DocumentsPage() {
       </div>
 
       {/* Results */}
-      <div className="card divide-y divide-gray-50">
+      <div className="card divide-y divide-slate-50">
         {displayRows.length === 0 && !loading && !smartLoading ? (
-          <div className="py-16 text-center text-gray-400">
+          <div className="py-16 text-center text-slate-400">
             <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="font-medium">No documents found</p>
             <p className="text-sm mt-1">{isSmart ? 'Try describing the document differently' : 'Adjust the filters or search terms'}</p>
@@ -260,25 +260,25 @@ export default function DocumentsPage() {
           const expanded = openId === r.id
           const revRows = revs[r.normalized_document_number] ?? []
           return (
-          <div key={r.id} className="hover:bg-gray-50 transition-colors">
+          <div key={r.id} className="hover:bg-slate-50 transition-colors">
             <div className="px-5 py-3 flex items-start gap-3">
-              <button onClick={() => toggleRevs(r)} className="mt-0.5 text-gray-400 hover:text-navy-600 shrink-0" title="Show revisions">
+              <button onClick={() => toggleRevs(r)} className="mt-0.5 text-slate-400 hover:text-navy-600 shrink-0" title="Show revisions">
                 {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-semibold text-gray-900">{r.document_number ?? '—'}</span>
+                  <span className="font-mono text-sm font-semibold text-slate-900">{r.document_number ?? '—'}</span>
                   {r.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {r.revision}</span>}
-                  {r.source_type && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', SOURCE_COLORS[r.source_type] ?? 'bg-gray-100 text-gray-600')}>{r.source_type}</span>}
-                  {r.review_outcome_code && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[r.review_outcome_code] ?? 'bg-gray-100 text-gray-700')}>{r.review_outcome_code}</span>}
-                  {r.progress_percent != null && <span className="text-xs text-gray-400">{Number(r.progress_percent).toFixed(0)}%</span>}
+                  {r.source_type && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', SOURCE_COLORS[r.source_type] ?? 'bg-slate-100 text-slate-600')}>{r.source_type}</span>}
+                  {r.review_outcome_code && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[r.review_outcome_code] ?? 'bg-slate-100 text-slate-700')}>{r.review_outcome_code}</span>}
+                  {r.progress_percent != null && <span className="text-xs text-slate-400">{Number(r.progress_percent).toFixed(0)}%</span>}
                   {isSmart && r.similarity != null && (
                     <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-navy-100 text-navy-700">{Math.round(r.similarity * 100)}% match</span>
                   )}
                 </div>
-                {r.document_title && <p className="text-sm text-gray-700 mt-0.5">{r.document_title}</p>}
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500 mt-0.5">
-                  {r.package_code && <span className="font-medium text-gray-600">{r.package_code}</span>}
+                {r.document_title && <p className="text-sm text-slate-700 mt-0.5">{r.document_title}</p>}
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 mt-0.5">
+                  {r.package_code && <span className="font-medium text-slate-600">{r.package_code}</span>}
                   {r.vendor_name && <span>· {r.vendor_name}</span>}
                   {r.discipline && <span>· {r.discipline}</span>}
                   {r.document_type && <span>· {r.document_type}</span>}
@@ -286,33 +286,33 @@ export default function DocumentsPage() {
                   {r.tag_number && <span>· Tag {r.tag_number}</span>}
                 </div>
                 {isSmart && r.ai_text && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2 bg-gray-50 rounded px-2 py-1">{r.ai_text.replace(/\s+/g, ' ').slice(0, 240)}…</p>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2 bg-slate-50 rounded px-2 py-1">{r.ai_text.replace(/\s+/g, ' ').slice(0, 240)}…</p>
                 )}
               </div>
               {r.file_link
                 ? <a href={`/api/mddr/open?id=${r.id}`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3 shrink-0"><ExternalLink className="h-3.5 w-3.5" /> Open</a>
-                : <span className="text-xs text-gray-300 shrink-0 mt-1.5">no file</span>}
+                : <span className="text-xs text-slate-300 shrink-0 mt-1.5">no file</span>}
             </div>
 
             {expanded && (
               <div className="px-5 pb-3 pl-12">
-                <div className="rounded-md border border-gray-100 bg-gray-50/60 divide-y divide-gray-100">
+                <div className="rounded-md border border-slate-100 bg-slate-50/60 divide-y divide-slate-100">
                   {revLoading && !(r.normalized_document_number in revs) ? (
-                    <div className="px-3 py-2 text-xs text-gray-400 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> loading revisions…</div>
+                    <div className="px-3 py-2 text-xs text-slate-400 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> loading revisions…</div>
                   ) : revRows.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-gray-400 flex items-center justify-between">
+                    <div className="px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
                       <span>No prior revisions tracked{r.file_link ? ' — current file:' : ''}</span>
                       {r.file_link && <a href={`/api/mddr/open?id=${r.id}`} target="_blank" rel="noopener noreferrer" className="text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>}
                     </div>
                   ) : revRows.map((rv: any, i: number) => (
                     <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
-                      <span className="px-1.5 py-0.5 bg-white border border-gray-200 rounded font-mono font-bold">Rev {rv.revision ?? '—'}</span>
+                      <span className="px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono font-bold">Rev {rv.revision ?? '—'}</span>
                       {i === 0 && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-semibold">LATEST</span>}
-                      {rv.status && <span className="text-gray-500">{rv.status}</span>}
-                      {rv.date && <span className="text-gray-400">{fmtD(rv.date)}</span>}
+                      {rv.status && <span className="text-slate-500">{rv.status}</span>}
+                      {rv.date && <span className="text-slate-400">{fmtD(rv.date)}</span>}
                       {rv.url
                         ? <a href={rv.url} target="_blank" rel="noopener noreferrer" className="ml-auto text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>
-                        : <span className="ml-auto text-gray-300">no link</span>}
+                        : <span className="ml-auto text-slate-300">no link</span>}
                     </div>
                   ))}
                 </div>
