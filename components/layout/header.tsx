@@ -1,5 +1,7 @@
 import type { UserRole } from '@/lib/types/database'
 
+const COREFLOW_URL = process.env.NEXT_PUBLIC_COREFLOW_URL || 'https://coreflow.build'
+
 interface HeaderProps {
   userName: string
   role: UserRole
@@ -22,14 +24,16 @@ export function Header({ userName, role }: HeaderProps) {
     <header className="bg-white border-b border-slate-200 flex-shrink-0">
       <div className="px-4 sm:px-6">
         <div className="flex h-14 items-center justify-between">
-          {/* Brand */}
+          {/* Brand — the CoreFlow mark links back to the platform launcher */}
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/coreflow-logo.png"
-              alt="Coreflow"
-              className="h-9 w-auto object-contain"
-            />
+            <a href={COREFLOW_URL} title="Back to Coreflow" className="flex-shrink-0 transition-opacity hover:opacity-80">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/coreflow-logo.png"
+                alt="Coreflow"
+                className="h-9 w-auto object-contain"
+              />
+            </a>
             <span className="hidden sm:block text-slate-200 text-lg font-thin">|</span>
             <div className="hidden sm:flex flex-col leading-tight">
               <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">CoreDocs</span>
