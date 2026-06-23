@@ -1,7 +1,9 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Header } from '@/components/layout/header'
 import { Sidebar } from '@/components/layout/sidebar'
+import PageViewLogger from '@/components/page-view-logger'
 import type { UserRole } from '@/lib/types/database'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Suspense fallback={null}><PageViewLogger /></Suspense>
       <Header userName={name} role={role} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar role={role} />
