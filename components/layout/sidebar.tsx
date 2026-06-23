@@ -26,6 +26,12 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: '/admin/vendors', label: 'Vendors & Packages', icon: '📦', roles: ['admin'] },
 ]
 
+// Always-visible link to the full user manual (mirrors CoreTime's "User Guide" nav item).
+const HELP_ITEM: NavItem = {
+  href: '/help', label: 'User Guide', icon: '📖',
+  roles: ['admin','document_controller','reviewer','engineering_manager','project_manager','vendor'],
+}
+
 interface SidebarProps { role: UserRole }
 
 export function Sidebar({ role }: SidebarProps) {
@@ -60,6 +66,10 @@ export function Sidebar({ role }: SidebarProps) {
             {ADMIN_ITEMS.map(item => <NavLink key={item.href} item={item} />)}
           </>
         )}
+
+        <div className="mt-4 border-t border-slate-100 pt-2">
+          <NavLink item={HELP_ITEM} />
+        </div>
       </nav>
     </aside>
   )
