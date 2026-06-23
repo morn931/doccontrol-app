@@ -23,10 +23,10 @@ jobs:
       VERCEL_ORG_ID: team_7t4zQrmyG8qEdQvaXenYb7DS
       VERCEL_PROJECT_ID: prj_FDvQ6B1L08JdoR9qukvtMJB6HhqJ
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
       - name: Deploy to production (Vercel builds with project env vars)
