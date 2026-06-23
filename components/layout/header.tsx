@@ -1,4 +1,5 @@
 import type { UserRole } from '@/lib/types/database'
+import { GuideButton } from '@/components/guide-button'
 
 const COREFLOW_URL = process.env.NEXT_PUBLIC_COREFLOW_URL || 'https://coreflow.build'
 
@@ -43,6 +44,7 @@ export function Header({ userName, role }: HeaderProps) {
 
           {/* User */}
           <div className="flex items-center gap-4">
+            <GuideButton />
             <div className="hidden sm:flex flex-col items-end gap-0.5">
               <span className="text-sm font-medium text-slate-700 leading-tight">{userName}</span>
               <span className="text-xs text-slate-400 capitalize leading-tight">{role.replace('_', ' ')}</span>
