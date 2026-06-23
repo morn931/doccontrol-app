@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "public", "guide")
 os.makedirs(ASSETS, exist_ok=True)
 
-BASE_URL = "https://docs.coreflow.build"   # adjust to the live CoreDocs URL
+BASE_URL = "https://docs.coreflow.build"   # live CoreDocs (alias of doccontrol-app.vercel.app)
 
 # ── Screens (mirror of lib/guide/registry.ts) ─────────────────────────────────
 # (slug, route, title, intro, [tips])
@@ -39,44 +39,44 @@ SCREENS = [
       "Register the batch into the master register, then assign the documents to the right reviewers / disciplines.",
       "Track a batch's progress from received -> under review -> returned, so nothing sits unactioned."]),
     ("reviews", "/reviews", "My Reviews",
-     "The documents assigned to you to review, and where you record your review outcome.",
-     ["Open a document to view it (and any markups), then set your status - e.g. approved, approved-with-comments, or rejected/returned.",
-      "Add review comments; these flow back to the Document Controller and onto the transmittal.",
-      "Clear your list before the due date - overdue reviews hold up the whole document cycle."]),
+     "The documents assigned to you to review, and where you record your review outcome. The list is split into Pending / In Progress and Completed, with an overdue banner so nothing slips.",
+     ["Work the top of the list first - anything flagged overdue holds up the whole document cycle. Open a document to view it (and any markups) in the Review Chain.",
+      "Record a formal outcome code: A1 (approved), B1/B2 (approved with comments), C1 / D1 (revise & resubmit), Q1 (for quotation), V1 / S1 (information / superseded). Add your comments alongside the code.",
+      "Your outcome and comments flow back to the Document Controller and onto the transmittal - once set, the document moves to Completed."]),
     ("transmittals", "/transmittals", "Transmittals",
-     "Formal issue and receipt of documents - the auditable record of what was sent to whom, when, and why.",
+     "The Transmittal Register - formal issue and receipt of documents, the auditable record of what was sent to whom, when, and why.",
      ["Create a transmittal to issue documents (e.g. returning reviewed vendor docs, or sending for construction) with a cover sheet.",
       "Each transmittal has a unique number and lists its documents, revisions and the reason for issue.",
       "Open a past transmittal to see its full history - the permanent record for audits and claims."]),
     ("documents", "/documents", "Document Search",
-     "Search the master document register - find any deliverable by number, title, discipline, status or revision.",
-     ["Type a document number or title; use the filters (discipline, status, vendor, revision) to narrow the list.",
-      "Open a document to see its full history - every revision, review and transmittal it has been through.",
-      "This is the quickest way to answer 'what's the latest revision / status of X?'."]),
+     "Search the full document register (3,500+ documents) - find any deliverable by number, title, package, vendor or status.",
+     ["Use Smart Search to describe the document in plain language ('the HV single-line diagram for the substation') - it matches on meaning, not just exact text.",
+      "Narrow the list with the Package / Vendor / Source / Sector filters and the Awarded / Unawarded toggle.",
+      "Open a document to see its full history - every revision, review and transmittal it has been through. This is the quickest way to answer 'what's the latest revision / status of X?'."]),
     ("mddr", "/mddr", "MDDR - Master Register",
-     "The Master Deliverables & Document Register - the controlled master list of every deliverable, its planned dates, current revision and status.",
-     ["Each row is a deliverable with its document number, title, discipline, planned vs actual dates and current status/revision.",
-      "Filter by package / vendor / discipline / status to focus on a slice of the register.",
-      "This is the single source of truth for deliverable progress - it drives the reporting and the client returns."]),
+     "The Master Document & Drawing Register - the controlled master list combining the SDDR, CDDL and MDDR into one register of every deliverable (6,000+ entries) with its current revision, status and progress.",
+     ["Each row is a deliverable with its document number, title, package/discipline, current revision and status. Use Columns to choose what's shown.",
+      "Run Sync Progress to refresh deliverable progress from the latest data; use Upload Register to bulk-load or update entries, and Export CSV for an offline copy or the client return.",
+      "This is the single source of truth for deliverable progress - it drives the Reporting dashboards."]),
     ("reporting", "/reporting", "Reporting",
-     "Progress and status reports built from the live register - for the project team and the client.",
-     ["Status / progress reports summarise the register by discipline, vendor or package.",
-      "Use these for the document-control return and to spot bottlenecks (overdue reviews, ageing batches).",
-      "Reports read live from the MDDR, so they are always current - no manual spreadsheet upkeep."]),
+     "Progress and status reports built live from the register - for the project team and the client.",
+     ["The reports are: Progress Dashboard (overall % complete), Engineering Tracker, Package Progress Summary, PPE Phase 1 Engineering Deliverables, and the P6 Activity-ID Progress Export.",
+      "Use the P6 Activity-ID export to feed deliverable progress straight back into the Primavera P6 schedule.",
+      "Everything reads live from the MDDR, so the numbers are always current - no manual spreadsheet upkeep."]),
     ("admin-import", "/admin/import", "Import & Sync",
-     "Bring documents and metadata in - bulk import of the document index and the SharePoint / Aconex sync (admin only).",
-     ["Import a document-index spreadsheet to seed or update the register in bulk.",
-      "Run the SharePoint sync to pull the latest files/metadata into CoreDocs.",
-      "Imports are designed to be safe to re-run; check the result summary after each run."]),
+     "Bring SharePoint data into CoreDocs - the automatic SharePoint sync and a manual CSV import (admin only). Always run a dry run first to preview before committing.",
+     ["Automatic SharePoint Sync pulls the Approver Picks and Document Approval lists straight from SharePoint via Microsoft Graph (no CSV needed) - it runs every day at 02:00 UTC. Use 'Sync now (force update)' to refresh immediately, 'Sync changes only' for just the deltas, or 'Preview (dry run)' to see what would change.",
+      "To import from a CSV instead: pick the Import Source (e.g. Approver Picks - Batch records), choose a mode - Dry Run (validate only), Full (insert/update all) or Incremental (new records only) - then upload the CSV.",
+      "Always start with a Dry Run: it validates and shows what would happen without changing anything. Re-running imports is safe; check the result summary after each run."]),
     ("admin-users", "/admin/users", "Users",
-     "Manage who can access CoreDocs and what they can do - user accounts and roles (admin only).",
-     ["Each user has a role that controls their menu and permissions: Document Controller, Reviewer, Engineering/Project Manager, Vendor or Admin.",
-      "Set a person's role here; it takes effect on their next page load.",
-      "Keep the reviewer list current so batches can be assigned to the right people."]),
+     "Manage who can access the Document Control platform - user accounts and roles (admin only).",
+     ["Each user has a role that controls their menu and permissions: Admin, Reviewer, Document Controller, Engineering/Project Manager or Vendor. The badge next to each name shows their current role.",
+      "Use 'Add User' to invite someone, or 'Edit' to change a person's role - it takes effect on their next page load.",
+      "Keep the reviewer list current so incoming batches can be assigned to the right people."]),
     ("admin-vendors", "/admin/vendors", "Vendors & Packages",
-     "The vendors and work packages that documents belong to (admin only).",
-     ["Maintain the list of vendors and the packages/disciplines they deliver against.",
-      "Correct vendor/package setup is what lets batches, the register and reporting group documents properly."]),
+     "The project packages and the vendor each is awarded to (admin only). PPE's own engineering scope sits under package K124.",
+     ["Each row is a package (e.g. E101 - 36MVA High Speed Diesel Generator) with an 'Awarded: <vendor>' badge, or 'Not awarded yet' if the contract isn't placed.",
+      "Set the awarded vendor as packages are placed - this is what lets batches, the register and reporting group documents by package and vendor correctly."]),
 ]
 
 SECTIONS = [
@@ -159,6 +159,13 @@ for heading, slugs in SECTIONS:
         h2(title)
         p(intro)
         shot(slug, title, BASE_URL + route)
+        # Reviews has a second screenshot: the review-detail page (Review Chain + outcome codes).
+        if slug == "reviews" and os.path.exists(os.path.join(ASSETS, "review-detail.png")):
+            doc.add_picture(os.path.join(ASSETS, "review-detail.png"), width=Inches(6.2))
+            doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            cap = doc.add_paragraph(); cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r = cap.add_run("Screen: My Reviews - review detail (Review Chain & outcome codes)")
+            r.italic = True; r.font.size = Pt(9); r.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
         for t in tips:
             bullet(t)
 
