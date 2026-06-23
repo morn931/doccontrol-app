@@ -6,10 +6,11 @@ import { readCoreflowPpeEmail } from '@/lib/coreflow-auth'
 
 // ── Coreflow SSO bridge (mint side) ──────────────────────────────────────────
 // A PPE user arrives with a valid SHARED Coreflow session but no CoreDocs session.
-// If they're a curated CoreDocs user (a row in `users`), we silently establish a
-// CoreDocs (own-project) session for them, so the rest of the app works unchanged.
-// External users never reach here (no shared session). Access stays curated: a PPE
-// user with no `users` row is denied (the controller provisions them).
+// We silently establish a CoreDocs (own-project) session for them, so the rest of
+// the app works unchanged. External users never reach here (no shared session).
+// Access policy: OPEN to all @ppetech.co.za staff — any PPE Coreflow user who has
+// no `users` row yet is auto-provisioned at the lowest role ('reviewer'); an admin
+// can raise their role afterwards in Admin → Users.
 export async function GET(request: NextRequest) {
   const HUB = 'https://coreflow.build/login'
   const cookieStore = await cookies()
@@ -23,10 +24,26 @@ export async function GET(request: NextRequest) {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  // Curated access — must already be a CoreDocs user.
-  const { data: profile } = await admin
+  // Look up the CoreDocs user; auto-provision (role defaults to 'reviewer') if new.
+  let { data: profile } = await admin
     .from('users').select('id, auth_user_id').eq('email', email).maybeSingle()
-  if (!profile) return NextResponse.redirect(new URL('/login?coreflow=no_access', request.url))
+  if (!profile) {
+    // Derive a human-ish display name from the email local part
+    // ("abigail.venter" -> "Abigail Venter", "AbigailV" -> "Abigail V").
+    const fullName =
+      email.split('@')[0]
+        .replace(/[._-]+/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .trim() || email
+    // Upsert is race-safe (email is UNIQUE); then re-read the row.
+    await admin.from('users')
+      .upsert({ email, full_name: fullName }, { onConflict: 'email', ignoreDuplicates: true })
+    const { data: ensured } = await admin
+      .from('users').select('id, auth_user_id').eq('email', email).single()
+    if (!ensured) return NextResponse.redirect(new URL('/login?coreflow=err', request.url))
+    profile = ensured
+  }
 
   // Ensure an own-project auth user exists for this email (idempotent).
   if (!profile.auth_user_id) {
