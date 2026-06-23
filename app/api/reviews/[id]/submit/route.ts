@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/services/graph'
 import { reviewAssignedEmail, reviewCompleteEmail } from '@/lib/services/email-templates'
 import { markApprovalListRowComplete, markApprovalListRowSent } from '@/lib/services/sharepoint-lists'
+import { logActivity } from '@/lib/activity'
 
 const OUTCOME_SEVERITY: Record<string, number> = {
   A1:1, D1:2, B1:3, B2:4, C1:5, Q1:6, V1:7, S1:8
@@ -62,6 +63,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     date_completed:      completedAt,
     updated_at:          completedAt,
   }).eq('id', taskId)
+
+  await logActivity({ area: 'reviews', action: 'review.submit', targetType: 'review_task', targetId: taskId, summary: needMoreReview ? 'needs more review' : outcomeCode, email: profile?.email })
 
   // ─── SharePoint write-back: update Document Approval List row ──────────────
   // Non-blocking — failure here does not affect new app workflow.

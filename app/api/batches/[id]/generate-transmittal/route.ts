@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/services/graph'
 import { vendorTransmittalEmail } from '@/lib/services/email-templates'
 import { setApproverPicksReturnRequested } from '@/lib/services/sharepoint-lists'
 import { OUTCOME_CODES } from '@/lib/utils/outcome-codes'
+import { logActivity } from '@/lib/activity'
 import { format } from 'date-fns'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -522,6 +523,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     event_data: { transmittalNumber, overallCode, toEmail, documentCount: documents.length },
   })
 
+  await logActivity({ area: 'transmittals', action: 'transmittal.generate', targetType: 'batch', targetId: batchId, summary: `${transmittalNumber} → ${toEmail} (${overallCode})`, email: controllerEmail })
   return NextResponse.json({ success: true, transmittalNumber, transmittalDate, toEmail, transmittalData })
   } catch (e: any) {
     console.error('POST /generate-transmittal unhandled error:', e)

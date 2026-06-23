@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ userId: string }> }) {
   const supabase = await createClient()
@@ -12,5 +13,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
   const { data, error } = await db.from('users')
     .update({ ...body, updated_at: new Date().toISOString() }).eq('id', userId).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity({ area: 'admin', action: 'user.update', targetType: 'user', targetId: userId, summary: body.role ? `role: ${body.role}` : undefined, email: user.email })
   return NextResponse.json(data)
 }

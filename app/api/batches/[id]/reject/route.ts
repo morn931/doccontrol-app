@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/services/graph'
 import { batchRejectedEmail } from '@/lib/services/email-templates'
+import { logActivity } from '@/lib/activity'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -54,6 +55,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     actor_email:   profile?.email,
     event_data:    { rejectReason, rejectedBy: profile?.full_name },
   })
+
+  await logActivity({ area: 'batches', action: 'batch.reject', targetType: 'batch', targetId: id, summary: rejectReason.trim(), email: profile?.email })
 
   // Send rejection email to vendor
   const vendorEmail = batch.vendor_email

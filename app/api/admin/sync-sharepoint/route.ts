@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { syncFromSharePoint } from '@/lib/import/sharepoint-sync'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
   const db = createServiceClient()
   try {
     const results = await syncFromSharePoint(db, { mode })
+    await logActivity({ area: 'admin', action: 'sync.sharepoint', summary: mode, email: user.email })
     return NextResponse.json({ ok: true, mode, results })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

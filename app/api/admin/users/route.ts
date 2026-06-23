@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { logActivity } from '@/lib/activity'
 
 export async function GET(_req: Request) {
   const supabase = await createClient()
@@ -22,5 +23,6 @@ export async function POST(req: Request) {
     department: body.department ?? null, discipline: body.discipline ?? null, active: true,
   }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  await logActivity({ area: 'admin', action: 'user.create', targetType: 'user', targetId: data?.id, summary: `${body.email} · ${body.role ?? 'reviewer'}`, email: user.email })
   return NextResponse.json(data, { status: 201 })
 }
