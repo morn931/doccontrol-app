@@ -165,7 +165,10 @@ function str(v: unknown): string | null {
  *  serials, dd.mm.yyyy, dd/mm/yyyy and ISO strings. */
 export function toISODate(v: unknown): string | null {
   if (v == null || v === '') return null
-  if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10)
+  // Use LOCAL calendar components, not toISOString(): SheetJS (cellDates) builds the
+  // Date at local midnight, so toISOString() in a +UTC zone (SA = UTC+2) shifts it back
+  // a day (e.g. 13 Feb → 12 Feb). Reading the local Y/M/D keeps the intended date.
+  if (v instanceof Date && !isNaN(v.getTime())) return validISO(v.getFullYear(), v.getMonth() + 1, v.getDate())
   if (typeof v === 'number' && isFinite(v)) {
     // Excel serial (days since 1899-12-30)
     const ms = Math.round((v - 25569) * 86400 * 1000)

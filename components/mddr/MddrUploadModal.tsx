@@ -8,7 +8,7 @@ interface Props {
   onSuccess: () => void
 }
 
-type UploadMode = 'merge' | 'override'
+type UploadMode = 'refresh' | 'merge' | 'override'
 type RegisterType = 'SDDR' | 'CDDL' | 'MDDR'
 
 interface UploadResult {
@@ -23,7 +23,7 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
   const [regType,      setRegType]      = useState<RegisterType>('SDDR')
   const [packageCode,  setPackageCode]  = useState('')
   const [vendorName,   setVendorName]   = useState('')
-  const [mode,         setMode]         = useState<UploadMode>('merge')
+  const [mode,         setMode]         = useState<UploadMode>('refresh')
   const [loading,      setLoading]      = useState(false)
   const [result,       setResult]       = useState<UploadResult | null>(null)
   const [error,        setError]        = useState<string | null>(null)
@@ -40,7 +40,10 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
       else if (name.includes('MDDR') || name.includes('GMDR')) setRegType('MDDR')
       else                            setRegType('SDDR')
 
-      const pkgMatch = name.match(/\b(K\d{3}|E\d{3}[A-Z]?)\b/)
+      // Package code = a K/E/X package token (optional trailing letter, e.g. E511B).
+      // Derived from the filename; the importer also derives it per-row from the
+      // 6105A… document number, so any new vendor's SDDR works without code changes.
+      const pkgMatch = name.match(/\b([KEX]\d{3}[A-Z]?)\b/)
       if (pkgMatch) setPackageCode(pkgMatch[1])
     }
   }
@@ -172,15 +175,25 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
           {/* Upload mode */}
           <div>
             <label className="label">Upload Mode</label>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="space-y-2 text-sm">
+              <label className={cn(
+                'flex gap-3 p-3 border rounded-lg cursor-pointer transition-colors',
+                mode === 'refresh' ? 'border-navy-500 bg-navy-50' : 'border-slate-200 hover:border-slate-300'
+              )}>
+                <input type="radio" name="mode" value="refresh" checked={mode === 'refresh'} onChange={() => setMode('refresh')} className="mt-0.5" />
+                <div>
+                  <p className="font-semibold text-slate-800">Refresh dates &amp; progress <span className="text-navy-600 font-normal">· recommended</span></p>
+                  <p className="text-xs text-slate-500 mt-0.5">Update planned/actual dates and % progress on matching documents from this file (the register&apos;s % is authoritative). Revisions and other fields are left untouched. New documents are added.</p>
+                </div>
+              </label>
               <label className={cn(
                 'flex gap-3 p-3 border rounded-lg cursor-pointer transition-colors',
                 mode === 'merge' ? 'border-navy-500 bg-navy-50' : 'border-slate-200 hover:border-slate-300'
               )}>
                 <input type="radio" name="mode" value="merge" checked={mode === 'merge'} onChange={() => setMode('merge')} className="mt-0.5" />
                 <div>
-                  <p className="font-semibold text-slate-800">Merge / Update</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Add new rows, update existing ones by document number. Existing entries not in the file are kept.</p>
+                  <p className="font-semibold text-slate-800">Merge / fill blanks</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Add new rows and fill empty fields on existing ones, but don&apos;t overwrite values already captured.</p>
                 </div>
               </label>
               <label className={cn(
