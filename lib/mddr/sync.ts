@@ -22,6 +22,7 @@ interface VersionInfo {
 export interface SyncResult {
   matched: number
   updated: number
+  skipped: number
   liveVersionsIndexed: number
   errors: string[]
 }
@@ -71,11 +72,11 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
   }
 
   // ── apply to awarded MDDR entries ──
-  let matched = 0, updated = 0
+  let matched = 0, updated = 0, skipped = 0
   const errors: string[] = []
   for (let from = 0; ; from += 500) {
     let q = db.from('mddr_entries')
-      .select('id, normalized_document_number, weighting_total')
+      .select('id, normalized_document_number, weighting_total, progress_source')
       .eq('is_active', true)
       .not('normalized_document_number', 'is', null)
       .order('id', { ascending: true })   // stable order for offset pagination
@@ -86,6 +87,10 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
     if (!entries || entries.length === 0) break
 
     for (const e of entries) {
+      // Locked to the register %: rows whose progress was set from an uploaded register
+      // (progress_source='register') are owned by that register — Rules-of-Credit must
+      // not overwrite them. NULL-source rows are still synced.
+      if (e.progress_source === 'register') { skipped++; continue }
       const info = byDocNumber.get(e.normalized_document_number)
       if (!info) continue
       matched++
@@ -105,5 +110,5 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
     if (entries.length < 500) break
   }
 
-  return { matched, updated, liveVersionsIndexed: byDocNumber.size, errors: errors.slice(0, 20) }
+  return { matched, updated, skipped, liveVersionsIndexed: byDocNumber.size, errors: errors.slice(0, 20) }
 }

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const registerType = (String(form.get('register_type') || 'SDDR').toUpperCase()) as RegisterType
   const formPackage  = String(form.get('package_code') || '').trim().toUpperCase() || null
   const formVendor   = String(form.get('vendor_name') || '').trim() || null
-  const uploadMode   = (String(form.get('upload_mode') || 'merge')) as 'merge' | 'override'
+  const uploadMode   = (String(form.get('upload_mode') || 'refresh')) as 'merge' | 'override' | 'refresh'
 
   if (!file)  return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   if (!['SDDR', 'CDDL', 'MDDR'].includes(registerType))
