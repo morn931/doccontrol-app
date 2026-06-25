@@ -110,3 +110,25 @@ function finalize(stage: RuleOfCreditStage): ProgressResult {
   const r = RULES_OF_CREDIT[stage]
   return { stage, milestone: r.milestone, percent: r.percent, label: r.label }
 }
+
+/**
+ * PPE / CDDL variant. PPE's own deliverables carry NO vendor review-outcome codes,
+ * so progress is derived from the Aconex document status + revision instead. There
+ * is intentionally NO distinct "reviewed (75%)" stage for PPE docs (no review-return
+ * code exists), so they step 25 → 85 → 100:
+ *   · numeric revision (Rev 0+) .......................... 100%  (final IFC/IFD issue)
+ *   · IFC / IFD / IFU (issued for construction/design/use)  85%  (accepted for use)
+ *   · IFR / IFI (issued for review / information) ......... 25%  (submitted)
+ *   · anything else / no revision ......................... 0%   (RES placeholders are
+ *     filtered out by the caller before this is reached).
+ */
+export function computeProgressFromStatus(
+  aconexStatus: string | null | undefined,
+  revision: string | null | undefined,
+): ProgressResult {
+  if (isNumericRevision(revision)) return finalize('FINAL_ISSUE')
+  const a = String(aconexStatus ?? '').toUpperCase()
+  if (a.startsWith('IFC') || a.startsWith('IFD') || a.startsWith('IFU')) return finalize('ACCEPTED')
+  if (a.startsWith('IFR') || a.startsWith('IFI')) return finalize('FIRST_SUBMISSION')
+  return finalize('NONE')
+}

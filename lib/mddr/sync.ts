@@ -87,10 +87,11 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
     if (!entries || entries.length === 0) break
 
     for (const e of entries) {
-      // Locked to the register %: rows whose progress was set from an uploaded register
-      // (progress_source='register') are owned by that register — Rules-of-Credit must
-      // not overwrite them. NULL-source rows are still synced.
-      if (e.progress_source === 'register') { skipped++; continue }
+      // Rows whose progress is owned elsewhere are not touched by the live review sync:
+      //  · 'register'       — set from an uploaded SDDR/CDDL (ABB packages).
+      //  · 'rules_of_credit'— hard-coded Rules-of-Credit (Siemens K125 / PPE K124).
+      // NULL-source rows are still synced.
+      if (e.progress_source === 'register' || e.progress_source === 'rules_of_credit') { skipped++; continue }
       const info = byDocNumber.get(e.normalized_document_number)
       if (!info) continue
       matched++
