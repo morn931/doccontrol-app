@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, FileText, Loader2, X, Sparkles, ExternalLink, ChevronRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { disciplineName, groupDisciplines } from '@/lib/mddr/disciplines'
 
 const SOURCES = ['ALL', 'SDDR', 'CDDL', 'MDDR']
 const OUTCOME_COLORS: Record<string, string> = {
@@ -31,6 +32,7 @@ export default function DocumentsPage() {
   const [disciplines, setDisciplines] = useState<string[]>([])
   const [docTypes, setDocTypes] = useState<string[]>([])
   const [statuses, setStatuses] = useState<string[]>([])
+  const [revisions, setRevisions] = useState<string[]>([])
   const [sectors, setSectors] = useState<string[]>([])
   const [selSector, setSelSector] = useState('ALL')
   const [produced, setProduced] = useState<'files' | 'all'>('files')   // default: only docs with a file
@@ -42,6 +44,7 @@ export default function DocumentsPage() {
   const [discipline, setDiscipline] = useState('')
   const [docType, setDocType] = useState('')
   const [status, setStatus] = useState('')
+  const [revision, setRevision] = useState('')
   const [docnum, setDocnum] = useState('')
   const [title, setTitle] = useState('')
   const [smart, setSmart] = useState('')                 // natural-language semantic search
@@ -65,6 +68,7 @@ export default function DocumentsPage() {
       setDisciplines(d.disciplines ?? [])
       setDocTypes(d.documentTypes ?? [])
       setStatuses(d.statuses ?? [])
+      setRevisions(d.revisions ?? [])
       setSectors(d.sectors ?? [])
     }).catch(() => {})
   }, [awarded, selPackage])
@@ -79,6 +83,7 @@ export default function DocumentsPage() {
       if (discipline) p.set('discipline', discipline)
       if (docType) p.set('document_type', docType)
       if (status) p.set('status', status)
+      if (revision) p.set('revision', revision)
       if (selSector !== 'ALL') p.set('sector', selSector)
       if (produced === 'files') p.set('has_file', '1')
       if (docnum) p.set('docnum', docnum)
@@ -90,7 +95,7 @@ export default function DocumentsPage() {
       else { setRows(data.rows ?? []); setTotal(data.total ?? 0) }
     } catch (e: any) { setError(e.message); setRows([]) }
     finally { setLoading(false) }
-  }, [awarded, selPackage, selVendor, selSource, discipline, docType, status, selSector, produced, docnum, title])
+  }, [awarded, selPackage, selVendor, selSource, discipline, docType, status, revision, selSector, produced, docnum, title])
 
   useEffect(() => {
     if (smart.trim()) { setLoading(false); return }   // Smart search owns the results — skip the filter query
@@ -124,7 +129,7 @@ export default function DocumentsPage() {
 
   function clearAll() {
     setSelPackage('ALL'); setSelVendor('ALL'); setSelSource('ALL'); setAwarded('true')
-    setDiscipline(''); setDocType(''); setStatus(''); setSelSector('ALL'); setProduced('files'); setDocnum(''); setTitle(''); setSmart('')
+    setDiscipline(''); setDocType(''); setStatus(''); setRevision(''); setSelSector('ALL'); setProduced('files'); setDocnum(''); setTitle(''); setSmart('')
   }
 
   const isSmart = smart.trim().length > 0
@@ -204,7 +209,7 @@ export default function DocumentsPage() {
         <div className="flex flex-wrap gap-3 items-center pt-1">
           <select value={discipline} onChange={e => setDiscipline(e.target.value)} className="input w-auto text-sm py-1.5">
             <option value="">All Disciplines</option>
-            {disciplines.map(d => <option key={d} value={d}>{d}</option>)}
+            {groupDisciplines(disciplines).map(g => <option key={g.label} value={g.raws.join(',')}>{g.label}</option>)}
           </select>
           <select value={docType} onChange={e => setDocType(e.target.value)} className="input w-auto text-sm py-1.5">
             <option value="">All Doc Types</option>
@@ -213,6 +218,10 @@ export default function DocumentsPage() {
           <select value={status} onChange={e => setStatus(e.target.value)} className="input w-auto text-sm py-1.5">
             <option value="">All Statuses</option>
             {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={revision} onChange={e => setRevision(e.target.value)} className="input w-auto text-sm py-1.5">
+            <option value="">All Revisions</option>
+            {revisions.map(r => <option key={r} value={r}>Rev {r}</option>)}
           </select>
           <button onClick={clearAll} className="text-sm text-slate-400 hover:text-slate-600 ml-auto">Clear all</button>
         </div>
@@ -280,7 +289,7 @@ export default function DocumentsPage() {
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 mt-0.5">
                   {r.package_code && <span className="font-medium text-slate-600">{r.package_code}</span>}
                   {r.vendor_name && <span>· {r.vendor_name}</span>}
-                  {r.discipline && <span>· {r.discipline}</span>}
+                  {r.discipline && <span>· {disciplineName(r.discipline)}</span>}
                   {r.document_type && <span>· {r.document_type}</span>}
                   {r.document_status && <span>· {r.document_status}</span>}
                   {r.tag_number && <span>· Tag {r.tag_number}</span>}

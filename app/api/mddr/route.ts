@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
   const discipline   = url.searchParams.get('discipline')    ?? ''
   const documentType = url.searchParams.get('document_type') ?? ''
   const status       = url.searchParams.get('status')        ?? ''
+  const revision     = url.searchParams.get('revision')      ?? ''
   const sector       = url.searchParams.get('sector')        ?? ''
   const excludeIndex = url.searchParams.get('exclude_index') === '1'   // register MDDR page
   const hasFile      = url.searchParams.get('has_file') === '1'        // only docs with an actual file
@@ -60,9 +61,14 @@ export async function GET(req: NextRequest) {
     if (source) query = query.eq('source_type',  source)
     if (awarded === 'true')  query = query.eq('is_awarded', true)
     if (awarded === 'false') query = query.eq('is_awarded', false)
-    if (discipline)   query = query.eq('discipline', discipline)
+    if (discipline) {
+      // may be a comma-separated list of raw values that share one display name
+      const vals = discipline.split(',').map(v => v.trim()).filter(Boolean)
+      query = vals.length > 1 ? query.in('discipline', vals) : query.eq('discipline', vals[0])
+    }
     if (documentType) query = query.eq('document_type', documentType)
     if (status)       query = query.eq('document_status', status)
+    if (revision)     query = query.eq('revision', revision)
     if (sector)       query = query.eq('sector', sector)
     if (excludeIndex) query = query.neq('source_type', 'INDEX')
     if (hasFile)      query = query.not('file_link', 'is', null)

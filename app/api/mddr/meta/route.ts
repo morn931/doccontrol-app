@@ -22,11 +22,11 @@ export async function GET(req: NextRequest) {
     return [...new Set((data ?? []).map((r: any) => r[col]).filter(Boolean))].sort()
   }
 
-  const [packages, vendors, disciplines, documentTypes, statuses, sectors] = await Promise.all([
+  const [packages, vendors, disciplines, documentTypes, statuses, sectors, revisions] = await Promise.all([
     distinct('package_code', false), distinct('vendor_name'),
     distinct('discipline'), distinct('document_type'), distinct('document_status'),
-    distinct('sector', false),
+    distinct('sector', false), distinct('revision'),
   ])
 
-  return NextResponse.json({ packages, vendors, disciplines, documentTypes, statuses, sectors })
+  return NextResponse.json({ packages, vendors, disciplines, documentTypes, statuses, sectors, revisions })
 }
