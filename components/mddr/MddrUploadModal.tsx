@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, Upload, FileSpreadsheet, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 
@@ -28,6 +28,13 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
   const [result,       setResult]       = useState<UploadResult | null>(null)
   const [error,        setError]        = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Close on Escape (unless an upload is in flight).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !loading) onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [loading, onClose])
 
   function handleFile(f: File | null) {
     setFile(f)
@@ -84,10 +91,12 @@ export function MddrUploadModal({ onClose, onSuccess }: Props) {
   const isDone = result && result.errors.length === 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={() => { if (!loading) onClose() }}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-white px-6 py-4 border-b border-slate-200">
           <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-navy-600" />
             Upload Register
