@@ -6,7 +6,9 @@
 
 const NAMES: Record<string, string> = {
   // ── Revision Class (authoritative / primary) ──────────────────────────────
-  A:  'Automation',
+  // NB: single-letter "A" is the General-Arrangement drawing discipline (AGAD/ADST docs);
+  // the full word "AUTOMATION" (below) is the separate Automation discipline — kept distinct.
+  A:  'General Arrangement',
   B:  'Project Controls',
   C:  'Civils',
   D:  'Vendor Data',
