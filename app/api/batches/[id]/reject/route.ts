@@ -78,8 +78,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         htmlBody: html,
       })
     } catch (emailErr: any) {
-      // Log but don't fail the request
       console.error('Rejection email failed:', emailErr.message)
+      await db.from('notification_logs').insert({
+        batch_id:      id,
+        to_email:      vendorEmail,
+        template:      'batch_rejected',
+        status:        'failed',
+        subject:       `[Doc Control] Document batch rejected`,
+        error_message: emailErr.message,
+      })
     }
   }
 
