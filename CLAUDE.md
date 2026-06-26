@@ -364,3 +364,20 @@ This file should be updated at the end of each work session with new progress.
 - **DB migrations are applied by hand** in the Supabase SQL editor (DocControl project
   `tjzeahdimbekuizegsky` — NOT CoreTime `ssyvxiqlcxfqomdklakr`). All migrations are idempotent.
 - Commit to `main`; end commit messages with the Co-Authored-By trailer.
+
+---
+
+## 2026-06-25 — MDDR refresh-upload + Rules of Credit (feeds CoreReports Engineering doughnut)
+
+- **Refresh-upload:** the "Upload Register" modal default mode is now **"Refresh dates & progress"** —
+  drag a vendor SDDR/CDDL and it updates planned/actual dates + `% Complete → progress_percent` on
+  matching docs (matched on the RDMC doc number), adds new docs, leaves revision/status alone.
+  Idempotent (a re-drop with no changes writes nothing). `lib/mddr/{mapping,import}.ts`; date parsing
+  fixed (was −1 day via toISOString). `scripts/preview-import.ts <file> <PKG> [TYPE] [--apply]`.
+- **Rules of Credit (engineering progress basis):** agreed with Siemens (4-Jun-2026) — 25% submitted /
+  75% reviewed / 85% A1-accepted / 100% final IFC/IFD (`lib/mddr/rules-of-credit.ts`). Applied to
+  **Siemens K125** (from review outcomes) + **PPE K124** (from aconex status; `computeProgressFromStatus`)
+  via `scripts/apply-rules-of-credit.ts --apply` (`progress_source='rules_of_credit'`, sync skips these).
+  **ABB packages keep their SDDR-reported %.** **RES — Reserved Placeholder** docs are excluded from progress.
+- Result: per-package engineering % read live by CoreReports (separate Supabase, federated). Deploy:
+  auto-deploy OFF — `vercel link` (doccontrol-app, morne-s-projects1) then `vercel --prod`. Prod = docs.coreflow.build.
