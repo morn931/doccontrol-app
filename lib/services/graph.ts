@@ -199,50 +199,43 @@ export async function copyFileToDocControl(
   return { id: found.id, webUrl: found.webUrl, driveItemId: found.id }
 }
 
-/**
- * Send an email via Resend.
- * Required env vars: RESEND_API_KEY, EMAIL_FROM (e.g. "CoreDocs <notifications@coreflow.build>")
- * fromUserId is accepted for call-site compatibility but ignored — Resend uses EMAIL_FROM.
- */
+/** Send an email via Microsoft Graph (as the app / service account) */
 export async function sendEmail(params: {
   to: string | string[]
   cc?: string | string[]
   subject: string
   htmlBody: string
-  fromUserId?: string
+  fromUserId?: string  // UPN of sender (defaults to controller)
   attachments?: Array<{ name: string; contentType: string; content: Buffer | string }>
 }): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) throw new Error('sendEmail: missing RESEND_API_KEY')
+  const toList = Array.isArray(params.to) ? params.to : [params.to]
+  const ccList = params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : []
+  const fromUser = params.fromUserId ?? process.env.CONTROLLER_EMAIL ?? 'liezlc@ppetech.co.za'
 
-  const from   = process.env.EMAIL_FROM ?? 'CoreDocs <notifications@coreflow.build>'
-  const toList = (Array.isArray(params.to) ? params.to : [params.to]).filter(Boolean)
-  const ccList = (params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : []).filter(Boolean)
-
-  if (toList.length === 0) throw new Error('sendEmail: missing recipient')
-
-  const body: Record<string, unknown> = {
-    from,
-    to:      toList,
-    cc:      ccList.length ? ccList : undefined,
+  const message: any = {
     subject: params.subject,
-    html:    params.htmlBody,
+    body: { contentType: 'HTML', content: params.htmlBody },
+    toRecipients: toList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
+    ccRecipients: ccList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
   }
 
   if (params.attachments?.length) {
-    body.attachments = params.attachments.map(a => ({
-      filename: a.name,
-      content:  Buffer.isBuffer(a.content)
+    message.attachments = params.attachments.map(a => ({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: a.name,
+      contentType: a.contentType,
+      contentBytes: Buffer.isBuffer(a.content)
         ? a.content.toString('base64')
         : Buffer.from(a.content as string, 'binary').toString('base64'),
     }))
   }
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method:  'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
+  const res = await graphFetch(`/users/${fromUser}/sendMail`, {
+    method: 'POST',
+    body: JSON.stringify({ message, saveToSentItems: true }),
   })
-
-  if (!res.ok) throw new Error(`sendEmail: ${await res.text()}`)
+  if (!res.ok && res.status !== 202) {
+    const err = await res.text()
+    throw new Error(`Failed to send email to ${toList.join(',')}: ${err}`)
+  }
 }
