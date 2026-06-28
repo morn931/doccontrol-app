@@ -1,132 +1,131 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { getPermissions, can, FK } from '@/lib/permissions'
 import { PermissionsTable } from './permissions-table'
-import type { PermRow, Section } from './permissions-table'
+import type { Access, PermRow, Section } from './permissions-table'
 
 export const dynamic = 'force-dynamic'
 
-// Shorthand row builder.
-// on/off overrides per role; omit = role has no access by default.
-// Developer always gets locked-on (full access).
-function r(
+const ROLES = ['admin', 'document_controller', 'reviewer', 'engineering_manager', 'project_manager', 'vendor'] as const
+type Role = typeof ROLES[number]
+type ColKey = 'adm' | 'dc' | 'rev' | 'em' | 'pm' | 'ven'
+const ROLE_COL: Record<Role, ColKey> = {
+  admin: 'adm', document_controller: 'dc', reviewer: 'rev',
+  engineering_manager: 'em', project_manager: 'pm', vendor: 'ven',
+}
+
+function makeRow(
   label: string,
-  access: { adm?: boolean; dc?: boolean; rev?: boolean; em?: boolean; pm?: boolean; ven?: boolean },
+  featureKey: string | null,
+  perms: ReturnType<typeof Map<string, boolean>>,
+  overrides: Partial<Record<ColKey, 'on' | 'off'>> = {},
   note?: string,
 ): PermRow {
-  const cell = (v?: boolean) => v ? 'yes' : 'no'
+  function cell(role: Role): Access {
+    const col = ROLE_COL[role]
+    const override = overrides[col]
+    if (override === 'on')  return 'locked-on'
+    if (override === 'off') return 'locked-off'
+    if (featureKey === null) return 'locked-off'
+    return can(perms, featureKey, role) ? 'yes' : 'no'
+  }
   return {
-    label,
-    note,
-    adm: cell(access.adm),
-    dc:  cell(access.dc),
-    rev: cell(access.rev),
-    em:  cell(access.em),
-    pm:  cell(access.pm),
-    ven: cell(access.ven),
+    label, note, featureKey,
+    adm: cell('admin'),
+    dc:  cell('document_controller'),
+    rev: cell('reviewer'),
+    em:  cell('engineering_manager'),
+    pm:  cell('project_manager'),
+    ven: cell('vendor'),
     dev: 'locked-on',
   }
 }
-
-// Universal = everyone (except vendor where noted)
-const ALL: PermRow['adm'] = 'locked-on'
-
-function rAll(label: string, includeVendor = true, note?: string): PermRow {
-  return { label, note, adm: ALL, dc: ALL, rev: ALL, em: ALL, pm: ALL, ven: includeVendor ? ALL : 'locked-off', dev: ALL }
-}
-
-const SECTIONS: Section[] = [
-  {
-    title: 'Navigation',
-    rows: [
-      rAll('Dashboard'),
-      r('Incoming Batches',  { adm: true, dc: true }),
-      r('My Reviews',        { adm: true, dc: true, rev: true, em: true }),
-      r('Transmittals',      { adm: true, dc: true, pm: true }),
-      rAll('Document Search'),
-      r('MDDR',              { adm: true, dc: true, em: true, pm: true }),
-      r('Reporting',         { adm: true, dc: true, em: true, pm: true }),
-      rAll('User Guide'),
-      { label: 'Developer Tools', adm: 'locked-off', dc: 'locked-off', rev: 'locked-off', em: 'locked-off', pm: 'locked-off', ven: 'locked-off', dev: 'locked-on' },
-    ],
-  },
-  {
-    title: 'Admin Section',
-    rows: [
-      r('Import & Sync',      { adm: true }, 'Trigger SharePoint intake scan'),
-      r('Manage Users',       { adm: true }, 'Add, edit roles, deactivate'),
-      r('Vendors & Packages', { adm: true }),
-    ],
-  },
-  {
-    title: 'Batches',
-    rows: [
-      r('View batch list',              { adm: true, dc: true }),
-      r('Open / view batch detail',     { adm: true, dc: true }),
-      r('Assign reviewers',             { adm: true, dc: true }),
-      r('Reject batch (pre-review)',    { adm: true, dc: true }),
-      r('Generate & send transmittal',  { adm: true, dc: true }),
-    ],
-  },
-  {
-    title: 'Reviews',
-    rows: [
-      r('View my review tasks',    { adm: true, dc: true, rev: true, em: true }),
-      r('Submit review outcome',   { adm: true, dc: true, rev: true, em: true }),
-    ],
-  },
-  {
-    title: 'Transmittals',
-    rows: [
-      r('View transmittal list',   { adm: true, dc: true, pm: true }),
-      r('View transmittal detail', { adm: true, dc: true, pm: true }),
-    ],
-  },
-  {
-    title: 'Document Search',
-    rows: [
-      rAll('Search documents'),
-      rAll('View document detail'),
-      rAll('Download / open document'),
-    ],
-  },
-  {
-    title: 'MDDR',
-    rows: [
-      r('View MDDR',              { adm: true, dc: true, em: true, pm: true }),
-      r('Upload / refresh register', { adm: true, dc: true }, 'Admin & Doc Controller only'),
-      r('Sync MDDR from live review data', { adm: true, dc: true }),
-    ],
-  },
-  {
-    title: 'Reporting',
-    rows: [
-      r('Overview dashboard',     { adm: true, dc: true, em: true, pm: true }),
-      r('Engineering Tracker',    { adm: true, dc: true, em: true, pm: true }),
-      r('Package Progress',       { adm: true, dc: true, em: true, pm: true }),
-      r('Phase 1 Deliverables',   { adm: true, dc: true, em: true, pm: true }),
-      r('P6 Export',              { adm: true, dc: true, em: true, pm: true }),
-    ],
-  },
-  {
-    title: 'Developer Tools',
-    rows: [
-      { label: 'Role Permissions matrix', adm: 'locked-off', dc: 'locked-off', rev: 'locked-off', em: 'locked-off', pm: 'locked-off', ven: 'locked-off', dev: 'locked-on' },
-    ],
-  },
-]
 
 export default async function PermissionsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: me } = await supabase
-    .from('users')
-    .select('role')
-    .eq('auth_user_id', user.id)
-    .single()
+  const { data: me } = await supabase.from('users').select('role').eq('auth_user_id', user.id).single()
   if (!me || me.role !== 'developer') redirect('/dashboard')
+
+  const perms = await getPermissions(supabase)
+  const r = (label: string, fk: string | null, overrides?: Parameters<typeof makeRow>[3], note?: string) =>
+    makeRow(label, fk, perms, overrides, note)
+
+  const SECTIONS: Section[] = [
+    {
+      title: 'Navigation',
+      rows: [
+        r('Dashboard',        null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
+        r('Incoming Batches', FK.NAV_BATCHES),
+        r('My Reviews',       FK.NAV_REVIEWS),
+        r('Transmittals',     FK.NAV_TRANSMITTALS),
+        r('Document Search',  null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
+        r('MDDR',             FK.NAV_MDDR),
+        r('Reporting',        FK.NAV_REPORTING),
+        r('User Guide',       null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
+        r('Developer Tools',  null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', pm: 'off', ven: 'off' }),
+      ],
+    },
+    {
+      title: 'Admin Section',
+      rows: [
+        r('Import & Sync',      FK.NAV_ADMIN),
+        r('Manage Users',       FK.NAV_ADMIN),
+        r('Vendors & Packages', FK.NAV_ADMIN),
+      ],
+    },
+    {
+      title: 'Batches',
+      rows: [
+        r('View & open batches',         FK.NAV_BATCHES),
+        r('Assign reviewers',            FK.ACTION_ASSIGN_REVIEWERS),
+        r('Reject batch (pre-review)',   FK.ACTION_REJECT_BATCH),
+        r('Generate & send transmittal', FK.ACTION_GENERATE_TRANSMITTAL),
+      ],
+    },
+    {
+      title: 'Reviews',
+      rows: [
+        r('View my review tasks',  FK.NAV_REVIEWS),
+        r('Submit review outcome', FK.ACTION_SUBMIT_REVIEW),
+      ],
+    },
+    {
+      title: 'Transmittals',
+      rows: [
+        r('View transmittals', FK.NAV_TRANSMITTALS),
+      ],
+    },
+    {
+      title: 'Document Search',
+      rows: [
+        r('Search & view documents', null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
+      ],
+    },
+    {
+      title: 'MDDR',
+      rows: [
+        r('View MDDR',                FK.NAV_MDDR),
+        r('Upload / refresh register', FK.ACTION_UPLOAD_REGISTER),
+        r('Sync from live review data',FK.ACTION_MDDR_SYNC),
+      ],
+    },
+    {
+      title: 'Reporting',
+      rows: [
+        r('View all reports', FK.NAV_REPORTING),
+      ],
+    },
+    {
+      title: 'Developer Tools',
+      rows: [
+        r('Role Permissions matrix', null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', pm: 'off', ven: 'off' }),
+      ],
+    },
+  ]
 
   return (
     <div className="max-w-5xl">
@@ -139,11 +138,10 @@ export default async function PermissionsPage() {
       <div className="mb-5">
         <h1 className="text-xl font-bold text-slate-900">Role Permissions</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Reference matrix for all roles in CoreDocs. Developer has full access to everything.
+          Click any checkbox to grant or revoke access. Changes take effect immediately — no redeploy needed.
         </p>
       </div>
 
-      {/* Legend */}
       <div className="flex items-center gap-5 mb-5 text-xs text-slate-500">
         <span className="flex items-center gap-1.5">
           <svg viewBox="0 0 20 20" className="w-4 h-4 flex-shrink-0">
@@ -170,9 +168,8 @@ export default async function PermissionsPage() {
       <PermissionsTable sections={SECTIONS} />
 
       <p className="text-[11px] text-slate-400 mt-3 pl-1">
-        Developer role always has full access to every feature.
-        Greyed rows are hardcoded — universal features (like Dashboard) cannot be revoked,
-        and Developer Tools cannot be granted to non-developer roles.
+        Developer always has full access. Dashboard, Document Search, and User Guide are universal — they cannot be revoked.
+        Developer Tools cannot be granted to non-developer roles.
       </p>
     </div>
   )
