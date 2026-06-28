@@ -15,6 +15,7 @@ export type ReviewOutcomeCode = 'A1' | 'B1' | 'B2' | 'C1' | 'D1' | 'Q1' | 'V1' |
 export type UserRole =
   | 'admin' | 'document_controller' | 'reviewer'
   | 'engineering_manager' | 'project_manager' | 'vendor'
+  | 'developer'
 
 export type DocumentVersionStatus =
   | 'uploaded' | 'processing' | 'ready' | 'under_review'
