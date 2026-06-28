@@ -11,19 +11,19 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard',     label: 'Dashboard',          icon: '🏠', roles: ['admin','document_controller','reviewer','engineering_manager','project_manager','vendor','developer'] },
-  { href: '/batches',       label: 'Incoming Batches',   icon: '📥', roles: ['admin','document_controller','developer'] },
-  { href: '/reviews',       label: 'My Reviews',         icon: '✅', roles: ['admin','document_controller','reviewer','engineering_manager','developer'] },
-  { href: '/transmittals',  label: 'Transmittals',       icon: '📤', roles: ['admin','document_controller','project_manager','developer'] },
-  { href: '/documents',     label: 'Document Search',    icon: '🔍', roles: ['admin','document_controller','reviewer','engineering_manager','project_manager','vendor','developer'] },
-  { href: '/mddr',          label: 'MDDR',               icon: '📋', roles: ['admin','document_controller','engineering_manager','project_manager','developer'] },
-  { href: '/reporting',     label: 'Reporting',          icon: '📊', roles: ['admin','document_controller','engineering_manager','project_manager','developer'] },
+  { href: '/dashboard',     label: 'Dashboard',          icon: '🏠', roles: ['admin','document_controller','reviewer','engineering_manager','project_manager','vendor'] },
+  { href: '/batches',       label: 'Incoming Batches',   icon: '📥', roles: ['admin','document_controller'] },
+  { href: '/reviews',       label: 'My Reviews',         icon: '✅', roles: ['admin','document_controller','reviewer','engineering_manager'] },
+  { href: '/transmittals',  label: 'Transmittals',       icon: '📤', roles: ['admin','document_controller','project_manager'] },
+  { href: '/documents',     label: 'Document Search',    icon: '🔍', roles: ['admin','document_controller','reviewer','engineering_manager','project_manager','vendor'] },
+  { href: '/mddr',          label: 'MDDR',               icon: '📋', roles: ['admin','document_controller','engineering_manager','project_manager'] },
+  { href: '/reporting',     label: 'Reporting',          icon: '📊', roles: ['admin','document_controller','engineering_manager','project_manager'] },
 ]
 
 const ADMIN_ITEMS: NavItem[] = [
-  { href: '/admin/import',  label: 'Import & Sync',      icon: '🔄', roles: ['admin','developer'] },
-  { href: '/admin/users',   label: 'Users',              icon: '👥', roles: ['admin','developer'] },
-  { href: '/admin/vendors', label: 'Vendors & Packages', icon: '📦', roles: ['admin','developer'] },
+  { href: '/admin/import',  label: 'Import & Sync',      icon: '🔄', roles: ['admin'] },
+  { href: '/admin/users',   label: 'Users',              icon: '👥', roles: ['admin'] },
+  { href: '/admin/vendors', label: 'Vendors & Packages', icon: '📦', roles: ['admin'] },
 ]
 
 // Always-visible link to the full user manual (mirrors CoreTime's "User Guide" nav item).
@@ -43,7 +43,7 @@ export function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname()
 
   function NavLink({ item }: { item: NavItem }) {
-    if (!item.roles.includes(role)) return null
+    if (role !== 'developer' && !item.roles.includes(role)) return null
     const active = pathname === item.href || pathname.startsWith(item.href + '/')
     const cls = `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
       active
