@@ -30,16 +30,18 @@ export default async function ReviewsPage() {
       batches(id, batch_guid, packages(package_code, package_name), vendors(name))
     `
 
-  // Split the fetch so a heavy reviewer's completed history can never starve their
-  // actionable work out of a single capped window (was: one query .limit(200) ordered
-  // by date_sent — a manager with hundreds of completed reviews lost their live
-  // 'sent'/'in_progress' tasks past row 200, so notified documents never appeared).
-  // Active tasks are fetched in full; completed is capped for the history section.
-  const ACTIVE_STATUSES = ['pending', 'sent', 'opened', 'in_progress']
-  const [{ data: activeTasks }, { data: completedTasks }] = await Promise.all([
+  // My Reviews shows only work that is actually the reviewer's to action now.
+  // 'pending' = an earlier reviewer hasn't finished (not their turn yet) → excluded
+  // from the actionable list and surfaced only as a small "queued" count, so a
+  // freshly-notified document is never buried under not-yet-your-turn batches.
+  // (Also: a single capped/date_sent-ordered query previously let a heavy reviewer's
+  // completed history — and NULL-date_sent pending rows — starve their live tasks out
+  // of the window, so notified documents never appeared. Split + filtered fixes both.)
+  const ACTIONABLE = ['sent', 'opened', 'in_progress', 'overdue']
+  const [{ data: activeTasks }, { data: completedTasks }, { count: queuedCount }] = await Promise.all([
     db.from('review_tasks').select(TASK_SELECT)
       .eq('reviewer_email', email)
-      .in('status', ACTIVE_STATUSES)
+      .in('status', ACTIONABLE)
       .order('date_sent', { ascending: false })
       .limit(500),
     db.from('review_tasks').select(TASK_SELECT)
@@ -47,6 +49,10 @@ export default async function ReviewsPage() {
       .eq('status', 'completed')
       .order('date_completed', { ascending: false })
       .limit(300),
+    db.from('review_tasks')
+      .select('*', { count: 'exact', head: true })
+      .eq('reviewer_email', email)
+      .eq('status', 'pending'),
   ])
   const tasks = [...(activeTasks ?? []), ...(completedTasks ?? [])]
 
@@ -65,13 +71,19 @@ export default async function ReviewsPage() {
   const completedBatches: { key: string; tasks: any[]; batch: any; firstPendingTaskId: string; allComplete: boolean }[] = []
 
   for (const [key, { tasks: bTasks, batch }] of batchMap) {
-    const pending = bTasks.filter(t => ['pending','sent','opened','in_progress'].includes(t.status))
+    const pending = bTasks.filter(t => ['sent','opened','in_progress','overdue'].includes(t.status))
     const allComplete = pending.length === 0
-    const firstPending = bTasks.find(t => ['in_progress','sent','opened','pending'].includes(t.status)) ?? bTasks[0]
+    const firstPending = bTasks.find(t => ['in_progress','sent','opened','overdue'].includes(t.status)) ?? bTasks[0]
     const entry = { key, tasks: bTasks, batch, firstPendingTaskId: firstPending?.id ?? bTasks[0]?.id, allComplete }
     if (allComplete) completedBatches.push(entry)
     else pendingBatches.push(entry)
   }
+
+  // Surface the most recently activated (just-notified) reviews first, so a document
+  // the reviewer was just emailed about is at the top rather than buried.
+  const latestSentOf = (b: { tasks: any[] }) =>
+    Math.max(0, ...b.tasks.map(t => new Date(t.date_sent ?? 0).getTime()))
+  pendingBatches.sort((a, b) => latestSentOf(b) - latestSentOf(a))
 
   const overdueCount = pendingBatches.filter(b =>
     b.tasks.some(t => t.due_date && isPast(new Date(t.due_date)) && !['completed'].includes(t.status))
@@ -79,7 +91,7 @@ export default async function ReviewsPage() {
 
   function BatchCard({ entry }: { entry: typeof pendingBatches[0] }) {
     const { tasks: bTasks, batch, firstPendingTaskId, allComplete } = entry
-    const pending   = bTasks.filter(t => ['pending','sent','opened','in_progress'].includes(t.status))
+    const pending   = bTasks.filter(t => ['sent','opened','in_progress','overdue'].includes(t.status))
     const completed = bTasks.filter(t => t.status === 'completed')
     const inProgress = bTasks.some(t => t.status === 'in_progress')
     const isOverdue = !allComplete && bTasks.some(t => t.due_date && isPast(new Date(t.due_date)))
@@ -169,7 +181,10 @@ export default async function ReviewsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">My Reviews</h1>
-        <p className="text-slate-500 text-sm mt-1">Your assigned document batches for review</p>
+        <p className="text-slate-500 text-sm mt-1">
+          Document batches awaiting your review
+          {queuedCount ? <span className="text-slate-400"> · {queuedCount} queued for later (not yet your turn)</span> : null}
+        </p>
       </div>
 
       {overdueCount > 0 && (
