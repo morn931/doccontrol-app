@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/services/graph'
-import { reviewAssignedEmail, reviewCompleteEmail } from '@/lib/services/email-templates'
+import { batchReviewAssignedEmail, reviewCompleteEmail } from '@/lib/services/email-templates'
 import { markApprovalListRowComplete, markApprovalListRowSent } from '@/lib/services/sharepoint-lists'
 import { logActivity } from '@/lib/activity'
 
@@ -106,76 +106,114 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ success: true, escalated: true })
   }
 
-  // Find next pending reviewer for this document
-  const { data: nextTasks } = await db.from('review_tasks')
-    .select('id, reviewer_email, sequence_number, batch_id')
-    .eq('document_version_id', task.document_version_id)
+  // ─── Batch-level sequential advancement ────────────────────────────────────
+  // The batch is the unit of work: a reviewer step covers EVERY document in the
+  // batch, so we only advance to the next reviewer once the current step is fully
+  // complete across all documents (mirrors start-review, which notifies per-batch).
+  // This stops a downstream reviewer being activated/emailed for a document the
+  // prior reviewer already cleared while they still have other documents open.
+  const INCOMPLETE = ['pending', 'sent', 'opened', 'in_progress', 'overdue', 'needs_more_review']
+  const currentSeq = task.sequence_number as number
+
+  const { count: currentSeqRemaining } = await db.from('review_tasks')
+    .select('*', { count: 'exact', head: true })
+    .eq('batch_id', batchId)
+    .eq('sequence_number', currentSeq)
+    .in('status', INCOMPLETE)
+
+  if ((currentSeqRemaining ?? 0) > 0) {
+    // The current reviewer (or a co-reviewer at this step) still has documents to
+    // review — hold here; the next reviewer stays 'pending' and is not notified.
+    return NextResponse.json({ success: true, awaitingSequence: currentSeq })
+  }
+
+  // Current step done across all documents — find the next sequence still pending.
+  const { data: nextPending } = await db.from('review_tasks')
+    .select('sequence_number')
+    .eq('batch_id', batchId)
     .eq('status', 'pending')
+    .gt('sequence_number', currentSeq)
     .order('sequence_number', { ascending: true })
     .limit(1)
+  const nextSeq = nextPending?.[0]?.sequence_number
 
-  const nextTask = nextTasks?.[0]
+  if (nextSeq != null) {
+    // Activate ALL of the next step's tasks (every document), then email each next
+    // reviewer ONCE with their full document list.
+    const { data: nextTasks } = await db.from('review_tasks')
+      .select('id, reviewer_email, document_version_id')
+      .eq('batch_id', batchId)
+      .eq('sequence_number', nextSeq)
+      .eq('status', 'pending')
 
-  if (nextTask) {
-    // Activate next reviewer in database
-    await db.from('review_tasks').update({
-      status:     'sent',
-      date_sent:  completedAt,
-      updated_at: completedAt,
-    }).eq('id', nextTask.id)
-
-    // Send email to next reviewer
-    try {
-      const { data: allTasks } = await db.from('review_tasks')
-        .select('sequence_number').eq('document_version_id', task.document_version_id)
-      const totalReviewers = [...new Set((allTasks ?? []).map((t: any) => t.sequence_number))].length
-
-      const html = reviewAssignedEmail({
-        reviewerName:    nextTask.reviewer_email,
-        reviewTaskId:    nextTask.id,
-        packageName:     batch?.packages?.package_name ?? 'Unknown',
-        fileName:        dv?.file_name ?? '',
-        docTitle:        dv?.doc_name ?? dv?.file_name ?? '',
-        dueDate:         task.due_date ?? null,
-        sequencePos:     nextTask.sequence_number,
-        totalReviewers,
-        instructions:    '',
-        isManagerOverride: false,
-      })
-      await sendEmail({
-        to:       nextTask.reviewer_email,
-        subject:  `[Review Required] ${dv?.doc_name ?? dv?.file_name} — ${batch?.packages?.package_name}`,
-        htmlBody: html,
-      })
-      await db.from('notification_logs').insert({
-        batch_id:       nextTask.batch_id,
-        review_task_id: nextTask.id,
-        to_email:       nextTask.reviewer_email,
-        template:       'review_assigned',
-        status:         'sent',
-        subject:        `[Review Required] ${dv?.file_name}`,
-        sent_at:        completedAt,
-      })
-
-      // SharePoint write-back: mark next reviewer row as sent
-      if (docUniqueId) {
-        await markApprovalListRowSent(
-          docUniqueId, nextTask.reviewer_email, nextTask.sequence_number, completedAt
-        )
-      }
-    } catch (e: any) {
-      console.error('Next reviewer email failed:', e.message)
-      await db.from('notification_logs').insert({
-        batch_id:       nextTask.batch_id,
-        review_task_id: nextTask.id,
-        to_email:       nextTask.reviewer_email,
-        template:       'review_assigned',
-        status:         'failed',
-        subject:        `[Review Required] ${dv?.file_name}`,
-        error_message:  e.message,
-      })
+    const nextTaskIds = (nextTasks ?? []).map((t: any) => t.id)
+    if (nextTaskIds.length) {
+      await db.from('review_tasks').update({
+        status: 'sent', date_sent: completedAt, updated_at: completedAt,
+      }).in('id', nextTaskIds)
     }
-    return NextResponse.json({ success: true, nextReviewerNotified: nextTask.reviewer_email })
+
+    // Document metadata for the email + SP write-back
+    const dvIds = [...new Set((nextTasks ?? []).map((t: any) => t.document_version_id))]
+    const { data: dvs } = await db.from('document_versions')
+      .select('id, file_name, doc_name, doc_unique_id').in('id', dvIds)
+    const dvById: Record<string, any> = Object.fromEntries((dvs ?? []).map((d: any) => [d.id, d]))
+
+    const { data: allTasks } = await db.from('review_tasks')
+      .select('sequence_number').eq('batch_id', batchId)
+    const totalReviewers = [...new Set((allTasks ?? []).map((t: any) => t.sequence_number))].length
+    const packageName = batch?.packages?.package_name ?? 'Unknown'
+
+    // One email per next reviewer, listing all their documents.
+    const byReviewer = new Map<string, { taskId: string; dvId: string }[]>()
+    for (const t of (nextTasks ?? [])) {
+      if (!byReviewer.has(t.reviewer_email)) byReviewer.set(t.reviewer_email, [])
+      byReviewer.get(t.reviewer_email)!.push({ taskId: t.id, dvId: t.document_version_id })
+    }
+
+    for (const [reviewerEmail, items] of byReviewer) {
+      const documents = items.map((it) => ({
+        fileName: dvById[it.dvId]?.file_name ?? '',
+        docTitle: dvById[it.dvId]?.doc_name ?? dvById[it.dvId]?.file_name ?? '',
+        taskId:   it.taskId,
+      }))
+      const firstTaskId = documents.find((d) => d.taskId)?.taskId ?? ''
+      try {
+        const html = batchReviewAssignedEmail({
+          reviewerName: reviewerEmail,
+          firstTaskId,
+          packageName,
+          documents,
+          dueDate:      task.due_date ?? null,
+          sequencePos:  nextSeq,
+          totalReviewers,
+          instructions: '',
+        })
+        await sendEmail({
+          to:       reviewerEmail,
+          subject:  `[Review Required] ${packageName} — ${documents.length} document${documents.length !== 1 ? 's' : ''}`,
+          htmlBody: html,
+        })
+        await db.from('notification_logs').insert({
+          batch_id: batchId, review_task_id: firstTaskId || null,
+          to_email: reviewerEmail, template: 'review_assigned', status: 'sent',
+          subject:  `[Review Required] ${packageName} — ${documents.length} documents`,
+          sent_at:  completedAt,
+        })
+        for (const it of items) {
+          const du = dvById[it.dvId]?.doc_unique_id
+          if (du) await markApprovalListRowSent(du, reviewerEmail, nextSeq, completedAt)
+        }
+      } catch (e: any) {
+        console.error('Next reviewer email failed:', e.message)
+        await db.from('notification_logs').insert({
+          batch_id: batchId, review_task_id: firstTaskId || null,
+          to_email: reviewerEmail, template: 'review_assigned', status: 'failed',
+          subject:  `[Review Required] ${packageName}`, error_message: e.message,
+        })
+      }
+    }
+    return NextResponse.json({ success: true, nextSequenceNotified: nextSeq, reviewers: [...byReviewer.keys()] })
   }
 
   // No more pending reviewers — check if all tasks for batch are done
