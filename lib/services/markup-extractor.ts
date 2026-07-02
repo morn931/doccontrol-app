@@ -14,7 +14,7 @@ const FUNCTION_KEY       = process.env.PDF_ANNOTATION_FUNCTION_KEY        ?? ''
 const OPENAI_ENDPOINT    = process.env.AZURE_OPENAI_ENDPOINT               ?? ''
 const OPENAI_DEPLOYMENT  = process.env.AZURE_OPENAI_REVIEW_SUMMARY_DEPLOYMENT ?? 'review-summary'
 const OPENAI_API_KEY     = process.env.AZURE_OPENAI_API_KEY                ?? ''
-const OPENAI_API_VERSION = '2024-02-15-preview'
+const OPENAI_API_VERSION = '2025-04-01-preview' // gpt-5-mini on CoreFlow's own Azure
 
 // ─── Resolve SharePoint file coordinates from its full URL ────────────────────
 
@@ -148,7 +148,9 @@ async function summariseMarkup(params: {
             },
             { role: 'user', content: userPrompt },
           ],
-          temperature: 0.2,
+          // gpt-5-mini: no temperature; generous max_completion_tokens for reasoning.
+          max_completion_tokens: 4000,
+          reasoning_effort: 'low',
         }),
       }
     )

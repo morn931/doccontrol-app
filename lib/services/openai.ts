@@ -6,7 +6,9 @@
 const ENDPOINT   = process.env.AZURE_OPENAI_ENDPOINT!
 const API_KEY    = process.env.AZURE_OPENAI_API_KEY!
 const INTAKE_DEPLOYMENT = process.env.AZURE_OPENAI_INTAKE_DEPLOYMENT!
-const API_VERSION = '2024-02-01'
+// CoreFlow's own Azure runs gpt-5-mini (a reasoning model): api-version 2025-04-01-preview,
+// max_completion_tokens (not max_tokens), no temperature, reasoning_effort low. See body below.
+const API_VERSION = '2025-04-01-preview'
 
 export interface DocumentClassification {
   docName:      string
@@ -73,8 +75,10 @@ ${extractedText.slice(0, 4000)}`
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userPrompt },
         ],
-        temperature: 0.1,
-        max_tokens:  600,
+        // gpt-5-mini: no temperature; max_completion_tokens must be generous because
+        // reasoning tokens count toward it (600 would return empty).
+        max_completion_tokens: 4000,
+        reasoning_effort: 'low',
       }),
     }
   )
