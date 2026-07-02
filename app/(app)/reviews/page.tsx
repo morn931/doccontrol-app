@@ -20,9 +20,7 @@ export default async function ReviewsPage() {
 
   const email = profile?.email ?? ''
 
-  const { data: tasks } = await db
-    .from('review_tasks')
-    .select(`
+  const TASK_SELECT = `
       id, status, sequence_number, date_sent, date_completed, due_date,
       review_outcome_code, comment, is_manager_override, batch_id, document_version_id,
       document_versions(
@@ -30,10 +28,27 @@ export default async function ReviewsPage() {
         documents!document_versions_document_id_fkey(id, normalized_document_number)
       ),
       batches(id, batch_guid, packages(package_code, package_name), vendors(name))
-    `)
-    .eq('reviewer_email', email)
-    .order('date_sent', { ascending: false })
-    .limit(200)
+    `
+
+  // Split the fetch so a heavy reviewer's completed history can never starve their
+  // actionable work out of a single capped window (was: one query .limit(200) ordered
+  // by date_sent — a manager with hundreds of completed reviews lost their live
+  // 'sent'/'in_progress' tasks past row 200, so notified documents never appeared).
+  // Active tasks are fetched in full; completed is capped for the history section.
+  const ACTIVE_STATUSES = ['pending', 'sent', 'opened', 'in_progress']
+  const [{ data: activeTasks }, { data: completedTasks }] = await Promise.all([
+    db.from('review_tasks').select(TASK_SELECT)
+      .eq('reviewer_email', email)
+      .in('status', ACTIVE_STATUSES)
+      .order('date_sent', { ascending: false })
+      .limit(500),
+    db.from('review_tasks').select(TASK_SELECT)
+      .eq('reviewer_email', email)
+      .eq('status', 'completed')
+      .order('date_completed', { ascending: false })
+      .limit(300),
+  ])
+  const tasks = [...(activeTasks ?? []), ...(completedTasks ?? [])]
 
   // Group tasks by batch_id — the batch is the unit of work
   const batchMap = new Map<string, { tasks: any[]; batch: any }>()
