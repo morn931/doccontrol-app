@@ -370,7 +370,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-  const { data: profile } = await supabase.from('users').select('role, email, full_name')
+  const { data: profile } = await supabase.from('users').select('id, role, email, full_name')
     .eq('auth_user_id', user.id).single()
   if (!['admin','document_controller'].includes(profile?.role ?? ''))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -504,17 +504,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     console.warn('Return-to-vendor trigger error:', e?.message)
   }
 
-  // Store transmittal record
-  await db.from('transmittals').insert({
+  // Store transmittal record. generated_by is a UUID FK to users(id) — must be the
+  // user's id, NOT their email (an email here fails the insert, which was silently
+  // swallowed → the transmittal never persisted and the register stayed empty).
+  const { error: transmittalErr } = await db.from('transmittals').insert({
     transmittal_number: transmittalNumber,
     batch_id:    batchId,
     vendor_id:   batch.vendor_id,
     package_id:  batch.package_id,
     final_outcome_code: overallCode,
     final_outcome_text: outcomeText(overallCode),
-    generated_by: profile?.email,
+    generated_by: profile?.id ?? null,
     status: 'sent',
-  }).select()
+  })
+  if (transmittalErr) console.error('Transmittal record insert failed:', transmittalErr.message)
 
   await db.from('batches').update({ status:'transmittal_generated', updated_at: new Date().toISOString() }).eq('id', batchId)
   await db.from('audit_events').insert({
