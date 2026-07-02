@@ -5,7 +5,9 @@
 
 const ENDPOINT = process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT!
 const API_KEY  = process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY!
-const API_VERSION = '2023-07-31'
+// CoreFlow's coreflow-docintel resource requires the modern API version (2023-07-31
+// returns 404 on the /documentintelligence path); prebuilt-read schema is unchanged.
+const API_VERSION = '2024-11-30'
 
 export interface DocumentIntelligenceResult {
   extractedText: string
