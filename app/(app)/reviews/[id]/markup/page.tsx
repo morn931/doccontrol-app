@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import PdfMarkup from '@/components/markup/pdf-markup'
+import ReviewerNotes from '@/components/markup/reviewer-notes'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +41,7 @@ export default async function ReviewMarkupPage({ params }: { params: Promise<{ i
           Loaded live from SharePoint. Mark-ups aren&apos;t saved back yet (that&apos;s Phase 3) — use <b>Flatten &amp; download</b> to check the output.
         </p>
       </div>
+      <ReviewerNotes reviewTaskId={id} />
       <PdfMarkup src={`/api/documents/${dv.id}/file`} fileName={(dv.file_name ?? 'document').replace(/\.pdf$/i, '')} />
     </div>
   )
