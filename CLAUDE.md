@@ -15,8 +15,8 @@ The MDDR sync and reporting files already implement this correctly. Maintain the
 ## What This Is
 A modern web-based document approval & control system for PPE Tech (PPE Technologies), replacing an existing SharePoint / Power Apps / Logic Apps system. The new app runs **in parallel** with the old system — both can be used simultaneously. Nothing in the old system has been removed or overridden.
 
-**Live URL:** https://doccontrol-app.vercel.app  
-**Stack:** Next.js 14 (App Router), TypeScript, Supabase (Postgres + **pgvector**), Vercel, Microsoft Graph API, Azure Document Intelligence, Azure OpenAI (classification + **embeddings**), **recharts** (reporting), **xlsx** (register parsing)  
+**Live URL:** https://doccontrol-app.vercel.app (prod = **docs.coreflow.build**)  
+**Stack:** Next.js 15 (App Router), TypeScript, Supabase (Postgres + **pgvector**), Vercel, Microsoft Graph API, Azure Document Intelligence, Azure OpenAI (classification + **embeddings**), **recharts** (reporting), **xlsx** (register parsing), **PDF.js + fabric + pdf-lib** (in-app markup)  
 **Repo:** `C:\Users\mornec\Claude\Projects\Document management (1)\doccontrol-app`  
 **Co-owners (equal, full authority):** Morné Cronjé — mornec@ppetech.co.za — **and** Liezl Cronjé — liezlc@ppetech.co.za. Both hold full repo write/merge rights, full Supabase access, and admin in the apps. **Either may review and merge their own PRs and run migrations/scripts — neither needs the other's sign-off for routine work; do NOT route actions through "ask Morné" / "ask Liezl".**
 
@@ -27,7 +27,7 @@ A modern web-based document approval & control system for PPE Tech (PPE Technolo
 1. Vendors upload documents to their SharePoint "FROM VENDOR" drop-off libraries
 2. Intake automation detects uploads, copies to central DocumentControl SharePoint site, runs AI classification
 3. Document controller receives email, opens batch in new web app, picks reviewers
-4. Sequential reviewer workflow — each reviewer gets email, opens review form, marks up PDF, selects outcome code, adds comments
+4. Sequential reviewer workflow — each reviewer gets email, opens the review, **marks up the PDF in-app (CoreDocs, default)**, selects outcome code, adds comments; mark-ups accumulate down the chain on the authoritative SharePoint file
 5. All reviews complete → system determines worst-case outcome code, generates transmittal PDF, emails vendor
 6. Existing Logic App (`la-return-batch-to-vendor`) copies reviewed documents back to vendor's "TO VENDOR" SharePoint library
 
@@ -48,7 +48,8 @@ A modern web-based document approval & control system for PPE Tech (PPE Technolo
 ### Azure Resources (rg-vendor-approvals-prod, South Africa North)
 - Azure Document Intelligence: OCR/text extraction
 - Azure OpenAI: AI document classification (Discipline, DocumentType, Topic, Summary)
-- PDF annotation extraction Azure Function: `func-doccontrol-pdf-annotations-fdfrfsccahf4cpdj`
+- ~~PDF annotation extraction Azure Function~~ — **RETIRED (2026-07-03)**. Mark-ups are now
+  captured as structured text in-app (`document_markups.comments`); the decipher step is gone.
 - Logic App: `la-return-batch-to-vendor` — polls Approver Picks every 5 min for `ReturnRequested=true`
 
 ### Vendor Package Sites
@@ -271,7 +272,14 @@ scripts/     import-direct.ts · sync-direct.ts · embed-mddr.ts   (tsx)
              import-docindex.py · backfill-filelinks.py · validate-filelinks.py   (python, Graph)
 supabase/migrations/  001_initial_schema · 002_search_indexes · 003_rls_policies
              · 20260608_seed_vendor_sites · 004_mddr_schema · 005_mddr_semantic
-             · 006_mddr_sectors · 007_match_mddr_filelink
+             · 006_mddr_sectors · 007_match_mddr_filelink · 008_developer_role
+             · 009_role_permissions · 010_reviewer_notes · 011_document_markups
+components/markup/   pdf-markup.tsx (PDF.js+fabric editor) · reviewer-notes.tsx
+app/(app)/reviews/[id]/markup/          — in-app markup page (per-reviewer colour)
+app/(app)/transmittals/[id]/            — read-only transmittal view (+ print-button)
+app/api/documents/[id]/file/            — stream a doc's PDF bytes from SharePoint (Graph)
+app/api/reviews/[id]/{markup,markup/commit,notes}/  — save/commit markup + reviewer notes
+lib/services/transmittal-data.ts        — assembleTransmittalDocs (read-only view)
 ```
 
 ---
@@ -311,6 +319,8 @@ PDF_ANNOTATION_FUNCTION_URL
 PDF_ANNOTATION_FUNCTION_KEY
 INTAKE_WEBHOOK_SECRET
 VENDOR_PORTAL_URL
+MARKUP_MODE                              # optional; 'sharepoint' reverts "Open Document" to the
+                                         # classic SharePoint viewer. Unset/anything else = in-app markup (default)
 ```
 Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, South Africa North).
 
@@ -325,6 +335,13 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-07-03 — In-app PDF markup (now default) + review-workflow fixes.** Reviewers mark up PDFs
+  inside CoreDocs (PDF.js + fabric + pdf-lib); **Save to SharePoint** accumulates mark-ups on the
+  authoritative file; text comments captured (migration 011) feed the transmittal (Azure decipher
+  **retired**). Reviewer handover notes (migration 010). Read-only transmittal view (Open on the
+  register). Fixes: My Reviews window (heavy reviewers), batch-level review advance, transmittal
+  persistence; quick wins (searchable reviewer picker, batch search, overdue chip).
+  `MARKUP_MODE=sharepoint` reverts. **Full detail in the 2026-07-03 section below.**
 - **2026-06-14 — Open links + revisions + scope toggle.**
   Document Search gained a **Scope** toggle — *With documents produced* (default; only docs that
   have a `file_link`) vs *Full MDDR (incl. placeholders)*. Each result has an **Open** button that
@@ -367,17 +384,73 @@ This file should be updated at the end of each work session with new progress.
 - `mddr_entries` ≈ 96k rows = **6,100 awarded register docs** + **~87k unawarded scope** +
   **2,926 INDEX sector docs**. ~3,700 docs have a `file_link` (openable). All awarded + INDEX docs
   embedded for semantic search.
-- **Migrations applied:** 001, 002, 003, `20260608_seed_vendor_sites`, 004, 005, 006, 007.
+- **Migrations applied:** 001, 002, 003, `20260608_seed_vendor_sites`, 004, 005, 006, 007,
+  008 (developer_role), 009 (role_permissions), **010 (reviewer_notes), 011 (document_markups)**.
 
 ## Deploy & migration process
-- **Production deploys are MANUAL.** `vercel.json` has `git.deploymentEnabled.main = false`, so a
-  push to `main` does NOT auto-deploy. Run `vercel --prod` from the repo to deploy. **Vercel crons
-  register only on a production deploy.**
+- **Production deploys via GitHub Actions (current).** A push/merge to `main` triggers the
+  **`deploy-prod.yml`** workflow, which builds on Vercel and deploys production. Vercel's OWN git
+  auto-deploy stays disabled (`vercel.json` `git.deploymentEnabled.main = false`). **Do NOT run
+  `vercel --prod` by hand** — see `DEPLOY.md`. Watch a run with `gh run watch`. (This supersedes the
+  earlier "deploys are manual / run vercel --prod" note in the dated sections below.)
 - **DB migrations are applied by hand** in the Supabase SQL editor (DocControl project
   `tjzeahdimbekuizegsky` — NOT CoreTime `ssyvxiqlcxfqomdklakr`). All migrations are idempotent.
 - Commit to `main`; end commit messages with the Co-Authored-By trailer.
 
 ---
+
+## 2026-07-03 — In-app PDF markup (replaces SharePoint markup) + review-workflow fixes
+
+### In-app PDF markup editor (Phases 1–4, LIVE, now the default)
+Reviewers mark up documents **inside CoreDocs** instead of the SharePoint viewer (whose close
+"X" dumped users back into the SharePoint library). Self-hosted **PDF.js render + fabric overlay
++ pdf-lib flatten** — no external SDK / CDN (worker vendored at `public/pdf.worker.min.mjs`).
+Reusable editor `components/markup/pdf-markup.tsx`.
+- **Tools:** continuous scroll · pen · text · shapes (box/circle/line/arrow) · highlight · image ·
+  undo · bordered pages. **Per-reviewer colour** keyed to review sequence (R1 red, R2 blue, …) so
+  accumulated mark-ups are attributable.
+- **Loads the real file from SharePoint** via Graph `getFileBytesByUrl()` → `/api/documents/[id]/file`
+  (streams bytes; the SharePoint URL never reaches the browser).
+- **💾 Save draft** → `document_markups` (migration 011): editable layer, resume later; **captures text
+  annotations as structured comments** (the transmittal source).
+- **☁ Save to SharePoint** → `/api/reviews/[id]/markup/commit`: flattens mark-ups onto the authoritative
+  PDF and writes it back via Graph (`putFileBytesByUrl`; resumable `putFileBytesResumable` above ~4 MB).
+  Mark-ups **accumulate down the reviewer chain**; the editable layer is cleared after commit (baked in),
+  comments kept. **SharePoint stays authoritative.**
+- **Transmittal fed from the captured comments** — `generate-transmittal` folds `document_markups.comments`
+  into each reviewer's comment. The never-wired Azure PDF-decipher path (`lib/services/markup-extractor.ts`)
+  is **deleted**.
+- **Default + reversible:** "Open Document" now opens the in-app editor ("🖊 Open & Markup"; SharePoint
+  fallback link). Set **`MARKUP_MODE=sharepoint`** (context returns `markupMode`) to revert everyone.
+  Markup page open to all reviewers.
+- **Known limit:** the flattened PDF posts through our API (Vercel ~4.5 MB body cap); a very large file
+  would need a client-direct-to-SharePoint upload (future follow-up).
+
+### Reviewer handover notes (migration 010)
+"Add note to next reviewer" banner atop the markup screen — internal notes that **accumulate per
+document** and show to every reviewer; **NOT in the transmittal**. `reviewer_notes` table +
+`/api/reviews/[id]/notes` + `components/markup/reviewer-notes.tsx`.
+
+### Read-only transmittal view
+Each **Transmittals** register row has an **Open** button → `/transmittals/[id]` (read-only: info,
+document summary, per-doc reviewer outcomes incl. captured mark-ups; Print / Save-as-PDF). Rebuilt live
+from review data via `lib/services/transmittal-data.ts` (`assembleTransmittalDocs`); the PDF-generation
+route is untouched.
+
+### Review-workflow fixes (from beta testing)
+- **My Reviews** no longer hides a heavy reviewer's notified/completed items: split active vs completed
+  queries, dropped the single `limit(200)` window, and `nullsFirst:false` (NULL-dated legacy rows were
+  crowding out recent ones). Shows only the reviewer's turn (sent/opened/in_progress/overdue), newest
+  first, with an "N queued" count.
+- **Sequential advance is batch-level** (`/api/reviews/[id]/submit`): the next reviewer is activated +
+  emailed only once the current step is complete across ALL documents (was per-document → downstream
+  reviewers showed "Sent" early + got duplicate emails).
+- **Transmittals now persist**: the register was empty because `generate-transmittal` set `generated_by`
+  (a UUID FK) to an email string → every insert silently failed. Fixed to `profile.id`.
+- **Quick wins:** add-reviewer is a **searchable project-user directory** (no hand-typed emails); Incoming
+  Batches has a **package / vendor / batch search**; in-review batches show an **⚠ Overdue** chip.
+
+**Migrations added & applied:** `010_reviewer_notes.sql`, `011_document_markups.sql`.
 
 ## 2026-06-25 — MDDR refresh-upload + Rules of Credit (feeds CoreReports Engineering doughnut)
 
