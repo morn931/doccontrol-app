@@ -1,5 +1,6 @@
+import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
-import { Send, ExternalLink } from 'lucide-react'
+import { Send, ExternalLink, Eye } from 'lucide-react'
 import { format } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
 import type { ReviewOutcomeCode } from '@/lib/types/database'
@@ -50,6 +51,9 @@ export default async function TransmittalsPage() {
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
+                <Link href={`/transmittals/${t.id}`} className="btn-primary text-xs py-1.5 px-3">
+                  <Eye className="h-3.5 w-3.5" /> Open
+                </Link>
                 {t.docx_url && (
                   <a href={t.docx_url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3">
                     <ExternalLink className="h-3.5 w-3.5" /> DOCX
