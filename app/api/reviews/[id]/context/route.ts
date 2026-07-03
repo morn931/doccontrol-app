@@ -50,7 +50,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data: myProfile } = await db.from('users')
     .select('email, role').eq('auth_user_id', user.id).single()
   const myEmail = (myProfile as any)?.email ?? ''
-  const canMarkupBeta = ['admin', 'document_controller'].includes((myProfile as any)?.role ?? '')
+  const canMarkupBeta = ['developer', 'admin', 'document_controller', 'engineering_manager'].includes((myProfile as any)?.role ?? '')
 
   const { data: myBatchTasks } = await db.from('review_tasks')
     .select('id, document_version_id, status, review_outcome_code, document_versions(file_name, revision, doc_name)')

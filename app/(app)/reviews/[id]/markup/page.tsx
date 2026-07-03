@@ -18,7 +18,7 @@ export default async function ReviewMarkupPage({ params }: { params: Promise<{ i
 
   const db = createServiceClient()
   const { data: profile } = await db.from('users').select('role').eq('auth_user_id', user.id).single()
-  if (!['admin', 'document_controller'].includes((profile as any)?.role ?? '')) redirect('/reviews')
+  if (!['developer', 'admin', 'document_controller', 'engineering_manager'].includes((profile as any)?.role ?? '')) redirect('/reviews')
 
   const { data: task } = await db.from('review_tasks')
     .select('id, document_versions(id, file_name, doc_name)')
