@@ -252,10 +252,18 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
           {/* OPEN DOCUMENT BUTTON */}
           <div className="flex flex-col gap-2 shrink-0">
             {dv.central_file_url ? (
-              <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer"
-                className="btn-primary">
-                <ExternalLink className="h-4 w-4" /> Open Document
-              </a>
+              <>
+                <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer"
+                  className="btn-primary">
+                  <ExternalLink className="h-4 w-4" /> Open Document
+                </a>
+                {ctx.canMarkupBeta && (
+                  <Link href={`/reviews/${id}/markup`}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                    🖊 Markup in-app (beta)
+                  </Link>
+                )}
+              </>
             ) : (
               <div className="text-xs text-slate-400 max-w-[160px] text-right">
                 Document URL not yet available — check back shortly after the file has been processed.

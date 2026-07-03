@@ -48,8 +48,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   // 3. My tasks across all docs in this batch (for multi-doc navigation)
   const { data: myProfile } = await db.from('users')
-    .select('email').eq('auth_user_id', user.id).single()
+    .select('email, role').eq('auth_user_id', user.id).single()
   const myEmail = (myProfile as any)?.email ?? ''
+  const canMarkupBeta = ['admin', 'document_controller'].includes((myProfile as any)?.role ?? '')
 
   const { data: myBatchTasks } = await db.from('review_tasks')
     .select('id, document_version_id, status, review_outcome_code, document_versions(file_name, revision, doc_name)')
@@ -106,5 +107,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     previousRevisions,
     isLastReviewer,
     myEmail,
+    canMarkupBeta,
   })
 }

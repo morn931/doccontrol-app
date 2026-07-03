@@ -107,6 +107,17 @@ export async function getFileContent(siteUrl: string, serverRelativeUrl: string)
   return res.arrayBuffer()
 }
 
+/** Get file bytes straight from a full SharePoint file URL (via the /shares endpoint,
+ *  so we don't need to parse site/drive/path ourselves). Used to stream the PDF into
+ *  the in-app markup editor. */
+export async function getFileBytesByUrl(fileUrl: string): Promise<ArrayBuffer> {
+  const encoded = Buffer.from(fileUrl).toString('base64')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const res = await graphFetch(`/shares/u!${encoded}/driveItem/content`)
+  if (!res.ok) throw new Error(`Failed to fetch file bytes (${res.status}): ${await res.text()}`)
+  return res.arrayBuffer()
+}
+
 /** Get file metadata (id, name, webUrl) by server-relative URL */
 export async function getFileMetadata(siteUrl: string, serverRelativeUrl: string): Promise<any> {
   const siteId = await getSiteId(siteUrl)
