@@ -252,18 +252,27 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
           {/* OPEN DOCUMENT BUTTON */}
           <div className="flex flex-col gap-2 shrink-0">
             {dv.central_file_url ? (
-              <>
-                <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer"
-                  className="btn-primary">
-                  <ExternalLink className="h-4 w-4" /> Open Document
-                </a>
-                {ctx.canMarkupBeta && (
-                  <Link href={`/reviews/${id}/markup`}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">
-                    🖊 Markup in-app (beta)
-                  </Link>
-                )}
-              </>
+              ctx.markupMode === 'sharepoint' ? (
+                <>
+                  <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-primary">
+                    <ExternalLink className="h-4 w-4" /> Open Document
+                  </a>
+                  {ctx.canMarkupBeta && (
+                    <Link href={`/reviews/${id}/markup`}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                      🖊 Markup in-app (beta)
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Link href={`/reviews/${id}/markup`} className="btn-primary">🖊 Open &amp; Markup</Link>
+                  <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open in SharePoint
+                  </a>
+                </>
+              )
             ) : (
               <div className="text-xs text-slate-400 max-w-[160px] text-right">
                 Document URL not yet available — check back shortly after the file has been processed.

@@ -132,6 +132,27 @@ export async function putFileBytesByUrl(fileUrl: string, bytes: Uint8Array | Arr
   if (!res.ok) throw new Error(`Failed to write file bytes (${res.status}): ${await res.text()}`)
 }
 
+/** Replace a SharePoint file via a resumable upload session — for flattened PDFs above
+ *  the ~4 MB simple-upload limit. Creates the session then PUTs the bytes as a single
+ *  range to the pre-authorised upload URL (no auth header needed on that URL). */
+export async function putFileBytesResumable(fileUrl: string, bytes: Uint8Array, contentType = 'application/pdf'): Promise<void> {
+  const encoded = Buffer.from(fileUrl).toString('base64')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const sess = await graphFetch(`/shares/u!${encoded}/driveItem/createUploadSession`, {
+    method: 'POST',
+    body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }),
+  })
+  if (!sess.ok) throw new Error(`createUploadSession failed (${sess.status}): ${await sess.text()}`)
+  const { uploadUrl } = await sess.json()
+  const total = bytes.byteLength
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Length': String(total), 'Content-Range': `bytes 0-${total - 1}/${total}`, 'Content-Type': contentType },
+    body: bytes as any,
+  })
+  if (!put.ok) throw new Error(`Resumable upload failed (${put.status}): ${await put.text()}`)
+}
+
 /** Get file metadata (id, name, webUrl) by server-relative URL */
 export async function getFileMetadata(siteUrl: string, serverRelativeUrl: string): Promise<any> {
   const siteId = await getSiteId(siteUrl)

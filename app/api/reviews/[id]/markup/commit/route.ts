@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { putFileBytesByUrl } from '@/lib/services/graph'
+import { putFileBytesByUrl, putFileBytesResumable } from '@/lib/services/graph'
 
 // Phase 3 — commit the reviewer's flattened mark-ups back to the authoritative
 // SharePoint PDF (via Graph), so the next reviewer opens the document already
@@ -26,7 +26,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!bytes.byteLength) return NextResponse.json({ error: 'Empty document' }, { status: 400 })
 
   try {
-    await putFileBytesByUrl(fileUrl, bytes)
+    // Simple upload for typical spec PDFs; resumable session above the ~4 MB limit.
+    if (bytes.byteLength < 4 * 1024 * 1024) await putFileBytesByUrl(fileUrl, bytes)
+    else await putFileBytesResumable(fileUrl, bytes)
   } catch (e: any) {
     console.error('markup commit to SharePoint failed:', e?.message)
     return NextResponse.json({ error: 'Could not write to SharePoint' }, { status: 502 })

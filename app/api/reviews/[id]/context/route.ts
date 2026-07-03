@@ -108,5 +108,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     isLastReviewer,
     myEmail,
     canMarkupBeta,
+    // Default: in-app markup is the primary "Open Document". Set MARKUP_MODE=sharepoint
+    // on the deployment to revert everyone to the classic SharePoint viewer.
+    markupMode: process.env.MARKUP_MODE === 'sharepoint' ? 'sharepoint' : 'coredocs',
   })
 }

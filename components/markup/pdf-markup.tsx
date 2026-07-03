@@ -11,7 +11,7 @@ type Shape = 'box' | 'circle' | 'line' | 'arrow'
 
 const SCALE = 1.4
 
-export default function PdfMarkup({ src, fileName, reviewTaskId }: { src?: string; fileName?: string; reviewTaskId?: string }) {
+export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const imgInputRef = useRef<HTMLInputElement>(null)
 
@@ -26,7 +26,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId }: { src?: strin
   const [saving, setSaving] = useState(false)
   const [tool, setTool] = useState<Tool>('select')
   const [shape, setShape] = useState<Shape>('box')
-  const [color, setColor] = useState('#e11d48')
+  const [color, setColor] = useState(initialColor ?? '#e11d48')
   const [status, setStatus] = useState(src ? 'Loading document…' : 'Load a PDF to begin.')
 
   const toolRef = useRef(tool); const colorRef = useRef(color); const shapeRef = useRef(shape)
