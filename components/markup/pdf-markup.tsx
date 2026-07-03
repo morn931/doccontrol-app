@@ -201,9 +201,8 @@ export default function PdfMarkup({ src, fileName, reviewTaskId }: { src?: strin
     fab?.discardActiveObject(); fab?.renderAll()
   }
 
-  async function flattenDownload() {
-    if (!pdfBytesRef.current) return
-    setStatus('Flattening mark-ups into the PDF…')
+  async function flattenBytes(): Promise<Uint8Array | null> {
+    if (!pdfBytesRef.current) return null
     const { PDFDocument } = await import('pdf-lib')
     const doc = await PDFDocument.load(pdfBytesRef.current)
     const pages = doc.getPages()
@@ -214,12 +213,37 @@ export default function PdfMarkup({ src, fileName, reviewTaskId }: { src?: strin
       const { width, height } = pages[i].getSize()
       pages[i].drawImage(png, { x: 0, y: 0, width, height })
     }
-    const bytes = await doc.save()
+    return await doc.save()
+  }
+
+  async function flattenDownload() {
+    setStatus('Flattening mark-ups into the PDF…')
+    const bytes = await flattenBytes(); if (!bytes) return
     const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = (fileName ?? 'markup') + '-flattened.pdf'; a.click()
     URL.revokeObjectURL(url)
     setStatus('Flattened PDF downloaded — mark-ups baked in.')
+  }
+
+  // ── Phase 3: commit mark-ups back to the authoritative SharePoint file ───────
+  async function saveToSharePoint() {
+    if (!reviewTaskId || !src) return
+    setSaving(true); setStatus('Saving to SharePoint…')
+    await save()                                  // persist captured comments first
+    const bytes = await flattenBytes()
+    if (!bytes) { setSaving(false); return }
+    const res = await fetch(`/api/reviews/${reviewTaskId}/markup/commit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: bytes as BlobPart,
+    })
+    if (res.ok) {
+      setStatus('Saved to SharePoint — reloading the updated document…')
+      try { const r = await fetch(src, { cache: 'no-store' }); if (r.ok) await loadBytes(new Uint8Array(await r.arrayBuffer())) } catch {}
+      setStatus('Saved to SharePoint. Your mark-ups are now part of the document — the next reviewer will see them.')
+    } else {
+      setStatus('Could not save to SharePoint. ' + ((await res.json().catch(() => ({})))?.error ?? ''))
+    }
+    setSaving(false)
   }
 
   const Btn = ({ t, label }: { t: Tool; label: string }) => (
@@ -253,11 +277,18 @@ export default function PdfMarkup({ src, fileName, reviewTaskId }: { src?: strin
         <button onClick={deleteSelected} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Delete</button>
         <span className="mx-1 h-5 w-px bg-slate-200" />
         {reviewTaskId && (
-          <button onClick={save} disabled={saving} className="px-3 py-1.5 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60">
-            {saving ? 'Saving…' : '💾 Save markup'}
+          <button onClick={save} disabled={saving} title="Save an editable draft (only you see it)"
+            className="px-3 py-1.5 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60">
+            {saving ? 'Saving…' : '💾 Save draft'}
           </button>
         )}
-        <button onClick={flattenDownload} className="px-3 py-1.5 rounded-md text-sm font-medium bg-navy-700 text-white hover:bg-navy-800">Flatten &amp; download PDF</button>
+        {reviewTaskId && src && (
+          <button onClick={saveToSharePoint} disabled={saving} title="Write your mark-ups back to the SharePoint document for the next reviewer"
+            className="px-3 py-1.5 rounded-md text-sm font-medium bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60">
+            ☁ Save to SharePoint
+          </button>
+        )}
+        <button onClick={flattenDownload} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Download copy</button>
       </div>
       <p className="text-xs text-slate-500">{status}</p>
       <div ref={containerRef} className="rounded-lg bg-slate-100 p-6 max-h-[80vh] overflow-auto" />

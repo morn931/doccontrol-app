@@ -118,6 +118,20 @@ export async function getFileBytesByUrl(fileUrl: string): Promise<ArrayBuffer> {
   return res.arrayBuffer()
 }
 
+/** Replace a SharePoint file's content in place from a full file URL (simple upload,
+ *  fine for the < ~4 MB flattened spec PDFs). SharePoint stays authoritative — this
+ *  writes the marked-up copy back so the next reviewer sees prior mark-ups. */
+export async function putFileBytesByUrl(fileUrl: string, bytes: Uint8Array | ArrayBuffer, contentType = 'application/pdf'): Promise<void> {
+  const encoded = Buffer.from(fileUrl).toString('base64')
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const res = await graphFetch(`/shares/u!${encoded}/driveItem/content`, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: bytes as any,
+  })
+  if (!res.ok) throw new Error(`Failed to write file bytes (${res.status}): ${await res.text()}`)
+}
+
 /** Get file metadata (id, name, webUrl) by server-relative URL */
 export async function getFileMetadata(siteUrl: string, serverRelativeUrl: string): Promise<any> {
   const siteId = await getSiteId(siteUrl)
