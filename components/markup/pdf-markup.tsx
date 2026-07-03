@@ -11,7 +11,7 @@ type Shape = 'box' | 'circle' | 'line' | 'arrow'
 
 const SCALE = 1.4
 
-export default function PdfMarkup({ src, fileName }: { src?: string; fileName?: string }) {
+export default function PdfMarkup({ src, fileName, reviewTaskId }: { src?: string; fileName?: string; reviewTaskId?: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const imgInputRef = useRef<HTMLInputElement>(null)
 
@@ -20,8 +20,10 @@ export default function PdfMarkup({ src, fileName }: { src?: string; fileName?: 
   const fabsRef = useRef<any[]>([])
   const wrappersRef = useRef<HTMLElement[]>([])
   const undoRef = useRef<{ fab: any; obj: any }[]>([])
+  const skipHistoryRef = useRef(false)
 
   const [ready, setReady] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [tool, setTool] = useState<Tool>('select')
   const [shape, setShape] = useState<Shape>('box')
   const [color, setColor] = useState('#e11d48')
@@ -80,13 +82,56 @@ export default function PdfMarkup({ src, fileName }: { src?: string; fileName?: 
       wireFab(fab)
       fabsRef.current.push(fab); wrappersRef.current.push(wrap)
     }
+    if (reviewTaskId) await loadSaved()
     applyToolAll()
     setStatus(`${pdf.numPages} page(s). Scroll to move through the document.`)
   }
 
+  // ── Persist / resume the reviewer's markup layer (Phase 2) ──────────────────
+  async function loadSaved() {
+    try {
+      const res = await fetch(`/api/reviews/${reviewTaskId}/markup`)
+      if (!res.ok) return
+      const layer = (await res.json())?.markup?.layer
+      if (!layer) return
+      skipHistoryRef.current = true
+      for (const [k, json] of Object.entries(layer)) {
+        const fab = fabsRef.current[Number(k)]
+        if (fab && json) { await fab.loadFromJSON(json); fab.renderAll() }
+      }
+      skipHistoryRef.current = false
+      setStatus('Loaded your saved mark-ups.')
+    } catch { skipHistoryRef.current = false }
+  }
+
+  function serialize() {
+    const layer: Record<number, any> = {}
+    const comments: { page: number; text: string }[] = []
+    fabsRef.current.forEach((fab, i) => {
+      const objs = fab.getObjects()
+      if (objs.length) layer[i] = fab.toJSON()
+      for (const o of objs) {
+        if ((o.type === 'i-text' || o.type === 'text') && String(o.text ?? '').trim())
+          comments.push({ page: i + 1, text: String(o.text).trim() })
+      }
+    })
+    return { layer, comments }
+  }
+
+  async function save() {
+    if (!reviewTaskId) return
+    setSaving(true); setStatus('Saving mark-ups…')
+    const { layer, comments } = serialize()
+    const res = await fetch(`/api/reviews/${reviewTaskId}/markup`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layer, comments }),
+    })
+    setSaving(false)
+    setStatus(res.ok ? `Saved — ${comments.length} text comment${comments.length !== 1 ? 's' : ''} captured.` : 'Could not save mark-ups.')
+  }
+
   function wireFab(fab: any) {
     const fabric = fabricLibRef.current
-    fab.on('object:added', (e: any) => { if (e.target?._skipHistory) return; undoRef.current.push({ fab, obj: e.target }) })
+    fab.on('object:added', (e: any) => { if (skipHistoryRef.current || e.target?._skipHistory) return; undoRef.current.push({ fab, obj: e.target }) })
     fab.on('mouse:down', (opt: any) => {
       const t = toolRef.current
       if ((t !== 'text' && t !== 'shape') || opt.target) return
@@ -207,6 +252,11 @@ export default function PdfMarkup({ src, fileName }: { src?: string; fileName?: 
         <button onClick={undo} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">↶ Undo</button>
         <button onClick={deleteSelected} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Delete</button>
         <span className="mx-1 h-5 w-px bg-slate-200" />
+        {reviewTaskId && (
+          <button onClick={save} disabled={saving} className="px-3 py-1.5 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60">
+            {saving ? 'Saving…' : '💾 Save markup'}
+          </button>
+        )}
         <button onClick={flattenDownload} className="px-3 py-1.5 rounded-md text-sm font-medium bg-navy-700 text-white hover:bg-navy-800">Flatten &amp; download PDF</button>
       </div>
       <p className="text-xs text-slate-500">{status}</p>

@@ -42,7 +42,7 @@ export default async function ReviewMarkupPage({ params }: { params: Promise<{ i
         </p>
       </div>
       <ReviewerNotes reviewTaskId={id} />
-      <PdfMarkup src={`/api/documents/${dv.id}/file`} fileName={(dv.file_name ?? 'document').replace(/\.pdf$/i, '')} />
+      <PdfMarkup src={`/api/documents/${dv.id}/file`} fileName={(dv.file_name ?? 'document').replace(/\.pdf$/i, '')} reviewTaskId={id} />
     </div>
   )
 }
