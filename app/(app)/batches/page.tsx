@@ -116,14 +116,15 @@ function getBatchContextLine(batch: any): string | null {
 
 async function getBatches(params: SearchParams) {
   const db = createServiceClient()
+  const q = (params.q ?? '').trim().toLowerCase()
   let query = db
     .from('batches')
     .select(`id, batch_guid, status, file_count, received_at, rejected_at,
              comments, vendor_email,
              vendors(name, code), packages(package_code, package_name),
-             review_tasks(reviewer_email, sequence_number, status)`)
+             review_tasks(reviewer_email, sequence_number, status, due_date)`)
     .order('received_at', { ascending: false })
-    .limit(100)
+    .limit(q ? 500 : 100)
 
   if (params.status && params.status !== 'all') {
     const statusMap: Record<string, BatchStatus[]> = {
@@ -138,7 +139,18 @@ async function getBatches(params: SearchParams) {
   }
 
   const { data, error } = await query
-  return { batches: data ?? [], error }
+  let rows = data ?? []
+  // Free-text search across package, vendor and batch id (in-memory — the join
+  // columns live on embedded resources; the raised limit keeps matches in scope).
+  if (q) {
+    rows = rows.filter((b: any) =>
+      (b.packages?.package_code ?? '').toLowerCase().includes(q) ||
+      (b.packages?.package_name ?? '').toLowerCase().includes(q) ||
+      (b.vendors?.name ?? '').toLowerCase().includes(q) ||
+      (b.vendor_email ?? '').toLowerCase().includes(q) ||
+      (b.batch_guid ?? '').toLowerCase().includes(q))
+  }
+  return { batches: rows, error }
 }
 
 const FILTER_TABS = [
@@ -156,6 +168,8 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
   const params = await searchParams
   const activeTab = params.status ?? 'all'
   const { batches, error } = await getBatches(params)
+  const now = new Date()
+  const OPEN_TASK = ['pending', 'sent', 'opened', 'in_progress', 'overdue']
 
   // Fetch display names for all reviewer emails seen in this page's batches
   const allEmails = [...new Set(
@@ -197,6 +211,21 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
         ))}
       </div>
 
+      {/* Package / vendor / batch search */}
+      <form method="get" className="flex items-center gap-2">
+        {activeTab !== 'all' && <input type="hidden" name="status" value={activeTab} />}
+        <input name="q" defaultValue={params.q ?? ''} placeholder="Search package, vendor or batch…"
+          className="input text-sm max-w-xs" />
+        <button type="submit" className="btn-secondary text-sm py-2">Search</button>
+        {params.q && (
+          <Link href={`/batches${activeTab !== 'all' ? `?status=${activeTab}` : ''}`}
+            className="text-sm text-slate-500 hover:text-slate-800">Clear</Link>
+        )}
+        {params.q && (
+          <span className="text-xs text-slate-400">{batches.length} result{batches.length !== 1 ? 's' : ''} for &ldquo;{params.q}&rdquo;</span>
+        )}
+      </form>
+
       {error && (
         <div className="card p-4 text-red-700 bg-red-50">Error loading batches: {error.message}</div>
       )}
@@ -216,6 +245,9 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             const isInReview = (batch.status as BatchStatus) === 'review_in_progress'
             const chain = isInReview ? getReviewChain(batch, nameMap) : null
             const contextLine = getBatchContextLine(batch)
+            const isOverdue = ['review_in_progress', 'review_ready_to_start'].includes(batch.status)
+              && (batch.review_tasks ?? []).some((t: any) =>
+                   t.due_date && new Date(t.due_date) < now && OPEN_TASK.includes(t.status))
 
             return (
               <Link key={batch.id} href={`/batches/${batch.id}`}
@@ -228,6 +260,11 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${BATCH_STATUS_COLORS[batch.status as BatchStatus] ?? 'bg-slate-100 text-slate-600'}`}>
                       {BATCH_STATUS_LABELS[batch.status as BatchStatus] ?? batch.status}
                     </span>
+                    {isOverdue && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                        ⚠ Overdue
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-slate-500">
                     <span>{batch.vendors?.name ?? 'Unknown Vendor'}</span>

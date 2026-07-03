@@ -45,10 +45,24 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const [showHistory, setShowHistory] = useState(false)
   const [showAddReviewer, setShowAddReviewer] = useState(false)
   const [newReviewerEmail, setNewReviewerEmail] = useState('')
+  const [newReviewerName, setNewReviewerName] = useState('')
+  const [reviewerSearch, setReviewerSearch] = useState('')
+  const [projectUsers, setProjectUsers] = useState<{ id: string; email: string; full_name: string | null }[]>([])
   const [newReviewerReason, setNewReviewerReason] = useState('')
   const [addingReviewer, setAddingReviewer] = useState(false)
 
   useEffect(() => { loadContext() }, [id])
+
+  // Load the project-user directory the first time the add-reviewer panel opens, so
+  // reviewers are picked from a list (no hand-typed emails → no typos / mis-routing).
+  useEffect(() => {
+    if (showAddReviewer && projectUsers.length === 0) {
+      fetch('/api/reviewer-suggestions')
+        .then(r => (r.ok ? r.json() : { users: [] }))
+        .then(d => setProjectUsers(d.users ?? []))
+        .catch(() => {})
+    }
+  }, [showAddReviewer, projectUsers.length])
 
   async function loadContext() {
     setLoading(true)
@@ -98,13 +112,13 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         reviewerEmail: newReviewerEmail.trim(),
-        reviewerName: reviewerName(newReviewerEmail.trim()),
+        reviewerName: newReviewerName || reviewerName(newReviewerEmail.trim()),
         insertAfterSequence: ctx.task.sequence_number,
         reason: newReviewerReason,
       }),
     })
     if (res.ok) {
-      setShowAddReviewer(false); setNewReviewerEmail(''); setNewReviewerReason('')
+      setShowAddReviewer(false); setNewReviewerEmail(''); setNewReviewerName(''); setReviewerSearch(''); setNewReviewerReason('')
       loadContext()
     }
     setAddingReviewer(false)
@@ -144,6 +158,17 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const futureReviewers = docChain.filter((t: any) =>
     t.sequence_number > task.sequence_number
   )
+
+  // Directory options for the add-reviewer picker: project users not already in the
+  // chain, filtered by the search term.
+  const chainEmails = new Set<string>(docChain.map((t: any) => (t.reviewer_email ?? '').toLowerCase()))
+  const reviewerQuery = reviewerSearch.trim().toLowerCase()
+  const matchedUsers = projectUsers
+    .filter(u => !chainEmails.has((u.email ?? '').toLowerCase()))
+    .filter(u => !reviewerQuery ||
+      (u.email ?? '').toLowerCase().includes(reviewerQuery) ||
+      (u.full_name ?? '').toLowerCase().includes(reviewerQuery))
+    .slice(0, 8)
 
   if (submitted) return (
     <div className="space-y-4 max-w-4xl">
@@ -323,16 +348,41 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 ) : (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-slate-700">Add reviewer after your position ({task.sequence_number}):</p>
-                    <input value={newReviewerEmail} onChange={e => setNewReviewerEmail(e.target.value)}
-                      placeholder="reviewer@ppetech.co.za" className="input text-sm" />
+                    {newReviewerEmail ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-navy-100 text-navy-700 px-2.5 py-1 text-xs font-medium">
+                        {newReviewerName || reviewerName(newReviewerEmail)}
+                        <span className="text-navy-400">·</span> {newReviewerEmail}
+                        <button onClick={() => { setNewReviewerEmail(''); setNewReviewerName('') }}
+                          className="ml-1 text-navy-400 hover:text-navy-700"><X className="h-3 w-3" /></button>
+                      </span>
+                    ) : (
+                      <div>
+                        <input value={reviewerSearch} onChange={e => setReviewerSearch(e.target.value)}
+                          placeholder="Search project users by name or email…" className="input text-sm" autoFocus />
+                        {reviewerSearch.trim() && (
+                          <div className="mt-1 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white shadow-sm divide-y divide-slate-50">
+                            {matchedUsers.length === 0 ? (
+                              <p className="px-3 py-2 text-xs text-slate-400">No matching project users.</p>
+                            ) : matchedUsers.map(u => (
+                              <button key={u.id} type="button"
+                                onClick={() => { setNewReviewerEmail(u.email); setNewReviewerName(u.full_name ?? ''); setReviewerSearch('') }}
+                                className="w-full text-left px-3 py-2 hover:bg-slate-50">
+                                <span className="block text-sm text-slate-800">{u.full_name ?? u.email}</span>
+                                <span className="block text-xs text-slate-400">{u.email}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <input value={newReviewerReason} onChange={e => setNewReviewerReason(e.target.value)}
                       placeholder="Reason for adding reviewer (optional)" className="input text-sm" />
                     <div className="flex gap-2">
-                      <button onClick={handleAddReviewer} disabled={addingReviewer || !newReviewerEmail.trim()}
+                      <button onClick={handleAddReviewer} disabled={addingReviewer || !newReviewerEmail}
                         className="btn-primary text-xs py-1.5">
                         {addingReviewer ? 'Adding…' : 'Add Reviewer'}
                       </button>
-                      <button onClick={() => { setShowAddReviewer(false); setNewReviewerEmail(''); setNewReviewerReason('') }}
+                      <button onClick={() => { setShowAddReviewer(false); setNewReviewerEmail(''); setNewReviewerName(''); setReviewerSearch(''); setNewReviewerReason('') }}
                         className="btn-secondary text-xs py-1.5">Cancel</button>
                     </div>
                   </div>
