@@ -42,6 +42,31 @@ function oFg(code: string) {
 
 // ─── PDF builder using PDFKit (no font files, works in Vercel serverless) ─────
 
+// Compose a reviewer's transmittal comment = their outcome comment + captured in-app
+// text mark-ups (structured, from document_markups).
+function composeComment(outcomeComment: string | null, captured?: string[]): string {
+  const parts: string[] = []
+  if (outcomeComment) parts.push(outcomeComment)
+  if (captured?.length) parts.push('Mark-ups: ' + captured.join('; '))
+  return parts.join('\n')
+}
+
+// Map `${document_version_id}::${author_email}` → captured text comments. This is the
+// structured source that replaces the old Azure PDF-decipher step. Empty (graceful) if
+// the document_markups table isn't present yet.
+async function capturedCommentMap(db: any, dvIds: string[]): Promise<Record<string, string[]>> {
+  if (!dvIds.length) return {}
+  const { data } = await db.from('document_markups')
+    .select('document_version_id, author_email, comments')
+    .in('document_version_id', dvIds)
+  const map: Record<string, string[]> = {}
+  for (const m of data ?? []) {
+    const texts = Array.isArray(m.comments) ? m.comments.map((c: any) => String(c?.text ?? '').trim()).filter(Boolean) : []
+    if (texts.length) map[`${m.document_version_id}::${m.author_email}`] = texts
+  }
+  return map
+}
+
 async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const PDFDoc = require('pdfkit') as any
@@ -321,18 +346,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     tasksByDv[t.document_version_id].push(t)
   }
 
+  const capMap = await capturedCommentMap(db, docVersions.map((dv: any) => dv.id))
+
   const documents: TransmittalDocument[] = docVersions.map((dv: any) => {
     const tasks   = tasksByDv[dv.id] ?? []
     const codes   = tasks.map((t: any) => t.review_outcome_code).filter(Boolean)
     const outCode = worstCode(codes) || 'A1'
+    const docCaptured = tasks.flatMap((t: any) => capMap[`${dv.id}::${t.reviewer_email}`] ?? [])
     return {
       fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
       discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
-      outcomeCode: outCode, markupSummary: '',
+      outcomeCode: outCode, markupSummary: docCaptured.join('; '),
       reviewers: tasks.map((t: any) => ({
         name:    nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
         code:    t.review_outcome_code ?? '—',
-        comment: t.comment ?? '',
+        comment: composeComment(t.comment, capMap[`${dv.id}::${t.reviewer_email}`]),
       })),
     }
   })
@@ -408,8 +436,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const nameMap: Record<string,string> = {}
   for (const u of reviewerUsers ?? []) { if (u.email) nameMap[u.email] = u.full_name ?? u.email.split('@')[0] }
 
-  // Note: AI markup extraction is skipped here to keep within Vercel function timeout.
-  // Markup summaries stored on review_tasks.markup_summary are included if available.
+  // Reviewer mark-ups now come from the in-app editor as structured text (captured in
+  // document_markups) and are folded into each reviewer's comment below — no PDF
+  // decipher / Azure extraction step.
 
   const tasksByDv: Record<string, any[]> = {}
   for (const t of allTasks ?? []) {
@@ -417,18 +446,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     tasksByDv[t.document_version_id].push(t)
   }
 
+  const capMap = await capturedCommentMap(db, docVersions.map((dv: any) => dv.id))
+
   const documents: TransmittalDocument[] = docVersions.map((dv: any) => {
     const tasks   = tasksByDv[dv.id] ?? []
     const codes   = tasks.map((t: any) => t.review_outcome_code).filter(Boolean)
     const outCode = worstCode(codes) || 'A1'
+    const docCaptured = tasks.flatMap((t: any) => capMap[`${dv.id}::${t.reviewer_email}`] ?? [])
     return {
       fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
       discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
-      outcomeCode: outCode, markupSummary: '',
+      outcomeCode: outCode, markupSummary: docCaptured.join('; '),
       reviewers: tasks.map((t: any) => ({
         name:    nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
         code:    t.review_outcome_code ?? '—',
-        comment: t.comment ?? '',
+        comment: composeComment(t.comment, capMap[`${dv.id}::${t.reviewer_email}`]),
       })),
     }
   })
