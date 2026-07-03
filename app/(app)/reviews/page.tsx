@@ -37,17 +37,20 @@ export default async function ReviewsPage() {
   // (Also: a single capped/date_sent-ordered query previously let a heavy reviewer's
   // completed history — and NULL-date_sent pending rows — starve their live tasks out
   // of the window, so notified documents never appeared. Split + filtered fixes both.)
+  // nullsFirst:false is essential — imported/legacy tasks can have a NULL date, and
+  // Postgres sorts NULLs FIRST on DESC, which would fill the capped window with old
+  // undated rows and push a heavy reviewer's freshly-activated/completed items out.
   const ACTIONABLE = ['sent', 'opened', 'in_progress', 'overdue']
   const [{ data: activeTasks }, { data: completedTasks }, { count: queuedCount }] = await Promise.all([
     db.from('review_tasks').select(TASK_SELECT)
       .eq('reviewer_email', email)
       .in('status', ACTIONABLE)
-      .order('date_sent', { ascending: false })
+      .order('date_sent', { ascending: false, nullsFirst: false })
       .limit(500),
     db.from('review_tasks').select(TASK_SELECT)
       .eq('reviewer_email', email)
       .eq('status', 'completed')
-      .order('date_completed', { ascending: false })
+      .order('date_completed', { ascending: false, nullsFirst: false })
       .limit(300),
     db.from('review_tasks')
       .select('*', { count: 'exact', head: true })
