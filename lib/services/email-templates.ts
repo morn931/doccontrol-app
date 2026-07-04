@@ -5,33 +5,47 @@
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
+// Coreflow-branded chrome shared by every CoreDocs notification: navy header with the
+// inline logo (cid:coreflowmark, auto-attached by coreflow-mail.sendMail) + "CoreDocs"
+// module chip, teal accent, white card, muted footer. `title` renders as the body heading.
 function layout(title: string, body: string): string {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>${title}</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
-  .container { max-width: 640px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-  .header { background: #1E4A8F; padding: 24px 32px; }
-  .header h1 { color: white; margin: 0; font-size: 20px; font-weight: 600; }
-  .header p  { color: #93b4e0; margin: 4px 0 0; font-size: 13px; }
-  .body { padding: 32px; }
-  .body p  { color: #374151; line-height: 1.6; margin: 0 0 16px; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #eef1f5; margin: 0; padding: 28px 12px; }
+  .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(16,24,40,0.08); }
+  .header { background: #1B3464; padding: 18px 26px; }
+  .accent { height: 3px; background: linear-gradient(90deg,#00B8C4,#0097A3); font-size:0; line-height:0; }
+  .body { padding: 30px; }
+  .body h1 { color:#1B3464; font-size:19px; font-weight:700; margin:0 0 16px; }
+  .body p  { color: #374151; line-height: 1.6; margin: 0 0 16px; font-size: 14px; }
   .meta { background: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 6px; padding: 16px; margin: 20px 0; }
   .meta table { width: 100%; border-collapse: collapse; }
   .meta td { padding: 5px 8px; font-size: 13px; color: #374151; vertical-align: top; }
   .meta td:first-child { font-weight: 600; color: #6B7280; white-space: nowrap; width: 140px; }
-  .btn { display: inline-block; background: #1E4A8F; color: white !important; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 8px 0; }
+  .btn { display: inline-block; background: #00B8C4; color: #ffffff !important; padding: 11px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 8px 0; }
   .btn-danger { background: #DC2626; }
-  .footer { padding: 20px 32px; border-top: 1px solid #E5E7EB; color: #9CA3AF; font-size: 12px; }
+  .footer { padding: 16px 30px; background: #f7f9fb; border-top: 1px solid #edf0f3; color: #9aa4b2; font-size: 11px; line-height: 1.5; }
   .summary { background: #EFF6FF; border-left: 4px solid #3B82F6; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 13px; color: #1E40AF; }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header"><h1>PPE Tech Document Control</h1><p>EPCM Document Management Platform</p></div>
-  <div class="body">${body}</div>
-  <div class="footer">This is an automated notification from the PPE Tech Document Control system. Do not reply to this email.</div>
+  <div class="header">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle">
+        <img src="cid:coreflowmark" width="26" height="26" alt="" style="vertical-align:middle;display:inline-block;border:0"/>
+        <span style="vertical-align:middle;color:#ffffff;font-size:17px;font-weight:700;letter-spacing:0.4px;padding-left:9px">Coreflow</span>
+      </td>
+      <td style="vertical-align:middle;text-align:right">
+        <span style="display:inline-block;background:rgba(0,184,196,0.18);color:#7fe3ec;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:5px 11px;border-radius:999px">CoreDocs</span>
+      </td>
+    </tr></table>
+  </div>
+  <div class="accent">&nbsp;</div>
+  <div class="body"><h1>${title}</h1>${body}</div>
+  <div class="footer">Automated message from <span style="color:#1B3464;font-weight:600">Coreflow</span> — CoreDocs. Please don't reply to this address.<br/>Coreflow · project delivery platform · <a href="https://coreflow.build" style="color:#0097A3;text-decoration:none">coreflow.build</a></div>
 </div>
 </body>
 </html>`
