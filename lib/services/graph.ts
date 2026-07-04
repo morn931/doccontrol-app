@@ -2,7 +2,10 @@
  * Microsoft Graph API Service
  * Server-side only — never import in client components.
  * Handles: auth token, file copy, file content, SharePoint item metadata, email sending.
+ * NOTE: email now delegates to the unified Coreflow sender (../coreflow-mail); this
+ * PPE Graph app is retained for SharePoint operations only.
  */
+import { sendMail } from '../coreflow-mail'
 
 const TENANT_ID    = process.env.MICROSOFT_TENANT_ID!
 const CLIENT_ID    = process.env.MICROSOFT_CLIENT_ID!
@@ -245,43 +248,32 @@ export async function copyFileToDocControl(
   return { id: found.id, webUrl: found.webUrl, driveItemId: found.id }
 }
 
-/** Send an email via Microsoft Graph (as the app / service account) */
+/**
+ * Send an email — now routed through the unified Coreflow sender
+ * (projects@coreflow.build) via lib/coreflow-mail.ts, NOT the PPE Graph app above.
+ * Signature preserved so all callers (review-assigned, review-complete, batch-rejected,
+ * vendor transmittal + PDF) are unchanged; subjects auto-prefixed "CoreDocs — ".
+ * `fromUserId` is retained for compatibility but IGNORED (mailbox locked to projects@).
+ */
 export async function sendEmail(params: {
   to: string | string[]
   cc?: string | string[]
   subject: string
   htmlBody: string
-  fromUserId?: string  // UPN of sender (defaults to controller)
+  fromUserId?: string
   attachments?: Array<{ name: string; contentType: string; content: Buffer | string }>
 }): Promise<void> {
-  const toList = Array.isArray(params.to) ? params.to : [params.to]
-  const ccList = params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : []
-  const fromUser = params.fromUserId ?? process.env.CONTROLLER_EMAIL ?? 'liezlc@ppetech.co.za'
-
-  const message: any = {
+  await sendMail({
+    to: params.to,
+    cc: params.cc,
     subject: params.subject,
-    body: { contentType: 'HTML', content: params.htmlBody },
-    toRecipients: toList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
-    ccRecipients: ccList.filter(Boolean).map(e => ({ emailAddress: { address: e } })),
-  }
-
-  if (params.attachments?.length) {
-    message.attachments = params.attachments.map(a => ({
-      '@odata.type': '#microsoft.graph.fileAttachment',
+    htmlBody: params.htmlBody,
+    attachments: params.attachments?.map(a => ({
       name: a.name,
       contentType: a.contentType,
       contentBytes: Buffer.isBuffer(a.content)
         ? a.content.toString('base64')
         : Buffer.from(a.content as string, 'binary').toString('base64'),
-    }))
-  }
-
-  const res = await graphFetch(`/users/${fromUser}/sendMail`, {
-    method: 'POST',
-    body: JSON.stringify({ message, saveToSentItems: true }),
+    })),
   })
-  if (!res.ok && res.status !== 202) {
-    const err = await res.text()
-    throw new Error(`Failed to send email to ${toList.join(',')}: ${err}`)
-  }
 }
