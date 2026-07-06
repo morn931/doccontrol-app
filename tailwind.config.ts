@@ -9,30 +9,32 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Coreflow accent — aligned to CoreTime (teal). The legacy `navy` brand
-        // scale is remapped to teal values so existing `navy-*` accent classes
-        // render in the shared Coreflow teal without per-file edits. Neutrals use
-        // Tailwind's built-in `slate` (matching CoreTime).
+        // Coreflow brand navy (#0B3563), matching CoreTime/coreflow-shell. Previously
+        // this scale was aliased to teal values (a past shortcut, not real navy) —
+        // corrected so `navy-*` classes actually render navy. Teal accent stays on
+        // Tailwind's built-in `teal-*` scale (already used ~60x across the app, close
+        // enough to Coreflow teal #00B8C4 that remapping it is a separate decision).
+        // Neutrals use Tailwind's built-in `slate` (matching CoreTime).
         navy: {
-          50:  '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#115e59',
-          900: '#134e4a',
+          50:  '#eef2f7',
+          100: '#dde6ef',
+          200: '#b8c9dc',
+          300: '#93adc9',
+          400: '#4d6f9c',
+          500: '#1e4570',
+          600: '#0B3563',
+          700: '#092a4f',
+          800: '#071f3b',
+          900: '#051627',
         },
         brand: {
-          DEFAULT: '#0d9488', // teal-600
-          light:   '#14b8a6', // teal-500
-          dark:    '#0f766e', // teal-700
+          DEFAULT: '#00B8C4', // Coreflow teal
+          light:   '#33c7d1',
+          dark:    '#0097A3',
         },
       },
       fontFamily: {
-        sans: ['var(--font-geist-sans)', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['var(--font-geist-mono)', 'ui-monospace', 'monospace'],
       },
     },
