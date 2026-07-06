@@ -5,6 +5,31 @@ import { FileText, Inbox, Clock, CheckCircle, Send, AlertTriangle, RotateCcw, XC
 import { BATCH_STATUS_LABELS, BATCH_STATUS_COLORS } from '@/lib/utils/batch-status'
 import { format, formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
+import Image from 'next/image'
+import type { UserRole } from '@/lib/types/database'
+import { getPermissions, can, FK } from '@/lib/permissions'
+
+async function getNavPerms() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('auth_user_id', user.id)
+    .single()
+
+  const role = (profile?.role ?? 'reviewer') as UserRole
+  const perms = await getPermissions(supabase)
+  return {
+    reviews:      can(perms, FK.NAV_REVIEWS,      role),
+    transmittals: can(perms, FK.NAV_TRANSMITTALS, role),
+    mddr:         can(perms, FK.NAV_MDDR,         role),
+    reporting:    can(perms, FK.NAV_REPORTING,    role),
+    admin:        can(perms, FK.NAV_ADMIN,        role),
+  }
+}
 
 async function getDashboardStats() {
   const db = createServiceClient()
@@ -73,12 +98,51 @@ function StatCard({ label, value, icon: Icon, tone = 'teal', href }: StatCardPro
   return href ? <Link href={href}>{content}</Link> : content
 }
 
+const cardCls = 'group flex flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
+const iconCls = 'h-32 w-32 rounded-2xl object-cover transition-transform duration-200 group-hover:scale-105'
+
+function QuickAccessCard({ href, icon, label, blurb }: { href: string; icon: string; label: string; blurb: string }) {
+  return (
+    <Link href={href} className={cardCls}>
+      <Image src={icon} alt="" width={128} height={128} className={iconCls} />
+      <div>
+        <span className="text-sm font-semibold text-[#0B3563] group-hover:text-teal-700 block">{label}</span>
+        <span className="text-xs text-slate-500 mt-0.5 block">{blurb}</span>
+      </div>
+    </Link>
+  )
+}
+
 export default async function DashboardPage() {
   const { awaitingAction, inReview, reviewComplete, returned, rejected, recentBatches, overdueReviews } =
     await getDashboardStats()
+  const navPerms = await getNavPerms()
 
   return (
     <div className="space-y-6">
+      {/* Quick access */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <QuickAccessCard href="/documents" icon="/dashboard-card-icons/512/CD-01_Documents.png" label="Document Search" blurb="Find any document" />
+        {navPerms.transmittals && (
+          <QuickAccessCard href="/transmittals" icon="/dashboard-card-icons/512/CD-02_Transmittals.png" label="Transmittals" blurb="Vendor transmittal register" />
+        )}
+        {navPerms.reviews && (
+          <QuickAccessCard href="/reviews" icon="/dashboard-card-icons/512/CD-03_Review-Queue.png" label="My Reviews" blurb="Review queue" />
+        )}
+        {navPerms.mddr && (
+          <QuickAccessCard href="/mddr" icon="/dashboard-card-icons/512/CD-04_MDDR.png" label="MDDR" blurb="Master deliverable register" />
+        )}
+        {navPerms.admin && (
+          <QuickAccessCard href="/admin/import" icon="/dashboard-card-icons/512/CD-05_Import-Register.png" label="Import & Sync" blurb="Batch intake, SharePoint sync" />
+        )}
+        {navPerms.admin && (
+          <QuickAccessCard href="/admin/vendors" icon="/dashboard-card-icons/512/CD-06_Vendors.png" label="Vendors & Packages" blurb="Manage vendors and packages" />
+        )}
+        {navPerms.reporting && (
+          <QuickAccessCard href="/reporting" icon="/dashboard-card-icons/512/CD-07_Document-Reporting.png" label="Reporting" blurb="Engineering & progress reports" />
+        )}
+      </div>
+
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="text-slate-500 text-sm mt-1">PPE Tech Document Control Overview</p>
