@@ -14,6 +14,10 @@ export async function GET(req: NextRequest) {
   const vendor  = url.searchParams.get('vendor')  || ''
   const source  = url.searchParams.get('source')  || ''
   const awarded = url.searchParams.get('awarded') || 'true'   // true | false | all
+  // Deferred scope (is_deferred — review-period deferrals with stale planned
+  // dates): excluded from the current-basis view by default, never silently —
+  // the response carries deferredExcluded so the UI shows what was dropped.
+  const deferred = url.searchParams.get('deferred') || 'exclude' // exclude | include
   const today = new Date().toISOString().slice(0, 10)
 
   type Pkg = { active: number; planned: number; prog: number }
@@ -23,10 +27,11 @@ export async function GET(req: NextRequest) {
   const scope: Doc[] = []
   let minDate = PERIOD_START
   let totalDocs = 0
+  let deferredExcluded = 0
 
   for (let from = 0; ; from += 1000) {
     let q = db.from('mddr_entries')
-      .select('package_code, progress_percent, planned_completion_date, actual_submission_date, actual_completion_date')
+      .select('package_code, progress_percent, planned_completion_date, actual_submission_date, actual_completion_date, is_deferred')
       .eq('is_active', true)
       .neq('source_type', 'INDEX')
       .order('id', { ascending: true }).range(from, from + 999)
@@ -39,6 +44,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await q
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     for (const r of data ?? []) {
+      if (deferred !== 'include' && r.is_deferred) { deferredExcluded++; continue }
       const p = Number(r.progress_percent ?? 0)
       totalDocs++
       if (p <= 0) milestoneBuckets['Not started']++
@@ -97,9 +103,9 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     scurve, byPackage, variance, milestones,
-    totalDocs, scopeDocs: scope.length, plannedNow, actualNow,
+    totalDocs, scopeDocs: scope.length, plannedNow, actualNow, deferredExcluded,
     todayMonth: today.slice(0, 7),
-    filters: { package: pkg || 'ALL', vendor: vendor || 'ALL', source: source || 'ALL', awarded },
+    filters: { package: pkg || 'ALL', vendor: vendor || 'ALL', source: source || 'ALL', awarded, deferred },
     generatedAt: new Date().toISOString(),
   })
 }

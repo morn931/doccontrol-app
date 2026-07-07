@@ -14,6 +14,7 @@ interface DashData {
   variance:  { package: string; variance: number }[]
   milestones:{ name: string; value: number }[]
   totalDocs: number; scopeDocs: number; plannedNow: number; actualNow: number
+  deferredExcluded: number
   todayMonth: string; generatedAt: string
 }
 
@@ -64,6 +65,9 @@ export default function ReportingDashboard() {
   const [selVendor, setSelVendor] = useState('ALL')
   const [selSource, setSelSource] = useState('ALL')
   const [awarded, setAwarded] = useState<'true' | 'false'>('true')
+  // deferred scope (review-period deferrals with stale planned dates):
+  // current basis excludes them (default); the note shows what was dropped.
+  const [deferred, setDeferred] = useState<'exclude' | 'include'>('exclude')
 
   // Filter chips (reuse MDDR meta)
   useEffect(() => {
@@ -77,7 +81,7 @@ export default function ReportingDashboard() {
 
   function load() {
     setLoading(true); setError(null)
-    const p = new URLSearchParams({ awarded })
+    const p = new URLSearchParams({ awarded, deferred })
     if (selPackage !== 'ALL') p.set('package', selPackage)
     if (selVendor !== 'ALL') p.set('vendor', selVendor)
     if (selSource !== 'ALL') p.set('source', selSource)
@@ -87,13 +91,14 @@ export default function ReportingDashboard() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }
-  useEffect(load, [selPackage, selVendor, selSource, awarded])
+  useEffect(load, [selPackage, selVendor, selSource, awarded, deferred])
 
   const scopeParts = [
     selPackage !== 'ALL' && selPackage,
     selVendor !== 'ALL' && selVendor,
     selSource !== 'ALL' && selSource,
     awarded === 'true' ? 'Awarded' : 'Unawarded scope',
+    deferred === 'include' ? 'incl. deferred' : false,
   ].filter(Boolean) as string[]
   const scope = selPackage === 'ALL' && selVendor === 'ALL' && selSource === 'ALL'
     ? (awarded === 'true' ? 'All awarded documents' : 'All unawarded scope')
@@ -138,8 +143,19 @@ export default function ReportingDashboard() {
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide ml-3">Show:</span>
           {([['true', 'Awarded docs'], ['false', 'Unawarded scope']] as const).map(([v, l]) =>
             <Chip key={v} color="amber" active={awarded === v} onClick={() => setAwarded(v)}>{l}</Chip>)}
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide ml-3">Basis:</span>
+          {([['exclude', 'Current (excl. deferred)'], ['include', 'Original baseline (all)']] as const).map(([v, l]) =>
+            <Chip key={v} color="amber" active={deferred === v} onClick={() => setDeferred(v)}>{l}</Chip>)}
         </div>
       </div>
+
+      {data && deferred === 'exclude' && data.deferredExcluded > 0 && (
+        <div className="card px-3 py-2 text-xs text-amber-800 bg-amber-50 border-amber-200">
+          {data.deferredExcluded.toLocaleString()} deferred document{data.deferredExcluded === 1 ? '' : 's'} excluded
+          (review-period deferrals whose planned dates still reflect the original programme) — switch Basis to
+          “Original baseline (all)” to include them.
+        </div>
+      )}
 
       {error && <div className="card p-3 text-red-700 bg-red-50 text-sm">{error}</div>}
       {!data && loading && <div className="card p-20 text-center text-slate-400"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></div>}
