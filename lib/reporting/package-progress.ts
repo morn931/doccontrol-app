@@ -55,6 +55,7 @@ export async function aggregatePackages(db: any, periodEnd: string): Promise<Pac
     const { data, error } = await db.from('mddr_entries')
       .select('package_code, progress_percent, review_outcome_code, planned_completion_date, source_types')
       .eq('is_active', true).eq('is_awarded', true)
+      .eq('is_deferred', false)      // current basis — deferred scope excluded (migration 012)
       .neq('source_type', 'INDEX')   // register docs only (exclude Document-Index sectors)
       .order('id', { ascending: true })
       .range(from, from + 999)
