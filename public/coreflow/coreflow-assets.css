@@ -1,0 +1,21 @@
+:root {
+  --coreflow-navy: #02335E;
+  --coreflow-teal: #00989B;
+  --coreflow-surface: #FFFFFF;
+  --coreflow-page: #F7F9FC;
+}
+
+.coreflow-hero {
+  background-color: var(--coreflow-navy);
+  background-image: url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+@media (max-width: 640px) {
+  .coreflow-hero {
+    background-image: url('/coreflow/header/backgrounds/hero-industrial-mobile-780x1040@2x.png');
+    background-position: center bottom;
+  }
+}

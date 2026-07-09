@@ -30,7 +30,7 @@ export function Header({ userName, role }: HeaderProps) {
             <a href={COREFLOW_URL} title="Back to Coreflow" className="flex-shrink-0 transition-opacity hover:opacity-80">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/coreflow-logo.png"
+                src="/coreflow/logo/coreflow-logo-original-unchanged.png"
                 alt="Coreflow"
                 className="h-9 w-auto object-contain"
               />
