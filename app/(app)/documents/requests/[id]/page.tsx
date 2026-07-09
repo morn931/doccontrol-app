@@ -38,6 +38,12 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         <Link href="/documents/requests" className="text-sm font-medium text-teal-700 hover:underline">← Requests</Link>
       </div>
 
+      {req.status === 'assigned' && (
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          ✅ All numbers allocated — the requestor <b>{req.requestor_email ?? '—'}</b> has been emailed the allocated numbers.
+        </div>
+      )}
+
       {!canAssign && (
         <p className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
           Read-only — the Document Controller allocates the RDMC numbers. You&apos;ll see them appear here once assigned.

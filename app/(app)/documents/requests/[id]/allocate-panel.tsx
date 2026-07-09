@@ -25,6 +25,7 @@ export default function AllocatePanel({ line, projectNumber, packageCode }: {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
+  const [editing, setEditing] = useState(line.line_status !== 'assigned')
   const [rdmc, setRdmc] = useState(line.rdmc_document_number ?? '')
   const [ppe, setPpe] = useState(line.ppe_doc_number ?? '')
   const [seqno, setSeqno] = useState(line.sequential_no ?? '')
@@ -36,9 +37,24 @@ export default function AllocatePanel({ line, projectNumber, packageCode }: {
     setErr(null)
     start(async () => {
       const r = await allocateLine(line.id, { rdmc_document_number: rdmc, ppe_doc_number: ppe, full_title: full, sequential_no: seqno })
-      if (r.ok) router.refresh()
+      if (r.ok) { setEditing(false); router.refresh() }
       else setErr(r.error ?? 'Could not save')
     })
+  }
+
+  // Collapsed summary once the line has a number.
+  if (!editing && line.line_status === 'assigned') {
+    return (
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">✓ Allocated</span>
+          <button onClick={() => setEditing(true)} className="text-[11px] text-teal-700 hover:underline">Edit</button>
+        </div>
+        <div className="mt-1 font-mono text-sm text-slate-800">{rdmc}</div>
+        {ppe && <div className="text-[11px] text-slate-500">PPE: {ppe}</div>}
+        {full && <div className="text-[11px] text-slate-500">{full}</div>}
+      </div>
+    )
   }
 
   return (
