@@ -29,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     mddr:         can(perms, FK.NAV_MDDR,         role),
     reporting:    can(perms, FK.NAV_REPORTING,    role),
     admin:        can(perms, FK.NAV_ADMIN,        role),
+    docRequests:  can(perms, FK.NAV_DOC_REQUESTS, role),
   }
 
   return (

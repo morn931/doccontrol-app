@@ -10,6 +10,7 @@ export interface NavPerms {
   mddr:         boolean
   reporting:    boolean
   admin:        boolean
+  docRequests:  boolean
 }
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms }
@@ -44,6 +45,8 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
 
         {/* Document Search — universal */}
         <NavLink href="/documents" label="Document Search" icon="🔍" />
+
+        {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon="🔢" />}
 
         {(dev || navPerms.mddr)      && <NavLink href="/mddr"      label="MDDR"      icon="📋" />}
         {(dev || navPerms.reporting) && <NavLink href="/reporting" label="Reporting" icon="📊" />}
