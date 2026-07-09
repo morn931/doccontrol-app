@@ -52,7 +52,7 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
   )
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto w-full max-w-[1600px]">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Request a document number</h1>
@@ -77,37 +77,42 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
           </label>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-xs">
+        <div className="mt-4">
+          <table className="w-full table-fixed text-xs">
+            <colgroup>
+              <col className="w-[3%]" /><col className="w-[12%]" /><col className="w-[11%]" /><col className="w-[11%]" />
+              <col className="w-[12%]" /><col className="w-[13%]" /><col className="w-[13%]" /><col className="w-[4%]" />
+              <col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[2%]" />
+            </colgroup>
             <thead>
               <tr className="text-left text-[11px] text-slate-500">
-                <th className="px-1.5 py-1 font-medium">#</th>
-                <th className="px-1.5 py-1 font-medium">Document Type</th>
-                <th className="px-1.5 py-1 font-medium">Discipline</th>
-                <th className="px-1.5 py-1 font-medium">Area / WBS</th>
-                <th className="px-1.5 py-1 font-medium">Title 1 (Area/Facility)</th>
-                <th className="px-1.5 py-1 font-medium">Title 2 (Major desc.)</th>
-                <th className="px-1.5 py-1 font-medium">Title 3 (Equipment)</th>
-                <th className="px-1.5 py-1 font-medium">Rev</th>
-                <th className="px-1.5 py-1 font-medium">Due</th>
-                <th className="px-1.5 py-1 font-medium">Comments</th>
+                <th className="px-1 py-1 font-medium">#</th>
+                <th className="px-1 py-1 font-medium">Document Type</th>
+                <th className="px-1 py-1 font-medium">Discipline</th>
+                <th className="px-1 py-1 font-medium">Area / WBS</th>
+                <th className="px-1 py-1 font-medium">Title 1 (Area/Facility)</th>
+                <th className="px-1 py-1 font-medium">Title 2 (Major desc.)</th>
+                <th className="px-1 py-1 font-medium">Title 3 (Equipment)</th>
+                <th className="px-1 py-1 font-medium">Rev</th>
+                <th className="px-1 py-1 font-medium">Due</th>
+                <th className="px-1 py-1 font-medium">Comments</th>
                 <th></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {lines.map((l, i) => (
                 <tr key={l.key} className="align-top">
-                  <td className="px-1.5 py-1 text-slate-400">{i + 1}</td>
-                  <td className="px-1.5 py-1 min-w-[150px]">{sel(l.document_type_code, (v) => set(l.key, { document_type_code: v }), documentTypes, 'Type…')}</td>
-                  <td className="px-1.5 py-1 min-w-[140px]">{sel(l.discipline_code, (v) => set(l.key, { discipline_code: v }), disciplines, 'Discipline…')}</td>
-                  <td className="px-1.5 py-1 min-w-[150px]">{sel(l.area_code, (v) => set(l.key, { area_code: v }), areas, 'Area…')}</td>
-                  <td className="px-1.5 py-1"><input value={l.title1 ?? ''} onChange={(e) => set(l.key, { title1: e.target.value })} className="w-full min-w-[120px] rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
-                  <td className="px-1.5 py-1"><input value={l.title2 ?? ''} onChange={(e) => set(l.key, { title2: e.target.value })} className="w-full min-w-[140px] rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
-                  <td className="px-1.5 py-1"><input value={l.title3 ?? ''} onChange={(e) => set(l.key, { title3: e.target.value })} className="w-full min-w-[140px] rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
-                  <td className="px-1.5 py-1"><input value={l.revision ?? ''} onChange={(e) => set(l.key, { revision: e.target.value })} className="w-12 rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
-                  <td className="px-1.5 py-1"><input type="date" value={l.due_date ?? ''} onChange={(e) => set(l.key, { due_date: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-xs" /></td>
-                  <td className="px-1.5 py-1"><input value={l.comments ?? ''} onChange={(e) => set(l.key, { comments: e.target.value })} className="w-full min-w-[120px] rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
-                  <td className="px-1.5 py-1"><button onClick={() => removeLine(l.key)} className="text-slate-300 hover:text-red-600" title="Remove line">✕</button></td>
+                  <td className="px-1 py-1 text-slate-400">{i + 1}</td>
+                  <td className="px-1 py-1">{sel(l.document_type_code, (v) => set(l.key, { document_type_code: v }), documentTypes, 'Type…')}</td>
+                  <td className="px-1 py-1">{sel(l.discipline_code, (v) => set(l.key, { discipline_code: v }), disciplines, 'Discipline…')}</td>
+                  <td className="px-1 py-1">{sel(l.area_code, (v) => set(l.key, { area_code: v }), areas, 'Area…')}</td>
+                  <td className="px-1 py-1"><input value={l.title1 ?? ''} onChange={(e) => set(l.key, { title1: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
+                  <td className="px-1 py-1"><input value={l.title2 ?? ''} onChange={(e) => set(l.key, { title2: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
+                  <td className="px-1 py-1"><input value={l.title3 ?? ''} onChange={(e) => set(l.key, { title3: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
+                  <td className="px-1 py-1"><input value={l.revision ?? ''} onChange={(e) => set(l.key, { revision: e.target.value })} className="w-full rounded border border-slate-300 px-1 py-1 text-center text-xs" /></td>
+                  <td className="px-1 py-1"><input type="date" value={l.due_date ?? ''} onChange={(e) => set(l.key, { due_date: e.target.value })} className="w-full rounded border border-slate-300 px-1 py-1 text-xs" /></td>
+                  <td className="px-1 py-1"><input value={l.comments ?? ''} onChange={(e) => set(l.key, { comments: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
+                  <td className="px-1 py-1 text-center"><button onClick={() => removeLine(l.key)} className="text-slate-300 hover:text-red-600" title="Remove line">✕</button></td>
                 </tr>
               ))}
             </tbody>
