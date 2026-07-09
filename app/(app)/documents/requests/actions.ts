@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
+import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://docs.coreflow.build'
+const CONTROLLER_KEY = 'doc_request_controller_email'
+const DEFAULT_CONTROLLER = 'mornec@ppetech.co.za'
 
 export type LineInput = {
   document_type_code?: string
@@ -25,6 +30,30 @@ async function ctx() {
   const perms = await getPermissions(supabase)
   const role = (profile?.role ?? 'reviewer') as string
   return { profile, perms, role }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function controllerEmailFrom(svc: any): Promise<string> {
+  const { data } = await svc.from('system_settings').select('value').eq('key', CONTROLLER_KEY).maybeSingle()
+  const v = (data?.value ?? '').trim()
+  return v || DEFAULT_CONTROLLER
+}
+
+/** The email that new document-number requests are sent to (Developer Tools setting). */
+export async function getControllerEmail(): Promise<string> {
+  return controllerEmailFrom(createServiceClient())
+}
+
+export async function setControllerEmail(email: string): Promise<{ ok: boolean; error?: string }> {
+  const c = await ctx()
+  if (!c) return { ok: false, error: 'Not signed in' }
+  if (c.role !== 'developer' && c.role !== 'admin') return { ok: false, error: 'Developers only.' }
+  const svc = createServiceClient()
+  const { error } = await svc.from('system_settings')
+    .upsert({ key: CONTROLLER_KEY, value: email.trim(), updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/developer/doc-requests')
+  return { ok: true }
 }
 
 export async function createRequest(input: {
@@ -74,6 +103,23 @@ export async function createRequest(input: {
   const { error: le } = await svc.from('document_number_request_line').insert(rows)
   if (le) return { ok: false, error: le.message }
 
+  // Notify the Document Controller (best-effort — never fail the request on email).
+  try {
+    const to = await controllerEmailFrom(svc)
+    await sendMail({
+      to,
+      subject: `New document number request ${request_no}`,
+      htmlBody: brandedEmail({
+        heading: `New document number request — ${request_no}`,
+        bodyHtml: `<p>A new document number request has been submitted and is waiting for you to allocate the RDMC numbers.</p>
+          <p style="margin:12px 0"><b>Requestor:</b> ${c.profile?.email ?? '—'}<br/>
+          <b>Package:</b> ${input.package_code ?? '—'}<br/>
+          <b>Documents to number:</b> ${rows.length}</p>`,
+        cta: { href: `${APP_URL}/documents/requests/${hdr.id}`, label: 'Open request to allocate →' },
+      }),
+    })
+  } catch {}
+
   revalidatePath('/documents/requests')
   return { ok: true, id: hdr.id }
 }
@@ -116,6 +162,28 @@ export async function allocateLine(lineId: string, patch: {
   const status = all.length && all.every((l) => l.line_status === 'assigned') ? 'assigned'
     : all.some((l) => l.line_status === 'assigned') ? 'in_progress' : 'submitted'
   await svc.from('document_number_request').update({ status, updated_at: new Date().toISOString() }).eq('id', line.request_id)
+
+  // When every line is allocated, let the requestor know their numbers are ready.
+  if (status === 'assigned') {
+    try {
+      const { data: req } = await svc.from('document_number_request').select('request_no, requestor_email').eq('id', line.request_id).single()
+      if (req?.requestor_email) {
+        const { data: allLines } = await svc.from('document_number_request_line')
+          .select('rdmc_document_number, full_title').eq('request_id', line.request_id).order('line_no')
+        const listHtml = ((allLines ?? []) as { rdmc_document_number: string | null; full_title: string | null }[])
+          .map((l) => `<li><b>${l.rdmc_document_number ?? '—'}</b>${l.full_title ? ` — ${l.full_title}` : ''}</li>`).join('')
+        await sendMail({
+          to: req.requestor_email,
+          subject: `Document numbers allocated ${req.request_no ?? ''}`,
+          htmlBody: brandedEmail({
+            heading: 'Your document numbers are allocated',
+            bodyHtml: `<p>Document Control has allocated the numbers for your request <b>${req.request_no ?? ''}</b>:</p><ul style="padding-left:18px;color:#374151">${listHtml}</ul>`,
+            cta: { href: `${APP_URL}/documents/requests/${line.request_id}`, label: 'View request →' },
+          }),
+        })
+      }
+    } catch {}
+  }
 
   revalidatePath(`/documents/requests/${line.request_id}`)
   revalidatePath('/documents/requests')

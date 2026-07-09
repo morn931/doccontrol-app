@@ -70,6 +70,7 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Dev</p>
             </div>
             <NavLink href="/developer" label="Developer Tools" icon="🛠️" />
+            <NavLink href="/developer/doc-requests" label="Doc Request Email" icon="📧" />
           </>
         )}
 
