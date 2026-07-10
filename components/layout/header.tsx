@@ -22,7 +22,7 @@ export function Header({ userName, role }: HeaderProps) {
     .slice(0, 2)
 
   return (
-    <header className="bg-white border-b border-slate-200 flex-shrink-0">
+    <header className="bg-[#02335E] bg-cover bg-center bg-no-repeat border-b border-slate-200 flex-shrink-0 bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')]">
       <div className="px-4 sm:px-6">
         <div className="flex h-14 items-center justify-between">
           {/* Brand — the CoreFlow mark links back to the platform launcher */}
@@ -30,15 +30,15 @@ export function Header({ userName, role }: HeaderProps) {
             <a href={COREFLOW_URL} title="Back to Coreflow" className="flex-shrink-0 transition-opacity hover:opacity-80">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/coreflow/logo/coreflow-logo-original-unchanged.png"
+                src="/coreflow/logo/coreflow-logo-white.png"
                 alt="Coreflow"
                 className="h-9 w-auto object-contain"
               />
             </a>
-            <span className="hidden sm:block text-slate-200 text-lg font-thin">|</span>
+            <span className="hidden sm:block text-white/30 text-lg font-thin">|</span>
             <div className="hidden sm:flex flex-col leading-tight">
-              <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">CoreDocs</span>
-              <span className="text-xs text-slate-400">PPE Tech</span>
+              <span className="text-xs font-semibold text-white tracking-wide uppercase">CoreDocs</span>
+              <span className="text-xs text-white/60">PPE Tech</span>
             </div>
           </div>
 
@@ -46,14 +46,14 @@ export function Header({ userName, role }: HeaderProps) {
           <div className="flex items-center gap-4">
             <GuideButton />
             <div className="hidden sm:flex flex-col items-end gap-0.5">
-              <span className="text-sm font-medium text-slate-700 leading-tight">{userName}</span>
-              <span className="text-xs text-slate-400 capitalize leading-tight">{role.replace('_', ' ')}</span>
+              <span className="text-sm font-medium text-white leading-tight">{userName}</span>
+              <span className="text-xs text-white/60 capitalize leading-tight">{role.replace('_', ' ')}</span>
             </div>
             <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-semibold">
               {initials}
             </div>
             <form action="/auth/signout" method="POST">
-              <button type="submit" className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+              <button type="submit" className="text-sm text-white/80 hover:text-white transition-colors">
                 Sign out
               </button>
             </form>
