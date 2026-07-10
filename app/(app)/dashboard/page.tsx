@@ -122,7 +122,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="rounded-xl bg-[#02335E] bg-cover bg-center bg-no-repeat px-7 py-6 flex items-center justify-between gap-4 sm:bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')] max-sm:bg-[url('/coreflow/header/backgrounds/hero-industrial-mobile-780x1040@2x.png')] max-sm:bg-bottom">
+      <div className="rounded-xl bg-[#02335E] bg-cover bg-center bg-no-repeat px-7 py-6 flex items-center justify-between gap-4 bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')]">
         <div>
           <p className="text-white/80 text-sm mb-0.5">Welcome back</p>
           <h1 className="text-2xl font-bold text-white">{navPerms.firstName}!</h1>

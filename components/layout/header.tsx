@@ -22,7 +22,7 @@ export function Header({ userName, role }: HeaderProps) {
     .slice(0, 2)
 
   return (
-    <header className="bg-[#02335E] bg-cover bg-center bg-no-repeat border-b border-slate-200 flex-shrink-0 sm:bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')] max-sm:bg-[url('/coreflow/header/backgrounds/hero-industrial-mobile-780x1040@2x.png')] max-sm:bg-bottom">
+    <header className="bg-[#02335E] bg-cover bg-center bg-no-repeat border-b border-slate-200 flex-shrink-0 bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')]">
       <div className="px-4 sm:px-6">
         <div className="flex h-14 items-center justify-between">
           {/* Brand — the CoreFlow mark links back to the platform launcher */}
