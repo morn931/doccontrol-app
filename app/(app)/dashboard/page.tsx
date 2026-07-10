@@ -16,7 +16,7 @@ async function getNavPerms() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('role')
+    .select('role, full_name')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -28,6 +28,7 @@ async function getNavPerms() {
     mddr:         can(perms, FK.NAV_MDDR,         role),
     reporting:    can(perms, FK.NAV_REPORTING,    role),
     admin:        can(perms, FK.NAV_ADMIN,        role),
+    firstName:    ((profile?.full_name as string | null) ?? '').split(' ')[0] || 'there',
   }
 }
 
@@ -120,6 +121,17 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Hero */}
+      <div className="rounded-xl bg-[#02335E] bg-cover bg-center bg-no-repeat px-7 py-6 flex items-center justify-between gap-4 bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')]">
+        <div>
+          <p className="text-white/80 text-sm mb-0.5">Welcome back</p>
+          <h1 className="text-2xl font-bold text-white">{navPerms.firstName}!</h1>
+        </div>
+        <p className="text-white/70 text-sm hidden sm:block">
+          {new Date().toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
+      </div>
+
       {/* Quick access */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <QuickAccessCard href="/documents" icon="/dashboard-card-icons/512/CD-01_Documents.png" label="Document Search" blurb="Find any document" />
