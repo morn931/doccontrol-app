@@ -22,42 +22,38 @@ export function Header({ userName, role }: HeaderProps) {
     .slice(0, 2)
 
   return (
-    <header className="bg-[#02335E] bg-cover bg-center bg-no-repeat border-b border-slate-200 flex-shrink-0 bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')]">
-      <div className="px-4 sm:px-6">
-        <div className="flex h-14 items-center justify-between">
-          {/* Brand — the CoreFlow mark links back to the platform launcher */}
-          <div className="flex items-center gap-3">
-            <a href={COREFLOW_URL} title="Back to Coreflow" className="flex-shrink-0 transition-opacity hover:opacity-80">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/coreflow/logo/coreflow-logo-white.png"
-                alt="Coreflow"
-                className="h-9 w-auto object-contain"
-              />
-            </a>
-            <span className="hidden sm:block text-white/30 text-lg font-thin">|</span>
-            <div className="hidden sm:flex flex-col leading-tight">
-              <span className="text-xs font-semibold text-white tracking-wide uppercase">CoreDocs</span>
-              <span className="text-xs text-white/60">PPE Tech</span>
-            </div>
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm flex-shrink-0">
+      <div className="flex h-16 w-full items-center justify-between gap-4 px-6">
+        {/* Brand — the CoreFlow mark links back to the platform launcher */}
+        <a href={COREFLOW_URL} title="Back to Coreflow" className="flex h-full shrink-0 items-center gap-3 transition-opacity hover:opacity-80">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/coreflow/logo/coreflow-logo-header-crop.png"
+            alt="Coreflow"
+            className="h-full w-auto shrink-0 object-contain"
+          />
+          <span className="hidden sm:block text-slate-300 text-lg font-thin">|</span>
+          <div className="hidden sm:flex flex-col leading-tight">
+            <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">CoreDocs</span>
+            <span className="text-xs text-slate-400">PPE Tech</span>
           </div>
+        </a>
 
-          {/* User */}
-          <div className="flex items-center gap-4">
-            <GuideButton />
-            <div className="hidden sm:flex flex-col items-end gap-0.5">
-              <span className="text-sm font-medium text-white leading-tight">{userName}</span>
-              <span className="text-xs text-white/60 capitalize leading-tight">{role.replace('_', ' ')}</span>
-            </div>
-            <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-semibold">
-              {initials}
-            </div>
-            <form action="/auth/signout" method="POST">
-              <button type="submit" className="text-sm text-white/80 hover:text-white transition-colors">
-                Sign out
-              </button>
-            </form>
+        {/* User */}
+        <div className="flex h-full shrink-0 items-center gap-4">
+          <GuideButton />
+          <div className="hidden sm:flex flex-col items-end gap-0.5">
+            <span className="text-sm font-medium text-slate-700 leading-tight">{userName}</span>
+            <span className="text-xs text-slate-400 capitalize leading-tight">{role.replace('_', ' ')}</span>
           </div>
+          <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-semibold">
+            {initials}
+          </div>
+          <form action="/auth/signout" method="POST">
+            <button type="submit" className="text-sm text-slate-500 hover:text-slate-900 transition-colors">
+              Sign out
+            </button>
+          </form>
         </div>
       </div>
     </header>

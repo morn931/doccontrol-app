@@ -32,11 +32,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     docRequests:  can(perms, FK.NAV_DOC_REQUESTS, role),
   }
 
+  const firstName = name.split(' ')[0]
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[#012042] flex flex-col">
       <Suspense fallback={null}><PageViewLogger /></Suspense>
       <Header userName={name} role={role} />
-      <div className="flex flex-1 overflow-hidden">
+
+      <div className="relative min-h-[337px] overflow-hidden bg-[#012042] bg-cover bg-top bg-no-repeat bg-[url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w.png')]">
+        <div className="mx-auto flex max-w-400 flex-col justify-center min-h-[337px] px-6 py-8">
+          <p className="text-sm text-white/80">Welcome back, <span className="font-semibold text-white">{firstName}</span></p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">CoreDocs — Document Control</h1>
+        </div>
+      </div>
+
+      <div className="relative -mt-12 flex flex-1 overflow-hidden">
         <Sidebar role={role} navPerms={navPerms} />
         <main className="flex-1 overflow-auto px-6 py-6">
           {children}
