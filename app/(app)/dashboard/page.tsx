@@ -98,16 +98,16 @@ function StatCard({ label, value, icon: Icon, tone = 'teal', href }: StatCardPro
   return href ? <Link href={href}>{content}</Link> : content
 }
 
-const cardCls = 'group flex flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
-const iconCls = 'h-32 w-32 rounded-2xl object-cover transition-transform duration-200 group-hover:scale-105'
+const cardCls = 'group flex w-36 shrink-0 flex-col items-center gap-2 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
+const iconCls = 'h-16 w-16 rounded-2xl object-cover transition-transform duration-200 group-hover:scale-105'
 
 function QuickAccessCard({ href, icon, label, blurb }: { href: string; icon: string; label: string; blurb: string }) {
   return (
     <Link href={href} className={cardCls}>
-      <Image src={icon} alt="" width={128} height={128} className={iconCls} />
+      <Image src={icon} alt="" width={64} height={64} className={iconCls} />
       <div>
-        <span className="text-sm font-semibold text-[#0B3563] group-hover:text-teal-700 block">{label}</span>
-        <span className="text-xs text-slate-500 mt-0.5 block">{blurb}</span>
+        <span className="text-xs font-semibold text-[#0B3563] group-hover:text-teal-700 block">{label}</span>
+        <span className="text-[11px] text-slate-500 mt-0.5 block">{blurb}</span>
       </div>
     </Link>
   )
@@ -126,7 +126,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick access */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="flex flex-wrap gap-4">
         <QuickAccessCard href="/documents" icon="/dashboard-card-icons/512/CD-01_Documents.png" label="Document Search" blurb="Find any document" />
         {navPerms.transmittals && (
           <QuickAccessCard href="/transmittals" icon="/dashboard-card-icons/512/CD-02_Transmittals.png" label="Transmittals" blurb="Vendor transmittal register" />
