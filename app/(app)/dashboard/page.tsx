@@ -125,6 +125,19 @@ export default async function DashboardPage() {
         <p className="text-slate-500 text-sm mt-1">PPE Tech Document Control Overview</p>
       </div>
 
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Awaiting Action"   value={awaitingAction}  icon={Inbox}        tone="teal"    href="/batches?status=pending" />
+        <StatCard label="In Review"         value={inReview}        icon={Clock}        tone="amber"   href="/batches?status=in_review" />
+        <StatCard label="Ready to Return"   value={reviewComplete}  icon={CheckCircle}  tone="emerald" href="/batches?status=complete" />
+        <StatCard label="Returned to Vendor" value={returned}       icon={Send}         tone="sky"     href="/batches?status=returned" />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Rejected Batches"  value={rejected}        icon={XCircle}      tone="rose"    href="/batches?status=rejected" />
+        <StatCard label="Overdue Reviews"   value={overdueReviews}  icon={AlertTriangle} tone="amber"  href="/reviews?status=overdue" />
+      </div>
+
       {/* Quick access */}
       <div className="flex flex-wrap gap-4">
         <QuickAccessCard href="/documents" icon="/dashboard-card-icons/512/CD-01_Documents.png" label="Document Search" blurb="Find any document" />
@@ -146,19 +159,6 @@ export default async function DashboardPage() {
         {navPerms.reporting && (
           <QuickAccessCard href="/reporting" icon="/dashboard-card-icons/512/CD-07_Document-Reporting.png" label="Reporting" blurb="Engineering & progress reports" />
         )}
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Awaiting Action"   value={awaitingAction}  icon={Inbox}        tone="teal"    href="/batches?status=pending" />
-        <StatCard label="In Review"         value={inReview}        icon={Clock}        tone="amber"   href="/batches?status=in_review" />
-        <StatCard label="Ready to Return"   value={reviewComplete}  icon={CheckCircle}  tone="emerald" href="/batches?status=complete" />
-        <StatCard label="Returned to Vendor" value={returned}       icon={Send}         tone="sky"     href="/batches?status=returned" />
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Rejected Batches"  value={rejected}        icon={XCircle}      tone="rose"    href="/batches?status=rejected" />
-        <StatCard label="Overdue Reviews"   value={overdueReviews}  icon={AlertTriangle} tone="amber"  href="/reviews?status=overdue" />
       </div>
 
       {/* Recent batches */}
