@@ -83,14 +83,14 @@ interface StatCardProps {
 function StatCard({ label, value, icon: Icon, tone = 'teal', href }: StatCardProps) {
   const t = STAT_TONES[tone]
   const content = (
-    <div className={`card p-5 ${href ? 'hover:shadow-md hover:border-teal-300 transition-all cursor-pointer' : ''}`}>
-      <div className="flex items-center justify-between">
+    <div className={`card p-3 ${href ? 'hover:shadow-md hover:border-teal-300 transition-all cursor-pointer' : ''}`}>
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-sm text-slate-500 font-medium">{label}</p>
-          <p className="text-3xl font-bold text-slate-900 mt-1">{value ?? 0}</p>
+          <p className="text-xs text-slate-500 font-medium">{label}</p>
+          <p className="text-xl font-bold text-slate-900 mt-0.5">{value ?? 0}</p>
         </div>
-        <div className={`flex items-center justify-center w-12 h-12 rounded-full border-2 ${t.ring}`}>
-          <Icon className={`h-5 w-5 ${t.icon}`} strokeWidth={1.5} />
+        <div className={`flex items-center justify-center w-9 h-9 rounded-full border-2 shrink-0 ${t.ring}`}>
+          <Icon className={`h-4 w-4 ${t.icon}`} strokeWidth={1.5} />
         </div>
       </div>
     </div>
@@ -98,16 +98,16 @@ function StatCard({ label, value, icon: Icon, tone = 'teal', href }: StatCardPro
   return href ? <Link href={href}>{content}</Link> : content
 }
 
-const cardCls = 'group flex w-36 shrink-0 flex-col items-center gap-2 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
-const iconCls = 'h-16 w-16 rounded-2xl object-cover transition-transform duration-200 group-hover:scale-105'
+const cardCls = 'group flex w-56 shrink-0 flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
+const iconCls = 'h-32 w-32 rounded-2xl object-cover transition-transform duration-200 group-hover:scale-105'
 
 function QuickAccessCard({ href, icon, label, blurb }: { href: string; icon: string; label: string; blurb: string }) {
   return (
     <Link href={href} className={cardCls}>
-      <Image src={icon} alt="" width={64} height={64} className={iconCls} />
+      <Image src={icon} alt="" width={128} height={128} className={iconCls} />
       <div>
-        <span className="text-xs font-semibold text-[#0B3563] group-hover:text-teal-700 block">{label}</span>
-        <span className="text-[11px] text-slate-500 mt-0.5 block">{blurb}</span>
+        <span className="text-sm font-semibold text-[#0B3563] group-hover:text-teal-700 block">{label}</span>
+        <span className="text-xs text-slate-500 mt-0.5 block">{blurb}</span>
       </div>
     </Link>
   )
@@ -126,20 +126,17 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard label="Awaiting Action"   value={awaitingAction}  icon={Inbox}        tone="teal"    href="/batches?status=pending" />
         <StatCard label="In Review"         value={inReview}        icon={Clock}        tone="amber"   href="/batches?status=in_review" />
         <StatCard label="Ready to Return"   value={reviewComplete}  icon={CheckCircle}  tone="emerald" href="/batches?status=complete" />
         <StatCard label="Returned to Vendor" value={returned}       icon={Send}         tone="sky"     href="/batches?status=returned" />
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Rejected Batches"  value={rejected}        icon={XCircle}      tone="rose"    href="/batches?status=rejected" />
         <StatCard label="Overdue Reviews"   value={overdueReviews}  icon={AlertTriangle} tone="amber"  href="/reviews?status=overdue" />
       </div>
 
       {/* Quick access */}
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap justify-center gap-4">
         <QuickAccessCard href="/documents" icon="/dashboard-card-icons/512/CD-01_Documents.png" label="Document Search" blurb="Find any document" />
         {navPerms.transmittals && (
           <QuickAccessCard href="/transmittals" icon="/dashboard-card-icons/512/CD-02_Transmittals.png" label="Transmittals" blurb="Vendor transmittal register" />
