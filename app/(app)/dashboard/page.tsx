@@ -135,8 +135,9 @@ export default async function DashboardPage() {
         <StatCard label="Overdue Reviews"   value={overdueReviews}  icon={AlertTriangle} tone="amber"  href="/reviews?status=overdue" />
       </div>
 
-      {/* Quick access */}
-      <div className="flex flex-wrap justify-center gap-4">
+      {/* Quick access — capped to exactly 4 card-widths so a 7th tile wraps to a
+          centered second row of 3 instead of spreading across the full-width page. */}
+      <div className="mx-auto flex max-w-[944px] flex-wrap justify-center gap-4">
         <QuickAccessCard href="/documents" icon="/dashboard-card-icons/512/CD-01_Documents.png" label="Document Search" blurb="Find any document" />
         {navPerms.transmittals && (
           <QuickAccessCard href="/transmittals" icon="/dashboard-card-icons/512/CD-02_Transmittals.png" label="Transmittals" blurb="Vendor transmittal register" />
