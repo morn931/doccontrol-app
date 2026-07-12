@@ -41,6 +41,8 @@ export function Header({ userName, role }: HeaderProps) {
 
         {/* User */}
         <div className="flex h-full shrink-0 items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/coreflow/logo/ppe-logo.png" alt="PPE Technologies" className="h-9 w-9 shrink-0 object-contain" />
           <GuideButton />
           <div className="hidden sm:flex flex-col items-end gap-0.5">
             <span className="text-sm font-medium text-[#0B3563] leading-tight">{userName}</span>

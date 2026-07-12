@@ -44,13 +44,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         className="relative min-h-[168px] overflow-hidden bg-[var(--page-bg)] bg-contain bg-no-repeat max-sm:bg-bottom bg-right"
         style={{ backgroundImage: "url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w_inverted.png')" }}
       >
-        <div className="mx-auto flex max-w-400 flex-col justify-center min-h-[168px] px-6 py-6">
+        <div className="flex flex-col justify-center min-h-[168px] px-6 py-6">
           <p className="text-sm font-bold text-[#012042]">Welcome back, {firstName}</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#012042] sm:text-3xl">CoreDocs — Document Control</h1>
         </div>
       </div>
 
-      <div className="relative mx-auto -mt-12 flex max-w-400 flex-1 gap-4 px-6 pb-6">
+      <div className="relative -mt-12 flex flex-1 gap-4 px-6 pb-6">
         <Sidebar role={role} navPerms={navPerms} />
         <main className="min-w-0 flex-1 py-3">
           {children}
