@@ -15,6 +15,8 @@ export interface NavPerms {
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms }
 
+const ICON = (name: string) => `/coreflow/icons/${name}/transparent/${name}-48.png`
+
 export function Sidebar({ role, navPerms }: SidebarProps) {
   const pathname = usePathname()
   const dev = role === 'developer'
@@ -22,34 +24,35 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
   function NavLink({ href, label, icon }: { href: string; label: string; icon: string }) {
     const active = pathname === href || pathname.startsWith(href + '/')
     return (
-      <Link href={href} className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-        active ? 'bg-teal-50 text-teal-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+      <Link href={href} className={`flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
+        active ? 'bg-teal-100 text-teal-900' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-900'
       }`}>
-        <span className="text-base">{icon}</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={icon} alt="" className="h-7 w-7 shrink-0 object-contain" />
         {label}
       </Link>
     )
   }
 
   return (
-    <aside className="hidden md:flex w-52 bg-white border-r border-slate-200 flex-col py-4 px-3 flex-shrink-0">
+    <aside className="hidden md:flex w-52 shrink-0 flex-col gap-0.5 rounded-xl border border-slate-200 bg-white py-4 px-2 shadow-sm self-start">
       <nav className="flex flex-col gap-0.5">
 
         {/* Dashboard — universal */}
-        <NavLink href="/dashboard" label="Dashboard" icon="🏠" />
+        <NavLink href="/dashboard" label="Dashboard" icon={ICON('dashboard')} />
 
         {/* Permission-gated nav */}
-        {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon="📥" />}
-        {(dev || navPerms.reviews)      && <NavLink href="/reviews"      label="My Reviews"       icon="✅" />}
-        {(dev || navPerms.transmittals) && <NavLink href="/transmittals" label="Transmittals"     icon="📤" />}
+        {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}
+        {(dev || navPerms.reviews)      && <NavLink href="/reviews"      label="My Reviews"       icon={ICON('actions')} />}
+        {(dev || navPerms.transmittals) && <NavLink href="/transmittals" label="Transmittals"     icon={ICON('reports')} />}
 
         {/* Document Search — universal */}
-        <NavLink href="/documents" label="Document Search" icon="🔍" />
+        <NavLink href="/documents" label="Document Search" icon={ICON('document-search')} />
 
-        {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon="🔢" />}
+        {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon={ICON('documents')} />}
 
-        {(dev || navPerms.mddr)      && <NavLink href="/mddr"      label="MDDR"      icon="📋" />}
-        {(dev || navPerms.reporting) && <NavLink href="/reporting" label="Reporting" icon="📊" />}
+        {(dev || navPerms.mddr)      && <NavLink href="/mddr"      label="MDDR"      icon={ICON('mddr')} />}
+        {(dev || navPerms.reporting) && <NavLink href="/reporting" label="Reporting" icon={ICON('reports')} />}
 
         {/* Admin section */}
         {(dev || navPerms.admin) && (
@@ -57,9 +60,9 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
             <div className="px-3 pt-4 pb-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Admin</p>
             </div>
-            <NavLink href="/admin/import"  label="Import & Sync"      icon="🔄" />
-            <NavLink href="/admin/users"   label="Users"              icon="👥" />
-            <NavLink href="/admin/vendors" label="Vendors & Packages" icon="📦" />
+            <NavLink href="/admin/import"  label="Import & Sync"      icon={ICON('administration')} />
+            <NavLink href="/admin/users"   label="Users"              icon={ICON('team')} />
+            <NavLink href="/admin/vendors" label="Vendors & Packages" icon={ICON('vendors')} />
           </>
         )}
 
@@ -69,14 +72,14 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
             <div className="px-3 pt-4 pb-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Dev</p>
             </div>
-            <NavLink href="/developer" label="Developer Tools" icon="🛠️" />
-            <NavLink href="/developer/doc-requests" label="Doc Request Email" icon="📧" />
+            <NavLink href="/developer" label="Developer Tools" icon={ICON('developer-tools')} />
+            <NavLink href="/developer/doc-requests" label="Doc Request Email" icon={ICON('documents')} />
           </>
         )}
 
         {/* User Guide — universal */}
         <div className="mt-4 border-t border-slate-100 pt-2">
-          <NavLink href="/help" label="User Guide" icon="📖" />
+          <NavLink href="/help" label="User Guide" icon={ICON('documents')} />
         </div>
 
       </nav>

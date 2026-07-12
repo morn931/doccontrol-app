@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --page-bg: #F1F5F9;
+  /* Platform header standard, defined by coreflow-shell — identical bar height
+     and logo sizing across every Coreflow module. Do not override per-module. */
+  --header-h: 4rem;
+}
+
 @layer base {
   body { @apply bg-slate-50 text-slate-900 antialiased; }
 }

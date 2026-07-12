@@ -23,7 +23,7 @@ export function Header({ userName, role }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm flex-shrink-0">
-      <div className="flex h-16 w-full items-center justify-between gap-4 px-6">
+      <div className="flex h-[var(--header-h)] w-full items-center justify-between gap-4 px-6">
         {/* Brand — the CoreFlow mark links back to the platform launcher */}
         <a href={COREFLOW_URL} title="Back to Coreflow" className="flex h-full shrink-0 items-center gap-3 transition-opacity hover:opacity-80">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -34,8 +34,8 @@ export function Header({ userName, role }: HeaderProps) {
           />
           <span className="hidden sm:block text-slate-300 text-lg font-thin">|</span>
           <div className="hidden sm:flex flex-col leading-tight">
-            <span className="text-xs font-semibold text-slate-700 tracking-wide uppercase">CoreDocs</span>
-            <span className="text-xs text-slate-400">PPE Tech</span>
+            <span className="text-xs font-semibold text-[#0B3563] tracking-wide uppercase">CoreDocs</span>
+            <span className="text-xs text-slate-500">PPE Tech</span>
           </div>
         </a>
 
@@ -43,8 +43,8 @@ export function Header({ userName, role }: HeaderProps) {
         <div className="flex h-full shrink-0 items-center gap-4">
           <GuideButton />
           <div className="hidden sm:flex flex-col items-end gap-0.5">
-            <span className="text-sm font-medium text-slate-700 leading-tight">{userName}</span>
-            <span className="text-xs text-slate-400 capitalize leading-tight">{role.replace('_', ' ')}</span>
+            <span className="text-sm font-medium text-[#0B3563] leading-tight">{userName}</span>
+            <span className="text-xs text-slate-500 capitalize leading-tight">{role.replace('_', ' ')}</span>
           </div>
           <div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-semibold">
             {initials}
