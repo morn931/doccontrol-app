@@ -18,9 +18,14 @@ correct assets).
 | File | Screen / element | Original | Replacement | Why |
 |---|---|---|---|---|
 | `components/layout/sidebar.tsx` | Incoming Batches, Document Requests, Doc Request Email, User Guide | emoji 📥 / 🔢 / 📧 / 📖 | `icons/documents` | No manifest "batch"/"request"/"email"/"guide" concept; `documents` is the closest generic-document concept for all four. |
-| `components/layout/sidebar.tsx` | My Reviews | emoji ✅ | `icons/actions` | No manifest "review/approve" concept; matches the same substitution used elsewhere in the platform for review/approval-adjacent nav items. |
 | `components/layout/sidebar.tsx` | Transmittals | emoji 📤 | `icons/reports` | No manifest "transmittal" concept; a transmittal is a formally issued document, closest to `reports`. |
 | `components/layout/sidebar.tsx` | Import & Sync | emoji 🔄 | `icons/administration` | No manifest "sync" concept; import/sync is a governance/process task, closest to `administration`. |
+
+## Dedicated icon (2026-07-12, superseding an earlier substitution)
+
+| File | Screen / element | Was | Now | Source |
+|---|---|---|---|---|
+| `components/layout/sidebar.tsx` | My Reviews | `icons/actions` (closest-concept) | `icons/review-approvals` (dedicated) | Found in `additional icons.zip` — `Review approvals.png`, purpose-built artwork Liezl had commissioned that was never wired in during the original rollout. |
 
 ## Also fixed (not an icon substitution — a rollout/correctness fix)
 

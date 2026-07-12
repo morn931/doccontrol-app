@@ -16,6 +16,10 @@ export interface NavPerms {
 interface SidebarProps { role: UserRole; navPerms: NavPerms }
 
 const ICON = (name: string) => `/coreflow/icons/${name}/transparent/${name}-48.png`
+// Dedicated icon found in the "additional icons" batch (surface-style master,
+// no size variants generated yet) — used in place of the earlier closest-
+// concept substitution once Liezl approved the swap.
+const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-1254.png`
 
 export function Sidebar({ role, navPerms }: SidebarProps) {
   const pathname = usePathname()
@@ -43,7 +47,7 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
 
         {/* Permission-gated nav */}
         {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}
-        {(dev || navPerms.reviews)      && <NavLink href="/reviews"      label="My Reviews"       icon={ICON('actions')} />}
+        {(dev || navPerms.reviews)      && <NavLink href="/reviews"      label="My Reviews"       icon={ICON_SURFACE('review-approvals')} />}
         {(dev || navPerms.transmittals) && <NavLink href="/transmittals" label="Transmittals"     icon={ICON('reports')} />}
 
         {/* Document Search — universal */}
