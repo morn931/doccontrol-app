@@ -16,7 +16,8 @@
 //
 // Every subject is auto-prefixed with the sending module, e.g. "CoreDocs — …".
 
-import { LOGO_MARK_B64 } from './coreflow-mail-logo'
+import { COREFLOW_LOGO_B64, PPE_LOGO_B64, HERO_SLATE_B64 } from './coreflow-mail-logo'
+import { renderCoreDocsEmail } from './services/coredocs-email-layout'
 
 const TENANT_ID     = process.env.COREFLOW_MAIL_TENANT_ID!
 const CLIENT_ID     = process.env.COREFLOW_MAIL_CLIENT_ID!
@@ -63,48 +64,18 @@ export function withModulePrefix(subject: string): string {
 }
 
 /**
- * Wrap content in the standard Coreflow email chrome: navy header with the inline
- * logo + module chip, teal accent, white card, muted footer — the Coreflow palette.
- * Reference the logo via cid:coreflowmark; sendMail() auto-attaches it inline.
+ * Wrap content in the standard CoreDocs email chrome — delegates to the one shared,
+ * Outlook-safe wrapper (lib/services/coredocs-email-layout.ts): table-based, inline
+ * styles, Calibri, navy header with the real Coreflow/PPE logos, uncropped slate
+ * hero, teal rule, muted footer. Logos/hero are referenced via cid: and sendMail()
+ * auto-attaches them inline.
  */
 export function brandedEmail(opts: {
   heading: string
   bodyHtml: string
   cta?: { href: string; label: string }
 }): string {
-  const btn = opts.cta
-    ? `<tr><td style="padding-top:10px"><a href="${opts.cta.href}" style="display:inline-block;background:#00B8C4;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 22px;border-radius:8px">${opts.cta.label}</a></td></tr>`
-    : ''
-  return `
-  <div style="background:#eef1f5;padding:28px 12px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.08)">
-      <tr><td style="background:#1B3464;padding:18px 26px">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-          <td style="vertical-align:middle">
-            <img src="cid:coreflowmark" width="26" height="26" alt="" style="vertical-align:middle;display:inline-block;border:0"/>
-            <span style="vertical-align:middle;color:#ffffff;font-size:17px;font-weight:700;letter-spacing:.4px;padding-left:9px">Coreflow</span>
-          </td>
-          <td style="vertical-align:middle;text-align:right">
-            <span style="display:inline-block;background:rgba(0,184,196,.18);color:#7fe3ec;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:5px 11px;border-radius:999px">${MODULE}</span>
-          </td>
-        </tr></table>
-      </td></tr>
-      <tr><td style="height:3px;background:linear-gradient(90deg,#00B8C4,#0097A3)"></td></tr>
-      <tr><td style="padding:30px 30px 26px">
-        <h1 style="margin:0 0 14px;color:#1B3464;font-size:19px;font-weight:700">${opts.heading}</h1>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="color:#374151;font-size:14px;line-height:1.6">
-          <tr><td>${opts.bodyHtml}</td></tr>
-          ${btn}
-        </table>
-      </td></tr>
-      <tr><td style="padding:16px 30px;background:#f7f9fb;border-top:1px solid #edf0f3">
-        <p style="margin:0;color:#9aa4b2;font-size:11px;line-height:1.5">
-          Automated message from <span style="color:#1B3464;font-weight:600">Coreflow</span> — ${MODULE}. Please don't reply to this address.<br/>
-          Coreflow · project delivery platform · <a href="https://coreflow.build" style="color:#0097A3;text-decoration:none">coreflow.build</a>
-        </p>
-      </td></tr>
-    </table>
-  </div>`
+  return renderCoreDocsEmail({ title: opts.heading, heading: opts.heading, bodyHtml: opts.bodyHtml, cta: opts.cta })
 }
 
 export async function sendMail(p: {
@@ -131,15 +102,36 @@ export async function sendMail(p: {
     contentType: a.contentType,
     contentBytes: a.contentBytes,
   }))
-  // Auto-attach the Coreflow logo inline when the body references it (branded emails).
-  if (p.htmlBody.includes('cid:coreflowmark')) {
+  // Auto-attach the Coreflow/PPE logos + hero inline whenever the body references them
+  // (every branded CoreDocs email, via the shared wrapper).
+  if (p.htmlBody.includes('cid:coreflowlogo')) {
     graphAttachments.push({
       '@odata.type': '#microsoft.graph.fileAttachment',
-      name: 'coreflow-mark.png',
+      name: 'coreflow-logo.png',
       contentType: 'image/png',
-      contentId: 'coreflowmark',
+      contentId: 'coreflowlogo',
       isInline: true,
-      contentBytes: LOGO_MARK_B64,
+      contentBytes: COREFLOW_LOGO_B64,
+    })
+  }
+  if (p.htmlBody.includes('cid:ppelogo')) {
+    graphAttachments.push({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: 'ppe-logo.png',
+      contentType: 'image/png',
+      contentId: 'ppelogo',
+      isInline: true,
+      contentBytes: PPE_LOGO_B64,
+    })
+  }
+  if (p.htmlBody.includes('cid:coreflowhero')) {
+    graphAttachments.push({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: 'coreflow-hero.png',
+      contentType: 'image/png',
+      contentId: 'coreflowhero',
+      isInline: true,
+      contentBytes: HERO_SLATE_B64,
     })
   }
   if (graphAttachments.length) message.attachments = graphAttachments

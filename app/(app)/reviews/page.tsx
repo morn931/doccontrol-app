@@ -4,6 +4,7 @@ import { ClipboardCheck, Clock, CheckCircle, AlertTriangle, FileText } from 'luc
 import Link from 'next/link'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
+import { ACTIONABLE_REVIEW_STATUSES } from '@/lib/utils/review-status'
 import type { ReviewOutcomeCode } from '@/lib/types/database'
 
 export default async function ReviewsPage() {
@@ -40,7 +41,7 @@ export default async function ReviewsPage() {
   // nullsFirst:false is essential — imported/legacy tasks can have a NULL date, and
   // Postgres sorts NULLs FIRST on DESC, which would fill the capped window with old
   // undated rows and push a heavy reviewer's freshly-activated/completed items out.
-  const ACTIONABLE = ['sent', 'opened', 'in_progress', 'overdue']
+  const ACTIONABLE = ACTIONABLE_REVIEW_STATUSES
   const [{ data: activeTasks }, { data: completedTasks }, { count: queuedCount }] = await Promise.all([
     db.from('review_tasks').select(TASK_SELECT)
       .eq('reviewer_email', email)

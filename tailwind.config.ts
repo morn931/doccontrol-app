@@ -13,7 +13,7 @@ const config: Config = {
         // this scale was aliased to teal values (a past shortcut, not real navy) —
         // corrected so `navy-*` classes actually render navy. Teal accent stays on
         // Tailwind's built-in `teal-*` scale (already used ~60x across the app, close
-        // enough to Coreflow teal #00B8C4 that remapping it is a separate decision).
+        // enough to Coreflow teal that remapping it is a separate decision).
         // Neutrals use Tailwind's built-in `slate` (matching CoreTime).
         navy: {
           50:  '#eef2f7',
@@ -27,10 +27,12 @@ const config: Config = {
           800: '#071f3b',
           900: '#051627',
         },
+        // 2026-07 — updated to the bluer teal (#008CA8) already used as `--cf-accent`
+        // in CoreClient/CoreCost, replacing the more cyan-leaning #00B8C4.
         brand: {
-          DEFAULT: '#00B8C4', // Coreflow teal
-          light:   '#33c7d1',
-          dark:    '#0097A3',
+          DEFAULT: '#008CA8', // Coreflow teal (bluer)
+          light:   '#3aa8c2',
+          dark:    '#00697d',
         },
       },
       fontFamily: {

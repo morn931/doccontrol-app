@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import type { UserRole } from '@/lib/types/database'
 import { getPermissions, can, FK } from '@/lib/permissions'
+import { ACTIONABLE_REVIEW_STATUSES } from '@/lib/utils/review-status'
 import { RecentBatches } from './recent-batches'
 
 async function getNavPerms() {
@@ -15,7 +16,7 @@ async function getNavPerms() {
 
   const { data: profile } = await supabase
     .from('users')
-    .select('role, full_name')
+    .select('role, full_name, email')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -28,7 +29,23 @@ async function getNavPerms() {
     reporting:    can(perms, FK.NAV_REPORTING,    role),
     admin:        can(perms, FK.NAV_ADMIN,        role),
     firstName:    ((profile?.full_name as string | null) ?? '').split(' ')[0] || 'there',
+    email:        (profile?.email as string | null) ?? '',
   }
+}
+
+/** Exact count of the signed-in reviewer's actionable (not-yet-actioned) review
+ *  tasks — same definition as /reviews (ACTIONABLE_REVIEW_STATUSES): sent, opened,
+ *  in_progress, overdue. Excludes 'pending' (not yet this reviewer's turn) and
+ *  'completed'. Counts individual document review tasks, not batches. */
+async function getMyReviewsCount(email: string): Promise<number> {
+  if (!email) return 0
+  const db = createServiceClient()
+  const { count } = await db
+    .from('review_tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('reviewer_email', email)
+    .in('status', ACTIONABLE_REVIEW_STATUSES)
+  return count ?? 0
 }
 
 async function getDashboardStats() {
@@ -98,16 +115,38 @@ function StatCard({ label, value, icon: Icon, tone = 'teal', href }: StatCardPro
   return href ? <Link href={href}>{content}</Link> : content
 }
 
-const cardCls = 'group flex w-56 shrink-0 flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
+const cardCls = 'group relative flex w-56 shrink-0 flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-500'
+const cardClsActive = 'group relative flex w-56 shrink-0 flex-col items-center gap-3 rounded-xl bg-brand border border-brand p-3 shadow-sm hover:border-brand-dark hover:shadow-md transition-all text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-dark'
 const iconCls = 'h-32 w-32 rounded-2xl object-cover transition-transform duration-200 group-hover:scale-105'
+const iconInsetCls = 'flex h-32 w-32 items-center justify-center rounded-2xl bg-white p-3 transition-transform duration-200 group-hover:scale-105'
 
-function QuickAccessCard({ href, icon, label, blurb }: { href: string; icon: string; label: string; blurb: string }) {
+function QuickAccessCard({ href, icon, label, blurb, count }: { href: string; icon: string; label: string; blurb: string; count?: number }) {
+  const active = (count ?? 0) > 0
+
+  if (!active) {
+    return (
+      <Link href={href} className={cardCls}>
+        <Image src={icon} alt="" width={128} height={128} className={iconCls} />
+        <div>
+          <span className="text-sm font-semibold text-[#0B3563] group-hover:text-teal-700 block">{label}</span>
+          <span className="text-xs text-slate-500 mt-0.5 block">{blurb}</span>
+        </div>
+      </Link>
+    )
+  }
+
+  const documentsLabel = count === 1 ? '1 document needs review' : `${count} documents need review`
   return (
-    <Link href={href} className={cardCls}>
-      <Image src={icon} alt="" width={128} height={128} className={iconCls} />
+    <Link href={href} className={cardClsActive}>
+      <span className="absolute -top-2 -right-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-[#1B3464] px-1.5 text-xs font-bold text-white shadow">
+        {count}
+      </span>
+      <div className={iconInsetCls}>
+        <Image src={icon} alt="" width={128} height={128} className="h-full w-full rounded-xl object-cover" />
+      </div>
       <div>
-        <span className="text-sm font-semibold text-[#0B3563] group-hover:text-teal-700 block">{label}</span>
-        <span className="text-xs text-slate-500 mt-0.5 block">{blurb}</span>
+        <span className="text-sm font-semibold text-white block">{label}</span>
+        <span className="text-xs text-teal-50 mt-0.5 block">{documentsLabel}</span>
       </div>
     </Link>
   )
@@ -117,6 +156,7 @@ export default async function DashboardPage() {
   const { awaitingAction, inReview, reviewComplete, returned, rejected, recentBatches, overdueReviews } =
     await getDashboardStats()
   const navPerms = await getNavPerms()
+  const myReviewsCount = navPerms.reviews ? await getMyReviewsCount(navPerms.email) : 0
 
   return (
     <div className="space-y-6">
@@ -143,7 +183,7 @@ export default async function DashboardPage() {
           <QuickAccessCard href="/transmittals" icon="/dashboard-card-icons/512/CD-02_Transmittals.png" label="Transmittals" blurb="Vendor transmittal register" />
         )}
         {navPerms.reviews && (
-          <QuickAccessCard href="/reviews" icon="/dashboard-card-icons/512/CD-03_Review-Queue.png" label="My Reviews" blurb="Review queue" />
+          <QuickAccessCard href="/reviews" icon="/dashboard-card-icons/512/CD-03_Review-Queue.png" label="My Reviews" blurb="Review queue" count={myReviewsCount} />
         )}
         {navPerms.mddr && (
           <QuickAccessCard href="/mddr" icon="/dashboard-card-icons/512/CD-04_MDDR.png" label="MDDR" blurb="Master deliverable register" />
