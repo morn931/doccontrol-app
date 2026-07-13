@@ -1,5 +1,10 @@
 # DocControl App — Project Context for Claude
 
+> Part of the Coreflow platform. Read
+> `../costflow-app/memory/platform-handover-2026-07-12.md` for the cross-repo
+> session handover covering the platform-wide table/design-system rollout
+> (CoreClient + CoreCost + CoreDocs).
+
 ## ⚠️ Supabase row limit rule (applies to every query)
 
 PostgREST's default `max_rows = 1000` silently truncates any `.select()` that returns
