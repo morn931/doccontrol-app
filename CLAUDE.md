@@ -335,6 +335,19 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-07-12 — Dashboard layout rework + PPE logo in header.** Sidebar + content now span full
+  browser width (removed the shared `max-w-400` cap and its `mx-auto` centering on the `(app)`
+  layout) so the sidebar sits flush left instead of floating centered on wide screens. Dashboard
+  page reordered: heading → stat cards (now one compact 6-across row, was two rows of large tiles)
+  → quick-access tiles (restored to original larger size, `w-56`/128px icons, capped to a
+  944px-wide flex row so 7 tiles wrap 4-then-3 centered instead of spreading across the full-width
+  page). **Recent Batches** extracted to a small client component (`recent-batches.tsx`) and made
+  collapsible, collapsed by default. Document Search / Transmittals / My Reviews dashboard tiles
+  swapped to Liezl-approved icons matching MDDR's white-rounded-square treatment (were mismatched
+  transparent-circle originals). Added the **PPE Technologies roundel** to the header before the
+  Guide pill — sized `h-full w-auto object-contain` to match the shell's own PPE badge exactly
+  (not CoreCost's `h-10` company-logo convention, which renders smaller); the source PNG needed
+  cropping first (~240px of transparent padding baked in on every side).
 - **2026-07-03 — In-app PDF markup (now default) + review-workflow fixes.** Reviewers mark up PDFs
   inside CoreDocs (PDF.js + fabric + pdf-lib); **Save to SharePoint** accumulates mark-ups on the
   authoritative file; text comments captured (migration 011) feed the transmittal (Azure decipher
