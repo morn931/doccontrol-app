@@ -85,7 +85,16 @@ export function AconexSearch() {
             <tbody>
               {rows.map((r, i) => (
                 <tr key={r.docId + i} className="border-b border-slate-100 hover:bg-slate-50 align-top">
-                  <td className="px-3 py-2 font-mono text-xs text-slate-700 whitespace-nowrap">{r.docno}</td>
+                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">
+                    <a
+                      href={`/aconex-review/view?doc=${encodeURIComponent(r.docId)}&name=${encodeURIComponent(r.docno)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-navy-600 hover:underline"
+                    >
+                      {r.docno}
+                    </a>
+                  </td>
                   <td className="px-3 py-2 text-slate-700 max-w-xs">{r.title}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap text-xs">{r.package?.split(' ')[0]}</td>
                   <td className="px-3 py-2 text-slate-500">{r.revision}</td>
