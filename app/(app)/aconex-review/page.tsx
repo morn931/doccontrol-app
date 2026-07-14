@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { Link2, AlertTriangle } from 'lucide-react'
 import { ReviewBoard, type ReviewRow } from './review-board'
+import { AconexSearch } from './aconex-search'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,6 +60,14 @@ export default async function AconexReviewPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Live search across the WHOLE Aconex register (not limited to the tracked pilot) */}
+      <AconexSearch />
+
+      <div className="flex items-center gap-2 pt-2">
+        <h2 className="text-sm font-semibold text-slate-700">Tracked board — K124 (pilot)</h2>
+        <span className="text-xs text-slate-400">whose-court + overdue, synced</span>
       </div>
 
       {tableMissing ? (
