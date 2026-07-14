@@ -64,10 +64,20 @@ export default async function AconexViewPage({
       </div>
 
       <div className="card overflow-hidden" style={{ height: 'calc(100vh - 190px)' }}>
-        <iframe src={src} title={name} className="w-full h-full" />
+        <object data={src} type="application/pdf" className="w-full h-full">
+          <div className="h-full flex flex-col items-center justify-center gap-2 text-center p-8">
+            <FileText className="h-8 w-8 text-slate-300" />
+            <p className="text-sm font-medium text-slate-600">No preview available</p>
+            <p className="text-xs text-slate-400 max-w-sm">
+              This may be a <strong>reserved placeholder</strong> (no file uploaded in Aconex yet), or a
+              non-PDF file type. Use <strong>Download</strong> above to open it if a file exists.
+            </p>
+          </div>
+        </object>
       </div>
       <p className="text-xs text-slate-400">
-        If the document doesn’t display (non-PDF file type), use <strong>Download</strong> to open it.
+        Showing the current revision streamed live from Aconex. Older/superseded revisions aren’t
+        available through the Aconex API.
       </p>
     </div>
   )

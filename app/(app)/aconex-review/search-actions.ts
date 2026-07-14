@@ -17,6 +17,8 @@ export type AconexSearchRow = {
   dateModified: string
   court: string
   courtLabel: string
+  filename: string
+  hasFile: boolean
   webUrl: string
 }
 
