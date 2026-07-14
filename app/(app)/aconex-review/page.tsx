@@ -16,7 +16,7 @@ export default async function AconexReviewPage() {
 
   const { data, error } = await supabase
     .from('aconex_review_doc')
-    .select('docno,title,discipline,revision,doc_status,review_status,court,court_label,court_basis,overdue,days_in_court,date_modified,package_code')
+    .select('doc_id,docno,title,discipline,revision,doc_status,review_status,court,court_label,court_basis,overdue,days_in_court,date_modified,package_code')
     .order('court', { ascending: true })
     .order('days_in_court', { ascending: false })
     .limit(5000)

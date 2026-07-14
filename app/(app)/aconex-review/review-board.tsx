@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react'
 
 export type ReviewRow = {
+  doc_id: string
   docno: string
   title: string | null
   discipline: string | null
@@ -111,7 +112,16 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
               const c = COURT[(r.court as CourtKey)] ?? COURT.UNKNOWN
               return (
                 <tr key={r.docno + i} className="border-b border-slate-100 hover:bg-slate-50 align-top">
-                  <td className="px-3 py-2 font-mono text-xs text-slate-700 whitespace-nowrap">{r.docno}</td>
+                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">
+                    <a
+                      href={`/aconex-review/view?doc=${encodeURIComponent(r.doc_id)}&name=${encodeURIComponent(r.docno)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-navy-600 hover:underline"
+                    >
+                      {r.docno}
+                    </a>
+                  </td>
                   <td className="px-3 py-2 text-slate-700 max-w-xs">{r.title}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{(r.discipline ?? '').split(' ')[0]}</td>
                   <td className="px-3 py-2 text-slate-500">{r.revision}</td>
