@@ -64,8 +64,8 @@ export default function UsersPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Users</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage who can access the Document Control platform</p>
+          <h1 className="text-2xl font-bold text-slate-900">Users &amp; Role Assignment</h1>
+          <p className="text-slate-500 text-sm mt-1">Manage CoreDocs users and assign their access role</p>
         </div>
         <button onClick={() => setShowAdd(!showAdd)} className="btn-primary">
           <Plus className="h-4 w-4" /> Add User

@@ -65,7 +65,6 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Admin</p>
             </div>
             <NavLink href="/admin/import"  label="Import & Sync"      icon={ICON('administration')} />
-            <NavLink href="/admin/users"   label="Users"              icon={ICON('team')} />
             <NavLink href="/admin/vendors" label="Vendors & Packages" icon={ICON('vendors')} />
           </>
         )}
@@ -78,6 +77,7 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
             </div>
             <NavLink href="/developer" label="Developer Tools" icon={ICON('developer-tools')} />
             <NavLink href="/developer/doc-requests" label="Doc Request Email" icon={ICON('documents')} />
+            <NavLink href="/admin/users" label="Users & Role Assignment" icon={ICON('team')} />
           </>
         )}
 
