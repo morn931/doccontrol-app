@@ -58,6 +58,16 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
         {(dev || navPerms.mddr)      && <NavLink href="/mddr"      label="MDDR"      icon={ICON('mddr')} />}
         {(dev || navPerms.reporting) && <NavLink href="/reporting" label="Reporting" icon={ICON('reports')} />}
 
+        {/* Aconex — live reports read from Oracle Aconex (read-only) */}
+        {(dev || navPerms.reporting) && (
+          <>
+            <div className="px-3 pt-4 pb-1">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Aconex</p>
+            </div>
+            <NavLink href="/aconex-review" label="Aconex Review Tracker" icon="🔗" />
+          </>
+        )}
+
         {/* Admin section */}
         {(dev || navPerms.admin) && (
           <>
