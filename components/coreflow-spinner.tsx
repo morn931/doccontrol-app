@@ -1,13 +1,18 @@
 // Coreflow gear spinner — pure-SVG rebuild of the old spinner.mp4 video.
-// The gear and inner arc rotate as one rigid body (SMIL animateTransform:
-// perfectly smooth, no loop seam, runs until unmounted); the swoosh arrow
-// stays static, matching the original animation. Transparent background,
-// scales to any size. Geometry traced from the video frames.
+// The gear + inner arc rotate as one rigid body; the swoosh arrow stays static.
+// Rotation is driven by a CSS animation (compositor thread) rather than SMIL, so
+// it keeps spinning even while the browser is tearing down the current page for
+// a cross-module navigation (SMIL freezes the moment the main thread is busy).
+// Transparent, seamless loop, scales to any size. Geometry traced from the video.
 export default function CoreflowSpinner({ size = 192 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="72 67 384 384" xmlns="http://www.w3.org/2000/svg" aria-label="Loading">
-      <g>
-        <animateTransform attributeName="transform" type="rotate" from="0 264.0 259.0" to="360 264.0 259.0" dur="2.8s" repeatCount="indefinite" />
+      <style>{`
+        @keyframes cf-gear-spin { to { transform: rotate(360deg); } }
+        .cf-gear { transform-box: view-box; transform-origin: 264.0px 259.0px; animation: cf-gear-spin 2.8s linear infinite; will-change: transform; }
+        @media (prefers-reduced-motion: reduce) { .cf-gear { animation-duration: 6s; } }
+      `}</style>
+      <g className="cf-gear">
         <g fill="#17416F">
           <circle cx="264.0" cy="259.0" r="118" />
           <path d="M 237.0 147.0 L 240.0 119.0 Q 240.0 109.0 250.0 109.0 L 278.0 109.0 Q 288.0 109.0 288.0 119.0 L 291.0 147.0 Z" transform="rotate(0 264.0 259.0)" />
