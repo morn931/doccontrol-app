@@ -22,7 +22,7 @@ const COURT = {
   RDMC:            { label: 'RDMC — awaiting review', chip: 'bg-amber-100 text-amber-800 border-amber-200' },
   PPE:             { label: 'PPE — our action',       chip: 'bg-rose-100 text-rose-800 border-rose-200' },
   CLOSED:          { label: 'Closed',                 chip: 'bg-slate-100 text-slate-600 border-slate-200' },
-  NOT_TRANSMITTED: { label: 'Not transmitted',        chip: 'bg-purple-100 text-purple-800 border-purple-200' },
+  NOT_TRANSMITTED: { label: 'Not yet submitted — PPE', chip: 'bg-purple-100 text-purple-800 border-purple-200' },
   UNKNOWN:         { label: 'Unknown',                chip: 'bg-slate-100 text-slate-500 border-slate-200' },
 } as const
 
@@ -51,16 +51,17 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
   }, [rows, filter, q])
 
   const cards: Array<{ key: 'ALL' | CourtKey; label: string; n: number; accent: string }> = [
-    { key: 'ALL',    label: 'All documents',       n: counts.ALL ?? 0,       accent: 'text-navy-700' },
-    { key: 'RDMC',   label: 'Awaiting RDMC review', n: counts.RDMC ?? 0,     accent: 'text-amber-700' },
-    { key: 'PPE',    label: 'PPE action needed',    n: counts.PPE ?? 0,      accent: 'text-rose-700' },
-    { key: 'CLOSED', label: 'Closed',               n: counts.CLOSED ?? 0,   accent: 'text-slate-600' },
+    { key: 'ALL',             label: 'All documents',            n: counts.ALL ?? 0,             accent: 'text-navy-700' },
+    { key: 'RDMC',            label: 'Awaiting RDMC review',     n: counts.RDMC ?? 0,            accent: 'text-amber-700' },
+    { key: 'PPE',             label: 'PPE action needed',        n: counts.PPE ?? 0,             accent: 'text-rose-700' },
+    { key: 'NOT_TRANSMITTED', label: 'Not yet submitted (PPE)',  n: counts.NOT_TRANSMITTED ?? 0, accent: 'text-purple-700' },
+    { key: 'CLOSED',          label: 'Closed',                   n: counts.CLOSED ?? 0,          accent: 'text-slate-600' },
   ]
 
   return (
     <div className="space-y-4">
       {/* Summary cards double as court filters */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {cards.map(c => (
           <button
             key={c.key}
