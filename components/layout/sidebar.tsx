@@ -68,6 +68,16 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
           </>
         )}
 
+        {/* CDDL section — the Phase-1 CDDL register, moved from Excel */}
+        {(dev || navPerms.reporting) && (
+          <>
+            <div className="px-3 pt-4 pb-1">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">CDDL</p>
+            </div>
+            <NavLink href="/cddl" label="CDDL Register (Phase 1)" icon="📚" />
+          </>
+        )}
+
         {/* Admin section */}
         {(dev || navPerms.admin) && (
           <>
