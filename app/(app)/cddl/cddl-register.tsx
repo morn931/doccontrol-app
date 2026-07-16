@@ -186,6 +186,10 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
             + Add document
           </button>
         )}
+        <a href="/api/cddl/export"
+          className="rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50">
+          ⬇ Export to Excel (CDDL format)
+        </a>
         <span className="text-xs text-slate-400 ml-auto">{shown.length} shown</span>
       </div>
 
