@@ -15,20 +15,27 @@ export default async function AconexReviewPage() {
   let tableMissing = false
 
   const BASE_COLS = 'doc_id,docno,title,discipline,revision,doc_status,review_status,court,court_label,court_basis,overdue,days_in_court,date_modified,package_code'
+  // PostgREST caps responses at max_rows (1000) regardless of .limit — page
+  // through in 1000-row chunks so the full register (4,984 K124 docs) loads.
   // CDDL columns arrive with migration 015 — fall back to the base set until applied.
-  let { data, error } = await supabase
-    .from('aconex_review_doc')
-    .select(`${BASE_COLS},doc_owner,cddl_due`)
-    .order('court', { ascending: true })
-    .order('days_in_court', { ascending: false })
-    .limit(5000)
+  const fetchAll = async (cols: string) => {
+    const all: unknown[] = []
+    for (let from = 0; from < 20000; from += 1000) {
+      const { data, error } = await supabase
+        .from('aconex_review_doc')
+        .select(cols)
+        .order('court', { ascending: true })
+        .order('days_in_court', { ascending: false })
+        .range(from, from + 999)
+      if (error) return { data: null, error }
+      all.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    return { data: all, error: null }
+  }
+  let { data, error } = await fetchAll(`${BASE_COLS},doc_owner,cddl_due`)
   if (error) {
-    ;({ data, error } = await supabase
-      .from('aconex_review_doc')
-      .select(BASE_COLS)
-      .order('court', { ascending: true })
-      .order('days_in_court', { ascending: false })
-      .limit(5000))
+    ;({ data, error } = await fetchAll(BASE_COLS))
   }
 
   if (error) {
