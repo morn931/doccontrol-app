@@ -30,40 +30,56 @@ const COURT = {
 
 type CourtKey = keyof typeof COURT
 
+const isCancelled = (r: ReviewRow) => (r.title ?? '').trim().toUpperCase().startsWith('CANCELLED')
+// "Rev 0 & higher" = a numeric revision (0, 1, 2, ...) — issued revisions, vs A/B/... preliminaries.
+const isRev0Plus = (r: ReviewRow) => /^\d+$/.test((r.revision ?? '').trim())
+
 export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
-  const [filter, setFilter] = useState<'ALL' | CourtKey>('ALL')
+  const [filter, setFilter] = useState<'ALL' | CourtKey | 'REV0PLUS'>('ALL')
   const [q, setQ] = useState('')
+  const [excludeCancelled, setExcludeCancelled] = useState(true)
+
+  const cancelledCount = useMemo(() => rows.filter(isCancelled).length, [rows])
+  const base = useMemo(
+    () => (excludeCancelled ? rows.filter(r => !isCancelled(r)) : rows),
+    [rows, excludeCancelled],
+  )
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { ALL: rows.length }
-    for (const r of rows) c[r.court] = (c[r.court] ?? 0) + 1
+    const c: Record<string, number> = { ALL: base.length, REV0PLUS: 0 }
+    for (const r of base) {
+      c[r.court] = (c[r.court] ?? 0) + 1
+      if (isRev0Plus(r)) c.REV0PLUS += 1
+    }
     return c
-  }, [rows])
+  }, [base])
 
-  const overdue = useMemo(() => rows.filter(r => r.overdue).length, [rows])
+  const overdue = useMemo(() => base.filter(r => r.overdue).length, [base])
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    return rows.filter(r => {
-      if (filter !== 'ALL' && r.court !== filter) return false
+    return base.filter(r => {
+      if (filter === 'REV0PLUS' && !isRev0Plus(r)) return false
+      if (filter !== 'ALL' && filter !== 'REV0PLUS' && r.court !== filter) return false
       if (needle && !(`${r.docno} ${r.title ?? ''} ${r.discipline ?? ''} ${r.doc_owner ?? ''}`.toLowerCase().includes(needle)))
         return false
       return true
     })
-  }, [rows, filter, q])
+  }, [base, filter, q])
 
-  const cards: Array<{ key: 'ALL' | CourtKey; label: string; n: number; accent: string }> = [
+  const cards: Array<{ key: 'ALL' | CourtKey | 'REV0PLUS'; label: string; n: number; accent: string }> = [
     { key: 'ALL',             label: 'All documents',            n: counts.ALL ?? 0,             accent: 'text-navy-700' },
     { key: 'RDMC',            label: 'Awaiting RDMC review',     n: counts.RDMC ?? 0,            accent: 'text-amber-700' },
     { key: 'PPE',             label: 'PPE action needed',        n: counts.PPE ?? 0,             accent: 'text-rose-700' },
     { key: 'NOT_TRANSMITTED', label: 'Not yet submitted (PPE)',  n: counts.NOT_TRANSMITTED ?? 0, accent: 'text-purple-700' },
+    { key: 'REV0PLUS',        label: 'Rev 0 & higher (issued)',  n: counts.REV0PLUS ?? 0,        accent: 'text-emerald-700' },
     { key: 'CLOSED',          label: 'Closed',                   n: counts.CLOSED ?? 0,          accent: 'text-slate-600' },
   ]
 
   return (
     <div className="space-y-4">
       {/* Summary cards double as court filters */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {cards.map(c => (
           <button
             key={c.key}
@@ -91,9 +107,18 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
         />
         {filter !== 'ALL' && (
           <button onClick={() => setFilter('ALL')} className="text-xs text-navy-600 hover:underline">
-            Clear filter ({COURT[filter].label})
+            Clear filter ({filter === 'REV0PLUS' ? 'Rev 0 & higher' : COURT[filter as CourtKey]?.label ?? filter})
           </button>
         )}
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={excludeCancelled}
+            onChange={e => setExcludeCancelled(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Exclude cancelled documents ({cancelledCount})
+        </label>
         <span className="text-xs text-slate-400 ml-auto">{shown.length} shown</span>
       </div>
 
