@@ -14,12 +14,22 @@ export default async function AconexReviewPage() {
   let sync: SyncMeta = null
   let tableMissing = false
 
-  const { data, error } = await supabase
+  const BASE_COLS = 'doc_id,docno,title,discipline,revision,doc_status,review_status,court,court_label,court_basis,overdue,days_in_court,date_modified,package_code'
+  // CDDL columns arrive with migration 015 — fall back to the base set until applied.
+  let { data, error } = await supabase
     .from('aconex_review_doc')
-    .select('doc_id,docno,title,discipline,revision,doc_status,review_status,court,court_label,court_basis,overdue,days_in_court,date_modified,package_code')
+    .select(`${BASE_COLS},doc_owner,cddl_due`)
     .order('court', { ascending: true })
     .order('days_in_court', { ascending: false })
     .limit(5000)
+  if (error) {
+    ;({ data, error } = await supabase
+      .from('aconex_review_doc')
+      .select(BASE_COLS)
+      .order('court', { ascending: true })
+      .order('days_in_court', { ascending: false })
+      .limit(5000))
+  }
 
   if (error) {
     // Table not created yet (migration 014 not applied) — show a friendly setup state.

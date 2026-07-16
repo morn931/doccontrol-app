@@ -16,6 +16,8 @@ export type ReviewRow = {
   days_in_court: number | null
   date_modified: string | null
   package_code: string
+  doc_owner?: string | null
+  cddl_due?: string | null
 }
 
 const COURT = {
@@ -44,7 +46,7 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
     const needle = q.trim().toLowerCase()
     return rows.filter(r => {
       if (filter !== 'ALL' && r.court !== filter) return false
-      if (needle && !(`${r.docno} ${r.title ?? ''} ${r.discipline ?? ''}`.toLowerCase().includes(needle)))
+      if (needle && !(`${r.docno} ${r.title ?? ''} ${r.discipline ?? ''} ${r.doc_owner ?? ''}`.toLowerCase().includes(needle)))
         return false
       return true
     })
@@ -105,6 +107,7 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Rev</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Review status</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Whose court</th>
+              <th className="px-3 py-2 font-semibold border-r border-navy-600">Owner</th>
               <th className="px-3 py-2 font-semibold text-right">Days</th>
             </tr>
           </thead>
@@ -134,6 +137,9 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
                     >
                       {r.court_label ?? c.label}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap" title={r.cddl_due ? `CDDL due: ${r.cddl_due}` : ''}>
+                    {r.doc_owner ?? '—'}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-slate-500">{r.days_in_court ?? '—'}</td>
                 </tr>
