@@ -65,8 +65,9 @@ export default async function AconexReviewPage() {
             </span>
           </div>
           <p className="text-slate-500 text-sm mt-1">
-            Document-review status read live from Oracle Aconex — <strong>package K124</strong> (pilot).
-            Shows whose court each document is in, so “Pending” is no longer a mystery.
+            Document-review status read live from Oracle Aconex — <strong>Phase 1 (K124)</strong> and{' '}
+            <strong>Early Works (K038)</strong>. Shows whose court each document is in, so “Pending”
+            is no longer a mystery.
           </p>
         </div>
         {sync && (
@@ -83,7 +84,7 @@ export default async function AconexReviewPage() {
       <AconexSearch />
 
       <div className="flex items-center gap-2 pt-2">
-        <h2 className="text-sm font-semibold text-slate-700">Tracked board — K124 (pilot)</h2>
+        <h2 className="text-sm font-semibold text-slate-700">Tracked board</h2>
         <span className="text-xs text-slate-400">whose-court + overdue, synced</span>
       </div>
 
@@ -100,7 +101,7 @@ export default async function AconexReviewPage() {
         </div>
       ) : rows.length === 0 ? (
         <div className="card p-6 text-sm text-slate-500">
-          No documents synced yet. Run the Aconex sync to populate the K124 review board.
+          No documents synced yet. Run the Aconex sync to populate the review board.
         </div>
       ) : (
         <ReviewBoard rows={rows} />

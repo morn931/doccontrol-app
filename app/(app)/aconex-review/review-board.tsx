@@ -34,15 +34,22 @@ const isCancelled = (r: ReviewRow) => (r.title ?? '').trim().toUpperCase().start
 // "Rev 0 & higher" = a numeric revision (0, 1, 2, ...) — issued revisions, vs A/B/... preliminaries.
 const isRev0Plus = (r: ReviewRow) => /^\d+$/.test((r.revision ?? '').trim())
 
+const PKG_LABELS: Record<string, string> = { K124: 'Phase 1 (K124)', K038: 'Early Works (K038)' }
+
 export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
   const [filter, setFilter] = useState<'ALL' | CourtKey | 'REV0PLUS'>('ALL')
   const [q, setQ] = useState('')
   const [excludeCancelled, setExcludeCancelled] = useState(true)
+  const [pkgSel, setPkgSel] = useState('K124')
 
-  const cancelledCount = useMemo(() => rows.filter(isCancelled).length, [rows])
+  const pkgs = useMemo(() => Array.from(new Set(rows.map(r => r.package_code))).sort(), [rows])
+  const pkg = pkgs.includes(pkgSel) ? pkgSel : (pkgs[0] ?? 'K124')
+  const pkgRows = useMemo(() => rows.filter(r => r.package_code === pkg), [rows, pkg])
+
+  const cancelledCount = useMemo(() => pkgRows.filter(isCancelled).length, [pkgRows])
   const base = useMemo(
-    () => (excludeCancelled ? rows.filter(r => !isCancelled(r)) : rows),
-    [rows, excludeCancelled],
+    () => (excludeCancelled ? pkgRows.filter(r => !isCancelled(r)) : pkgRows),
+    [pkgRows, excludeCancelled],
   )
 
   const counts = useMemo(() => {
@@ -78,6 +85,24 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
 
   return (
     <div className="space-y-4">
+      {pkgs.length > 1 && (
+        <div className="flex gap-1 border-b border-slate-200">
+          {pkgs.map(p => (
+            <button
+              key={p}
+              onClick={() => { setPkgSel(p); setFilter('ALL') }}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition ${
+                p === pkg
+                  ? 'bg-white border-slate-200 text-navy-800 -mb-px'
+                  : 'bg-slate-50 border-transparent text-slate-500 hover:text-navy-700'
+              }`}
+            >
+              {PKG_LABELS[p] ?? p}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Summary cards double as court filters */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {cards.map(c => (
