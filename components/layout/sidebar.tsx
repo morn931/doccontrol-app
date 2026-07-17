@@ -78,6 +78,16 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
           </>
         )}
 
+        {/* SDDR section — the vendors' supplier registers, mirrored daily */}
+        {(dev || navPerms.reporting) && (
+          <>
+            <div className="px-3 pt-4 pb-1">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">SDDR</p>
+            </div>
+            <NavLink href="/sddr" label="SDDR Registers" icon="🏭" />
+          </>
+        )}
+
         {/* Admin section */}
         {(dev || navPerms.admin) && (
           <>
