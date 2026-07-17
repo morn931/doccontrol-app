@@ -63,8 +63,11 @@ const EDIT_FIELDS: Array<{ key: keyof CddlRow & string; label: string; wide?: bo
   { key: 'comments', label: 'Comments', wide: true },
 ]
 
+const PKG_LABELS: Record<string, string> = { K124: 'Phase 1 (K124)', K038: 'Early Works (K038)' }
+
 export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit: boolean; mode: string }) {
   const [q, setQ] = useState('')
+  const [pkgSel, setPkgSel] = useState('K124')
   const [bucket, setBucket] = useState<'ALL' | BucketKey>('ALL')
   const [owner, setOwner] = useState('ALL')
   const [disc, setDisc] = useState('ALL')
@@ -77,7 +80,12 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
   const coreflowMaster = mode === 'coreflow_master'
   const editable = canEdit && coreflowMaster
 
-  const active = useMemo(() => rows.filter(r => showRetired || !r.retired), [rows, showRetired])
+  const pkgs = useMemo(() => Array.from(new Set(rows.map(r => r.package_code))).sort(), [rows])
+  const pkg = pkgs.includes(pkgSel) ? pkgSel : (pkgs[0] ?? 'K124')
+  const active = useMemo(
+    () => rows.filter(r => r.package_code === pkg && (showRetired || !r.retired)),
+    [rows, pkg, showRetired],
+  )
   const owners = useMemo(() => Array.from(new Set(active.map(r => r.doc_owner ?? '').filter(Boolean))).sort(), [active])
   const discs = useMemo(() => Array.from(new Set(active.map(r => r.discipline ?? '').filter(Boolean))).sort(), [active])
 
@@ -146,6 +154,24 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
       </div>
       {msg && <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">{msg}</div>}
 
+      {pkgs.length > 1 && (
+        <div className="flex gap-1 border-b border-slate-200">
+          {pkgs.map(p => (
+            <button
+              key={p}
+              onClick={() => setPkgSel(p)}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition ${
+                p === pkg
+                  ? 'bg-white border-slate-200 text-navy-800 -mb-px'
+                  : 'bg-slate-50 border-transparent text-slate-500 hover:text-navy-700'
+              }`}
+            >
+              {PKG_LABELS[p] ?? p}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         {cards.map(c => (
           <button
@@ -186,7 +212,7 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
             + Add document
           </button>
         )}
-        <a href="/api/cddl/export"
+        <a href={`/api/cddl/export?pkg=${pkg}`}
           className="rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50">
           ⬇ Export to Excel (CDDL format)
         </a>
@@ -246,7 +272,7 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
           onCancel={() => { setEditing(null); setAdding(false); setMsg('') }}
           onSave={(values) => {
             if (editing) run(() => updateCddlDoc(editing.docno, values))
-            else run(() => addCddlDoc(values))
+            else run(() => addCddlDoc({ ...values, package_code: pkg }))
           }}
           onRetire={editing ? (retired) => run(() => retireCddlDoc(editing.docno, retired)) : undefined}
         />

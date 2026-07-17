@@ -67,13 +67,13 @@ export default async function CddlPage() {
         <div>
           <h1 className="text-2xl font-bold text-navy-800 flex items-center gap-2">
             <BookOpen className="h-6 w-6 text-navy-500" />
-            CDDL Register — Phase 1
+            CDDL Register
             <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
               synced from the CDDL workbook
             </span>
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            The Contractor Document &amp; Data List, moved from the Excel management sheet onto the platform.
+            The Contractor Document &amp; Data Lists (Phase 1 · Early Works), moved from the Excel management sheets onto the platform.
             Aconex statuses refresh daily at 06:00. Management follows the mode banner below.
           </p>
         </div>
