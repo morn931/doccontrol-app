@@ -19,7 +19,7 @@ function Chip({ active, onClick, children, color = 'navy' }: any) {
     : 'bg-navy-700 border-navy-700'
   return (
     <button onClick={onClick}
-      className={cn('px-3 py-1 rounded-full text-xs font-semibold border transition-colors',
+      className={cn('px-3 py-1 lg:py-1 max-lg:py-1.5 max-lg:px-3.5 rounded-full text-xs font-semibold border transition-colors',
         active ? `${on} text-white` : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
       {children}
     </button>
@@ -174,7 +174,7 @@ export default function DocumentsPage() {
           <input value={smart} onChange={e => setSmart(e.target.value)}
             placeholder="e.g.  earthing layout for the 220kV substation   ·   overhead line tension calculations"
             className="input pl-9 pr-9" />
-          {smart && <button onClick={() => setSmart('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
+          {smart && <button onClick={() => setSmart('')} aria-label="Clear" className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
         </div>
         <p className="text-xs text-slate-400 mt-1">
           Meaning-based — finds documents by what they're about (from the AI summaries), even without exact keywords. Respects the Package / Source / Show filters below.
@@ -223,7 +223,7 @@ export default function DocumentsPage() {
             <option value="">All Revisions</option>
             {revisions.map(r => <option key={r} value={r}>Rev {r}</option>)}
           </select>
-          <button onClick={clearAll} className="text-sm text-slate-400 hover:text-slate-600 ml-auto">Clear all</button>
+          <button onClick={clearAll} className="rounded-lg px-2 py-1.5 text-sm text-slate-400 hover:text-slate-600 ml-auto">Clear all</button>
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
@@ -236,12 +236,12 @@ export default function DocumentsPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input value={docnum} onChange={e => setDocnum(e.target.value)} placeholder="Search Document Number…" className="input pl-9 pr-8" />
-            {docnum && <button onClick={() => setDocnum('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
+            {docnum && <button onClick={() => setDocnum('')} aria-label="Clear" className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Search within Title…" className="input pl-9 pr-8" />
-            {title && <button onClick={() => setTitle('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
+            {title && <button onClick={() => setTitle('')} aria-label="Clear" className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>}
           </div>
         </div>
       </div>
@@ -271,8 +271,8 @@ export default function DocumentsPage() {
           return (
           <div key={r.id} className="hover:bg-slate-50 transition-colors">
             <div className="px-5 py-3 flex items-start gap-3">
-              <button onClick={() => toggleRevs(r)} className="mt-0.5 text-slate-400 hover:text-navy-600 shrink-0" title="Show revisions">
-                {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              <button onClick={() => toggleRevs(r)} aria-label={expanded ? "Hide revisions" : "Show revisions"} className="-m-2 shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-navy-600" title="Show revisions">
+                {expanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
               </button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -311,7 +311,7 @@ export default function DocumentsPage() {
                   ) : revRows.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
                       <span>No prior revisions tracked{r.file_link ? ' — current file:' : ''}</span>
-                      {r.file_link && <a href={`/api/mddr/open?id=${r.id}`} target="_blank" rel="noopener noreferrer" className="text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>}
+                      {r.file_link && <a href={`/api/mddr/open?id=${r.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-navy-600 hover:bg-navy-50 hover:underline"><ExternalLink className="h-3.5 w-3.5" /> Open</a>}
                     </div>
                   ) : revRows.map((rv: any, i: number) => (
                     <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
@@ -320,7 +320,7 @@ export default function DocumentsPage() {
                       {rv.status && <span className="text-slate-500">{rv.status}</span>}
                       {rv.date && <span className="text-slate-400">{fmtD(rv.date)}</span>}
                       {rv.url
-                        ? <a href={rv.url} target="_blank" rel="noopener noreferrer" className="ml-auto text-navy-600 hover:underline inline-flex items-center gap-1"><ExternalLink className="h-3 w-3" /> Open</a>
+                        ? <a href={rv.url} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-navy-600 hover:bg-navy-50 hover:underline"><ExternalLink className="h-3.5 w-3.5" /> Open</a>
                         : <span className="ml-auto text-slate-300">no link</span>}
                     </div>
                   ))}
