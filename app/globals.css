@@ -44,3 +44,23 @@
     @apply block text-sm font-medium text-slate-700 mb-1;
   }
 }
+
+/* ── Tablet pass (2026-07-18): enlarge interactive targets on touch devices only.
+   pointer:coarse = touch-primary (tablets/phones); desktop mouse users unaffected. */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  select,
+  input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 20px;
+    min-height: 20px;
+  }
+  nav a,
+  summary {
+    min-height: 44px;
+  }
+}

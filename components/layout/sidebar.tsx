@@ -13,7 +13,7 @@ export interface NavPerms {
   docRequests:  boolean
 }
 
-interface SidebarProps { role: UserRole; navPerms: NavPerms }
+interface SidebarProps { role: UserRole; navPerms: NavPerms; inDrawer?: boolean }
 
 const ICON = (name: string) => `/coreflow/icons/${name}/transparent/${name}-48.png`
 // Dedicated icon found in the "additional icons" batch (surface-style master,
@@ -21,7 +21,7 @@ const ICON = (name: string) => `/coreflow/icons/${name}/transparent/${name}-48.p
 // concept substitution once Liezl approved the swap.
 const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-1254.png`
 
-export function Sidebar({ role, navPerms }: SidebarProps) {
+export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
   const pathname = usePathname()
   const dev = role === 'developer'
 
@@ -39,7 +39,11 @@ export function Sidebar({ role, navPerms }: SidebarProps) {
   }
 
   return (
-    <aside className="hidden md:flex w-52 shrink-0 flex-col gap-0.5 rounded-xl border border-slate-200 bg-white py-4 px-2 shadow-sm self-start">
+    // In the drawer the nav fills the panel; standalone it's the lg+ sidebar
+    // (Phase 1 tablet pass — portrait tablets use the drawer instead).
+    <aside className={inDrawer
+      ? "flex w-full flex-col gap-0.5"
+      : "hidden lg:flex w-52 shrink-0 flex-col gap-0.5 rounded-xl border border-slate-200 bg-white py-4 px-2 shadow-sm self-start"}>
       <nav className="flex flex-col gap-0.5">
 
         {/* Dashboard — universal */}

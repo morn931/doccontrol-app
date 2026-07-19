@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Header } from '@/components/layout/header'
 import { Sidebar } from '@/components/layout/sidebar'
+import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer'
 import PageViewLogger from '@/components/page-view-logger'
 import type { UserRole } from '@/lib/types/database'
 import { getPermissions, can, FK } from '@/lib/permissions'
@@ -55,6 +56,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="min-w-0 flex-1 py-3">
           {children}
         </main>
+        <MobileNavDrawer>
+          <Sidebar role={role} navPerms={navPerms} inDrawer />
+        </MobileNavDrawer>
       </div>
     </div>
   )
