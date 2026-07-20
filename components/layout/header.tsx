@@ -1,5 +1,6 @@
 import type { UserRole } from '@/lib/types/database'
 import { GuideButton } from '@/components/guide-button'
+import { BackButton } from '@/components/layout/back-button'
 
 const COREFLOW_URL = process.env.NEXT_PUBLIC_COREFLOW_URL || 'https://coreflow.build'
 
@@ -24,7 +25,9 @@ export function Header({ userName, role }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm flex-shrink-0">
       <div className="flex h-[var(--header-h)] w-full items-center justify-between gap-4 px-6">
-        {/* Brand — the CoreFlow mark links back to the platform launcher */}
+        {/* Brand — back-one-level arrow, then the CoreFlow mark linking back to the platform launcher */}
+        <div className="flex h-full shrink-0 items-center gap-3">
+        <BackButton />
         <a href={COREFLOW_URL} title="Back to Coreflow" className="flex h-full shrink-0 items-center gap-3 transition-opacity hover:opacity-80">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -38,6 +41,7 @@ export function Header({ userName, role }: HeaderProps) {
             <span className="text-xs text-slate-500">PPE Tech</span>
           </div>
         </a>
+        </div>
 
         {/* User */}
         <div className="flex h-full shrink-0 items-center gap-4">
