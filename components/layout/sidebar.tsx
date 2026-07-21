@@ -49,6 +49,9 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
         {/* Dashboard — universal */}
         <NavLink href="/dashboard" label="Dashboard" icon={ICON('dashboard')} />
 
+        {/* Document Requests — the origination step, kept right under Dashboard */}
+        {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon={ICON('documents')} />}
+
         {/* Permission-gated nav */}
         {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}
         {(dev || navPerms.reviews)      && <NavLink href="/reviews"      label="My Reviews"       icon={ICON_SURFACE('review-approvals')} />}
@@ -56,8 +59,6 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
 
         {/* Document Search — universal */}
         <NavLink href="/documents" label="Document Search" icon={ICON('document-search')} />
-
-        {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon={ICON('documents')} />}
 
         {(dev || navPerms.mddr)      && <NavLink href="/mddr"      label="MDDR"      icon={ICON('mddr')} />}
         {(dev || navPerms.reporting) && <NavLink href="/reporting" label="Reporting" icon={ICON('reports')} />}
