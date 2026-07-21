@@ -255,14 +255,16 @@ export async function copyFileToDocControl(
  * write-back) works unchanged. Library name is env-configurable (default
  * "Internal Reviews"); it must exist in the DocumentControl site.
  */
-const INTERNAL_REVIEW_LIBRARY = process.env.INTERNAL_REVIEW_LIBRARY || 'Internal Reviews'
+const INTERNAL_REVIEW_LIBRARY  = process.env.INTERNAL_REVIEW_LIBRARY  || 'Internal Reviews'
+const INTERNAL_REVIEW_SITE_URL = process.env.INTERNAL_REVIEW_SITE_URL || DOCCONTROL_SITE_URL
 export async function uploadBytesToLibrary(
   fileName: string,
   bytes: ArrayBuffer | Uint8Array,
   contentType = 'application/pdf',
-  libraryName: string = INTERNAL_REVIEW_LIBRARY
+  libraryName: string = INTERNAL_REVIEW_LIBRARY,
+  siteUrl: string = INTERNAL_REVIEW_SITE_URL
 ): Promise<{ webUrl: string; id: string }> {
-  const siteId  = await getSiteId(DOCCONTROL_SITE_URL)
+  const siteId  = await getSiteId(siteUrl)
   const driveId = await getLibraryDriveId(siteId, libraryName)
   const res = await graphFetch(
     `/sites/${siteId}/drives/${driveId}/root:/${encodeURIComponent(fileName)}:/content`,
