@@ -122,7 +122,7 @@ async function getBatches(params: SearchParams) {
     .select(`id, batch_guid, status, source, file_count, received_at, rejected_at,
              comments, vendor_email,
              vendors(name, code), packages(package_code, package_name),
-             document_versions(revision, doc_name, file_name, documents(display_document_number, normalized_document_number)),
+             document_versions(revision, doc_name, file_name),
              review_tasks(reviewer_email, sequence_number, status, due_date)`)
     .order('received_at', { ascending: false })
     .limit(q ? 500 : 100)
@@ -254,8 +254,11 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             // metadata (from the linked Document Request line) instead of "Unknown …".
             const isInternal = batch.source === 'internal'
             const dv = (batch.document_versions ?? [])[0]
-            const docNo = dv?.documents?.display_document_number ?? dv?.documents?.normalized_document_number
-              ?? dv?.file_name?.replace(/\.[^.]+$/, '') ?? null
+            // The internal filename is "<RDMC-number>_<rev>.pdf" — strip the extension
+            // and the trailing "_<rev>" to recover the document number.
+            const docNo = dv?.file_name
+              ? dv.file_name.replace(/\.[^.]+$/, '').replace(/_[A-Za-z0-9]{1,4}$/, '')
+              : null
             const primaryTitle = isInternal
               ? (docNo ?? 'Internal document')
               : (batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package')
