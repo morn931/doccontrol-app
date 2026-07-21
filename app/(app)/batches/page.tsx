@@ -119,9 +119,10 @@ async function getBatches(params: SearchParams) {
   const q = (params.q ?? '').trim().toLowerCase()
   let query = db
     .from('batches')
-    .select(`id, batch_guid, status, file_count, received_at, rejected_at,
+    .select(`id, batch_guid, status, source, file_count, received_at, rejected_at,
              comments, vendor_email,
              vendors(name, code), packages(package_code, package_name),
+             document_versions(revision, doc_name, file_name, documents(display_document_number, normalized_document_number)),
              review_tasks(reviewer_email, sequence_number, status, due_date)`)
     .order('received_at', { ascending: false })
     .limit(q ? 500 : 100)
@@ -249,14 +250,32 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
               && (batch.review_tasks ?? []).some((t: any) =>
                    t.due_date && new Date(t.due_date) < now && OPEN_TASK.includes(t.status))
 
+            // Internal-engineering batches carry no vendor/package — surface the document
+            // metadata (from the linked Document Request line) instead of "Unknown …".
+            const isInternal = batch.source === 'internal'
+            const dv = (batch.document_versions ?? [])[0]
+            const docNo = dv?.documents?.display_document_number ?? dv?.documents?.normalized_document_number
+              ?? dv?.file_name?.replace(/\.[^.]+$/, '') ?? null
+            const primaryTitle = isInternal
+              ? (docNo ?? 'Internal document')
+              : (batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package')
+            const originLabel = isInternal ? 'PPE Internal Engineering' : (batch.vendors?.name ?? 'Unknown Vendor')
+            const internalTitle = isInternal ? (dv?.doc_name ?? null) : null
+            const internalRev = isInternal ? (dv?.revision ?? null) : null
+
             return (
               <Link key={batch.id} href={`/batches/${batch.id}`}
                 className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-slate-900 truncate">
-                      {batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package'}
+                      {primaryTitle}
                     </p>
+                    {isInternal && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-700">
+                        Internal
+                      </span>
+                    )}
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${BATCH_STATUS_COLORS[batch.status as BatchStatus] ?? 'bg-slate-100 text-slate-600'}`}>
                       {BATCH_STATUS_LABELS[batch.status as BatchStatus] ?? batch.status}
                     </span>
@@ -267,10 +286,12 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-slate-500">
-                    <span>{batch.vendors?.name ?? 'Unknown Vendor'}</span>
+                    <span>{originLabel}</span>
+                    {isInternal && internalTitle && <span className="truncate max-w-xs">· {internalTitle}</span>}
+                    {isInternal && internalRev && <span>· Rev {internalRev}</span>}
                     <span>· {batch.file_count} file{batch.file_count !== 1 ? 's' : ''}</span>
                     <span>· Received {formatDistanceToNow(new Date(batch.received_at), { addSuffix: true })}</span>
-                    {batch.vendor_email && <span>· {batch.vendor_email}</span>}
+                    {!isInternal && batch.vendor_email && <span>· {batch.vendor_email}</span>}
                   </div>
                   {chain && <BatchReviewChain chain={chain} />}
                   {!chain && contextLine && (
