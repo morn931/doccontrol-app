@@ -21,12 +21,23 @@ const ICON = (name: string) => `/coreflow/icons/${name}/transparent/${name}-48.p
 // concept substitution once Liezl approved the swap.
 const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-1254.png`
 
+// Every nav destination — the ACTIVE item is the LONGEST href that matches the current
+// path, so /documents/requests no longer also lights up /documents ("Document Search").
+const NAV_HREFS = [
+  '/dashboard', '/documents/requests', '/batches', '/reviews', '/transmittals', '/documents',
+  '/mddr', '/reporting', '/aconex-review', '/cddl', '/sddr',
+  '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
+]
+
 export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
   const pathname = usePathname()
   const dev = role === 'developer'
+  const activeHref = NAV_HREFS
+    .filter(h => pathname === h || pathname.startsWith(h + '/'))
+    .sort((a, b) => b.length - a.length)[0] ?? null
 
   function NavLink({ href, label, icon }: { href: string; label: string; icon: string }) {
-    const active = pathname === href || pathname.startsWith(href + '/')
+    const active = href === activeHref
     return (
       <Link href={href} className={`flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors ${
         active ? 'bg-teal-100 text-teal-900' : 'text-slate-600 hover:bg-teal-50 hover:text-teal-900'
