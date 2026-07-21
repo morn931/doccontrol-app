@@ -16,6 +16,9 @@ export const FK = {
   ACTION_SUBMIT_REVIEW:     'action.submit_review',
   ACTION_UPLOAD_REGISTER:   'action.upload_register',
   ACTION_MDDR_SYNC:         'action.mddr_sync',
+  ACTION_SUBMIT_INTERNAL_DRAWING: 'action.submit_internal_drawing',
+  NAV_ACONEX_ISSUE:         'nav.aconex_issue',
+  ACTION_ISSUE_TO_ACONEX:   'action.issue_to_aconex',
 } as const
 
 export type PermMap = Map<string, boolean>

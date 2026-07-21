@@ -3,10 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import AllocatePanel, { type LineForAlloc } from './allocate-panel'
+import SubmitDrawing from './submit-drawing'
 
 export const dynamic = 'force-dynamic'
 
-type Line = LineForAlloc & { line_no: number | null; revision: string | null; due_date: string | null; comments: string | null }
+type Line = LineForAlloc & { line_no: number | null; revision: string | null; due_date: string | null; comments: string | null; linked_document_id: string | null }
 
 export default async function RequestDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -17,6 +18,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const role = (profile?.role ?? 'reviewer') as string
   const perms = await getPermissions(supabase)
   const canAssign = can(perms, FK.ACTION_ASSIGN_DOC_NUMBER, role)
+  const canSubmit = can(perms, FK.ACTION_SUBMIT_INTERNAL_DRAWING, role)
 
   const { data: req } = await supabase.from('document_number_request').select('*').eq('id', id).single()
   if (!req) notFound()
@@ -52,7 +54,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
 
       <div className="space-y-3">
         {lines.map((l) => (
-          <div key={l.id} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-2">
+          <div key={l.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="grid gap-3 md:grid-cols-2">
             <div>
               <div className="mb-1 text-xs font-semibold text-slate-500">Line {l.line_no} · Rev {l.revision ?? 'A'}</div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
@@ -75,6 +78,14 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                 </div>
               )}
             </div>
+            </div>
+            {l.rdmc_document_number && (l.linked_document_id ? (
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                ✅ Drawing submitted for review — it&apos;s now an internal batch in <a className="font-medium underline" href="/batches">Incoming Batches</a>.
+              </div>
+            ) : canSubmit ? (
+              <SubmitDrawing lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} />
+            ) : null)}
           </div>
         ))}
         {lines.length === 0 && <p className="text-sm text-slate-400">No lines on this request.</p>}

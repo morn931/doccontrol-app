@@ -249,6 +249,31 @@ export async function copyFileToDocControl(
 }
 
 /**
+ * Upload NEW file bytes (from a browser upload) into a document library in the
+ * DocumentControl site — used by the internal-engineering driveway so the review
+ * copy gets a SharePoint webUrl and the existing review engine (serve + mark-up +
+ * write-back) works unchanged. Library name is env-configurable (default
+ * "Internal Reviews"); it must exist in the DocumentControl site.
+ */
+const INTERNAL_REVIEW_LIBRARY = process.env.INTERNAL_REVIEW_LIBRARY || 'Internal Reviews'
+export async function uploadBytesToLibrary(
+  fileName: string,
+  bytes: ArrayBuffer | Uint8Array,
+  contentType = 'application/pdf',
+  libraryName: string = INTERNAL_REVIEW_LIBRARY
+): Promise<{ webUrl: string; id: string }> {
+  const siteId  = await getSiteId(DOCCONTROL_SITE_URL)
+  const driveId = await getLibraryDriveId(siteId, libraryName)
+  const res = await graphFetch(
+    `/sites/${siteId}/drives/${driveId}/root:/${encodeURIComponent(fileName)}:/content`,
+    { method: 'PUT', headers: { 'Content-Type': contentType }, body: bytes as any }
+  )
+  if (!res.ok) throw new Error(`Upload to "${libraryName}" failed (${res.status}): ${await res.text()}`)
+  const item = await res.json()
+  return { webUrl: item.webUrl, id: item.id }
+}
+
+/**
  * Send an email — now routed through the unified Coreflow sender
  * (projects@coreflow.build) via lib/coreflow-mail.ts, NOT the PPE Graph app above.
  * Signature preserved so all callers (review-assigned, review-complete, batch-rejected,
