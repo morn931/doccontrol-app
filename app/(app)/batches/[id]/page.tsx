@@ -65,8 +65,26 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [pastEmails, setPastEmails]                       = useState<string[]>([])
   const [sending, setSending]                             = useState(false)
   const [transmittalError, setTransmittalError]           = useState('')
+  const [destLibrary, setDestLibrary]                     = useState('')
+  const [eng2Libraries, setEng2Libraries]                 = useState<string[]>([])
+  const [loadingLibs, setLoadingLibs]                     = useState(false)
 
   useEffect(() => { loadBatch() }, [id])
+
+  // Internal return: prefill the engineer email + load the ENG2 discipline libraries when the modal opens.
+  useEffect(() => {
+    if (showTransmittalModal && batch?.source === 'internal') {
+      if (batch.engineer_email) setToEmail(prev => prev || batch.engineer_email)
+      if (!eng2Libraries.length && !loadingLibs) {
+        setLoadingLibs(true)
+        fetch('/api/eng2-libraries').then(r => r.json())
+          .then(d => { if (d.libraries) setEng2Libraries(d.libraries); else setTransmittalError(d.error ?? 'Could not load ENG2 libraries') })
+          .catch(() => setTransmittalError('Could not load ENG2 libraries'))
+          .finally(() => setLoadingLibs(false))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTransmittalModal, batch])
 
   // Scroll to transmittal view whenever it becomes visible
   useEffect(() => {
@@ -138,7 +156,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   async function handleSendTransmittal() {
-    if (!toEmail.trim()) { setTransmittalError('Vendor email is required'); return }
+    const internal = batch?.source === 'internal'
+    if (!toEmail.trim()) { setTransmittalError(internal ? 'Engineer email is required' : 'Vendor email is required'); return }
+    if (internal && !destLibrary) { setTransmittalError('Select the ENG2 discipline library first.'); return }
     setSending(true); setTransmittalError('')
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 55_000) // 55s client timeout
@@ -146,7 +166,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       const res = await fetch(`/api/batches/${id}/generate-transmittal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toEmail: toEmail.trim(), ccEmails: ccEmails.filter(Boolean) }),
+        body: JSON.stringify({ toEmail: toEmail.trim(), ccEmails: ccEmails.filter(Boolean), destLibrary: batch?.source === 'internal' ? destLibrary : undefined }),
         signal: controller.signal,
       })
       const data = await res.json()
@@ -183,6 +203,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   if (!batch) return <div className="card p-8 text-center text-slate-400">Batch not found.</div>
 
   const docVersions = batch.document_versions ?? []
+  const isInternal = batch.source === 'internal'
   const statusColor = STATUS_COLORS[batch.status] ?? 'bg-slate-100 text-slate-600'
   const statusLabel = STATUS_LABELS[batch.status] ?? batch.status
   const canReject = ['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status)
@@ -455,7 +476,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             <div className="flex items-center justify-between mb-5">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
                 <Download className="h-5 w-5 text-teal-600" />
-                Send Transmittal — {batch.packages?.package_name ?? ''}
+                {isInternal ? 'Return to Engineer' : `Send Transmittal — ${batch.packages?.package_name ?? ''}`}
               </h2>
               <button onClick={() => { setShowTransmittalModal(false); setTransmittalError('') }}>
                 <X className="h-5 w-5 text-slate-400 hover:text-slate-600" />
@@ -464,20 +485,39 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
             {/* To */}
             <div className="mb-4">
-              <label className="label">To (Vendor Email) <span className="text-red-500">*</span></label>
+              <label className="label">{isInternal ? 'To (Engineer)' : 'To (Vendor Email)'} <span className="text-red-500">*</span></label>
               <input
                 list="past-emails"
                 type="email"
                 value={toEmail}
                 onChange={e => setToEmail(e.target.value)}
                 className="input"
-                placeholder="vendor@company.com"
+                placeholder={isInternal ? 'engineer@ppetech.co.za' : 'vendor@company.com'}
                 autoFocus
               />
               <datalist id="past-emails">
                 {pastEmails.map(e => <option key={e} value={e} />)}
               </datalist>
             </div>
+
+            {/* Interlock: internal docs must be placed into an ENG2 discipline library first */}
+            {isInternal && (
+              <div className="mb-4">
+                <label className="label">Save to ENG2 discipline library <span className="text-red-500">*</span></label>
+                <select
+                  value={destLibrary}
+                  onChange={e => setDestLibrary(e.target.value)}
+                  className="input"
+                  disabled={loadingLibs}
+                >
+                  <option value="">{loadingLibs ? 'Loading libraries…' : '— select where the reviewed doc goes —'}</option>
+                  {eng2Libraries.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">
+                  The reviewed, marked-up document is copied here, and the link is embedded in the transmittal to the engineer.
+                </p>
+              </div>
+            )}
 
             {/* CC */}
             <div className="mb-4">
@@ -510,8 +550,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
             {/* Info note */}
             <div className="mb-5 p-3 bg-blue-50 rounded-lg text-sm text-teal-800">
-              The transmittal PDF will be attached to the email. The vendor will be informed that
-              marked-up documents are available in their SharePoint portal as of today.
+              {isInternal
+                ? 'The reviewed document is copied into the selected ENG2 library, and the engineer is emailed the transmittal (comments + outcome) with a direct link to it.'
+                : 'The transmittal PDF will be attached to the email. The vendor will be informed that marked-up documents are available in their SharePoint portal as of today.'}
             </div>
 
             {transmittalError && <p className="text-sm text-red-600 mb-3">{transmittalError}</p>}
@@ -519,12 +560,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             <div className="flex gap-3">
               <button
                 onClick={handleSendTransmittal}
-                disabled={sending}
+                disabled={sending || (isInternal && !destLibrary)}
                 className="btn-primary flex-1 justify-center flex items-center gap-2"
               >
                 {sending
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating &amp; Sending…</>
-                  : <><Download className="h-4 w-4" /> Generate PDF &amp; Send Email</>
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> {isInternal ? 'Returning…' : 'Generating & Sending…'}</>
+                  : <><Download className="h-4 w-4" /> {isInternal ? 'Return to Engineer' : 'Generate PDF & Send Email'}</>
                 }
               </button>
               <button onClick={() => { setShowTransmittalModal(false); setTransmittalError('') }} className="btn-secondary">

@@ -10,7 +10,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const db = createServiceClient()
   const { data, error } = await db.from('batches')
     .select(`
-      id, batch_guid, status, file_count, received_at, started_at, completed_at,
+      id, batch_guid, status, source, request_line_id,
+      internal_dest_library, internal_dest_url,
+      file_count, received_at, started_at, completed_at,
       returned_at, rejected_at, comments, reject_reason, vendor_email,
       vendors(id, name, code),
       packages(id, package_code, package_name),
@@ -21,7 +23,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       )
     `).eq('id', id).single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 404 })
-  return NextResponse.json(data)
+
+  // For internal batches, resolve the engineer (requestor) email from the linked
+  // Document Request — the "return" goes to them, not a vendor. Simple two-step
+  // lookups (no PostgREST embeds) to stay resilient to schema-cache timing.
+  let engineerEmail: string | null = null
+  if ((data as any).source === 'internal' && (data as any).request_line_id) {
+    const { data: line } = await db.from('document_number_request_line')
+      .select('request_id').eq('id', (data as any).request_line_id).single()
+    if (line?.request_id) {
+      const { data: reqHdr } = await db.from('document_number_request')
+        .select('requestor_email').eq('id', line.request_id).single()
+      engineerEmail = reqHdr?.requestor_email ?? null
+    }
+  }
+  return NextResponse.json({ ...data, engineer_email: engineerEmail })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -1,6 +1,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { sendEmail } from '@/lib/services/graph'
+import { sendEmail, getFileBytesByUrl, uploadBytesToLibrary, ENGINEERING_SITE_URL } from '@/lib/services/graph'
 import { vendorTransmittalEmail } from '@/lib/services/email-templates'
 import { setApproverPicksReturnRequested } from '@/lib/services/sharepoint-lists'
 import { OUTCOME_CODES } from '@/lib/utils/outcome-codes'
@@ -150,6 +150,7 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
       ['Overall Outcome',    `${data.overallCode}  —  ${outcomeText(data.overallCode)}`, true],
       ['Prepared By',        data.controllerEmail, false],
     ]
+    if (data.engineeringLink) infoRows.push(['Saved to', `ENG2  ›  ${data.engineeringLibrary ?? ''}`, false])
     for (let i = 0; i < infoRows.length; i++) {
       const altFill = i % 2 === 0 ? LGRAY : '#FFFFFF'
       cell(M,       y, IC1, RH, String(infoRows[i][0]), { fill: LGRAY, bold: true })
@@ -310,6 +311,8 @@ export interface TransmittalData {
   controllerEmail:   string
   controllerName:    string
   documents:         TransmittalDocument[]
+  engineeringLink?:  string   // internal only — where the reviewed doc was placed in ENG2
+  engineeringLibrary?: string // internal only — the ENG2 discipline library name
 }
 
 // ─── GET — build transmittal preview (no PDF, no email) + email suggestions ───
@@ -414,7 +417,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const db = createServiceClient()
 
   const { data: batch } = await db.from('batches')
-    .select(`id, batch_guid, status, target_library, controller_email, comments,
+    .select(`id, batch_guid, status, source, request_line_id, target_library, controller_email, comments,
              vendor_id, package_id, source_site_url,
              vendors(name), packages(package_name, package_code),
              document_versions(id, file_name, doc_name, doc_unique_id, central_file_url,
@@ -424,6 +427,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
   if (!['review_complete','transmittal_generated'].includes(batch.status))
     return NextResponse.json({ error: 'Batch not ready for transmittal' }, { status: 400 })
+
+  // Internal-engineering return — a separate door. Everything below is the untouched vendor path.
+  if ((batch as any).source === 'internal') {
+    return await returnInternalToEngineer(db, batchId, batch, profile, body)
+  }
 
   const docVersions = (batch.document_versions as any[]) ?? []
 
@@ -564,4 +572,110 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     console.error('POST /generate-transmittal unhandled error:', e)
     return NextResponse.json({ error: `Server error: ${e?.message ?? String(e)}` }, { status: 500 })
   }
+}
+
+// ─── Internal-engineering return — reviewed doc → engineer + placed in ENG2 ─────
+async function returnInternalToEngineer(db: any, batchId: string, batch: any, profile: any, body: any) {
+  const destLibrary = String(body?.destLibrary ?? '').trim()
+  if (!destLibrary)
+    return NextResponse.json({ error: 'Select the ENG2 discipline library before returning the document.' }, { status: 400 })
+
+  // Engineer (requestor) email from the linked Document Request.
+  let engineerEmail: string | null = null
+  if (batch.request_line_id) {
+    const { data: line } = await db.from('document_number_request_line').select('request_id').eq('id', batch.request_line_id).single()
+    if (line?.request_id) {
+      const { data: reqHdr } = await db.from('document_number_request').select('requestor_email').eq('id', line.request_id).single()
+      engineerEmail = reqHdr?.requestor_email ?? null
+    }
+  }
+  const toEmail = String(body?.toEmail ?? engineerEmail ?? '').trim()
+  if (!toEmail) return NextResponse.json({ error: 'No engineer email found for this request.' }, { status: 400 })
+
+  const docVersions = (batch.document_versions as any[]) ?? []
+
+  // Copy each reviewed (marked-up) file from Internal Reviews into the chosen ENG2 library.
+  let engineeringLink: string | null = null
+  for (const dv of docVersions) {
+    if (!dv.central_file_url) continue
+    try {
+      const bytes = await getFileBytesByUrl(dv.central_file_url)
+      const up = await uploadBytesToLibrary(dv.file_name, bytes, 'application/pdf', destLibrary, ENGINEERING_SITE_URL)
+      if (!engineeringLink) engineeringLink = up.webUrl
+    } catch (e: any) {
+      return NextResponse.json({ error: `Could not copy "${dv.file_name}" into ENG2 › ${destLibrary}: ${e?.message ?? e}` }, { status: 502 })
+    }
+  }
+
+  // Build the transmittal documents (same machinery as the vendor path).
+  const { data: allTasks } = await db.from('review_tasks')
+    .select('document_version_id, reviewer_email, review_outcome_code, comment, sequence_number')
+    .eq('batch_id', batchId).eq('status', 'completed').order('sequence_number', { ascending: true })
+  const reviewerEmails = [...new Set((allTasks ?? []).map((t: any) => t.reviewer_email as string))]
+  const { data: reviewerUsers } = await db.from('users').select('email, full_name').in('email', reviewerEmails)
+  const nameMap: Record<string, string> = {}
+  for (const u of reviewerUsers ?? []) { if (u.email) nameMap[u.email] = u.full_name ?? u.email.split('@')[0] }
+  const tasksByDv: Record<string, any[]> = {}
+  for (const t of allTasks ?? []) { if (!tasksByDv[t.document_version_id]) tasksByDv[t.document_version_id] = []; tasksByDv[t.document_version_id].push(t) }
+  const capMap = await capturedCommentMap(db, docVersions.map((dv: any) => dv.id))
+
+  const documents: TransmittalDocument[] = docVersions.map((dv: any) => {
+    const tasks = tasksByDv[dv.id] ?? []
+    const outCode = worstCode(tasks.map((t: any) => t.review_outcome_code).filter(Boolean)) || 'A1'
+    return {
+      fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
+      discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
+      outcomeCode: outCode, markupSummary: '',
+      reviewers: tasks.map((t: any) => ({
+        name: nameMap[t.reviewer_email] ?? t.reviewer_email.split('@')[0],
+        code: t.review_outcome_code ?? '—',
+        comment: composeComment(t.comment, capMap[`${dv.id}::${t.reviewer_email}`]),
+      })),
+    }
+  })
+  const overallCode = worstCode(documents.map((d) => d.outcomeCode)) || 'A1'
+  const controllerEmail = (profile?.email ?? '').trim()
+  const controllerName = profile?.full_name ?? controllerEmail.split('@')[0]
+  const transmittalNumber = await nextTransmittalNumber(db)
+  const transmittalDate = format(new Date(), 'd MMMM yyyy')
+
+  const transmittalData: TransmittalData = {
+    transmittalNumber, vendorName: 'PPE Internal Engineering',
+    packageCode: batch.packages?.package_code ?? '—',
+    packageName: batch.packages?.package_name ?? 'Internal Engineering',
+    overallCode, controllerEmail, controllerName, documents,
+    engineeringLink: engineeringLink ?? undefined, engineeringLibrary: destLibrary,
+  }
+
+  let pdfBuffer: Buffer
+  try { pdfBuffer = await buildTransmittalPdf(transmittalData) }
+  catch (e: any) { return NextResponse.json({ error: `PDF generation failed: ${e.message}` }, { status: 500 }) }
+
+  const linkHtml = engineeringLink
+    ? `<p>Your reviewed document (with all mark-ups) has been saved to <b>ENG2 &rsaquo; ${destLibrary}</b>:</p><p><a href="${engineeringLink}">${engineeringLink}</a></p>`
+    : ''
+  await sendEmail({
+    to: toEmail, cc: [controllerEmail].filter(Boolean),
+    subject: `Internal document reviewed — ${transmittalNumber} — ${documents[0]?.fileName ?? ''} (${overallCode})`,
+    htmlBody: `<p>Hi,</p><p>Your internally-submitted document has been reviewed. Overall outcome: <b>${overallCode} — ${outcomeText(overallCode)}</b>.</p>${linkHtml}<p>The full review transmittal (per-reviewer comments and codes) is attached.</p><p>Kind regards,<br/>${controllerName}<br/>PPE Document Control</p>`,
+    attachments: [{ name: `${transmittalNumber}.pdf`, contentType: 'application/pdf', content: pdfBuffer }],
+  })
+
+  await db.from('transmittals').insert({
+    transmittal_number: transmittalNumber, batch_id: batchId, package_id: batch.package_id,
+    final_outcome_code: overallCode, final_outcome_text: outcomeText(overallCode),
+    generated_by: profile?.id ?? null, status: 'sent',
+  })
+  await db.from('batches').update({
+    status: 'transmittal_generated',
+    internal_dest_library: destLibrary, internal_dest_url: engineeringLink,
+    updated_at: new Date().toISOString(),
+  }).eq('id', batchId)
+  await db.from('audit_events').insert({
+    entity_type: 'batch', entity_id: batchId, event_type: 'internal_returned_to_engineer',
+    actor_email: controllerEmail, event_data: { transmittalNumber, overallCode, toEmail, destLibrary, engineeringLink },
+  })
+  await logActivity({ area: 'transmittals', action: 'transmittal.internal_return', targetType: 'batch', targetId: batchId, summary: `${transmittalNumber} → ${toEmail} (${overallCode}) · ENG2 ${destLibrary}`, email: controllerEmail })
+
+  return NextResponse.json({ success: true, transmittalNumber, transmittalDate, toEmail, engineeringLink, destLibrary, transmittalData })
 }

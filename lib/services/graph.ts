@@ -257,6 +257,21 @@ export async function copyFileToDocControl(
  */
 const INTERNAL_REVIEW_LIBRARY  = process.env.INTERNAL_REVIEW_LIBRARY  || 'Internal Reviews'
 const INTERNAL_REVIEW_SITE_URL = process.env.INTERNAL_REVIEW_SITE_URL || DOCCONTROL_SITE_URL
+
+/** The PPE Engineering SharePoint site that holds the discipline libraries
+ *  (ELECTRICAL, MECHANICAL, …) a reviewed internal document is placed into. */
+export const ENGINEERING_SITE_URL = process.env.SHAREPOINT_ENGINEERING_SITE_URL
+  || 'https://ppetechcoza.sharepoint.com/sites/ENG2'
+
+/** List the document libraries (drives) in a SharePoint site — used to populate the
+ *  "which discipline library" picker for the internal-return interlock. */
+export async function listSiteLibraries(siteUrl: string = ENGINEERING_SITE_URL): Promise<string[]> {
+  const siteId = await getSiteId(siteUrl)
+  const res = await graphFetch(`/sites/${siteId}/drives?$select=name`)
+  if (!res.ok) throw new Error(`Failed to list libraries (${res.status}): ${await res.text()}`)
+  const data = await res.json()
+  return (data.value ?? []).map((d: any) => d.name as string).filter(Boolean).sort()
+}
 export async function uploadBytesToLibrary(
   fileName: string,
   bytes: ArrayBuffer | Uint8Array,
