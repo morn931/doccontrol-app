@@ -11,7 +11,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data, error } = await db.from('batches')
     .select(`
       id, batch_guid, status, source, request_line_id,
-      internal_dest_library, internal_dest_url,
       file_count, received_at, started_at, completed_at,
       returned_at, rejected_at, comments, reject_reason, vendor_email,
       vendors(id, name, code),
