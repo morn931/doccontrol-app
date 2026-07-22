@@ -10,6 +10,10 @@ type Tool = 'select' | 'pen' | 'text' | 'shape' | 'highlight'
 type Shape = 'box' | 'circle' | 'line' | 'arrow'
 
 const SCALE = 1.4
+// Browsers cap a <canvas> at 16384px per side — a huge (e.g. 179"×113") drawing at
+// SCALE 1.4 overflows that and renders blank. Clamp the per-page scale so neither
+// canvas dimension exceeds this; normal documents are unaffected.
+const MAX_DIM = 10000
 
 export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -28,6 +32,15 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   const [shape, setShape] = useState<Shape>('box')
   const [color, setColor] = useState(initialColor ?? '#e11d48')
   const [status, setStatus] = useState(src ? 'Loading document…' : 'Load a PDF to begin.')
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // Esc leaves full-screen review mode.
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
 
   const toolRef = useRef(tool); const colorRef = useRef(color); const shapeRef = useRef(shape)
   useEffect(() => { toolRef.current = tool; applyToolAll() }, [tool, color])
@@ -69,7 +82,9 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
 
     for (let p = 1; p <= pdf.numPages; p++) {
       const pg = await pdf.getPage(p)
-      const vp = pg.getViewport({ scale: SCALE })
+      const base = pg.getViewport({ scale: 1 })
+      const scale = Math.min(SCALE, MAX_DIM / base.width, MAX_DIM / base.height)
+      const vp = pg.getViewport({ scale })
       const wrap = document.createElement('div')
       wrap.className = 'relative mx-auto mb-6 border-2 border-slate-500 shadow-lg bg-white'
       wrap.style.width = `${vp.width}px`; wrap.style.height = `${vp.height}px`
@@ -209,7 +224,11 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
     for (let i = 0; i < fabsRef.current.length; i++) {
       const fab = fabsRef.current[i]
       if (!fab.getObjects().length || !pages[i]) continue
-      const png = await doc.embedPng(fab.toDataURL({ format: 'png', multiplier: 2 }))
+      // Cap the export multiplier so an oversized page's flattened bitmap also stays
+      // under the browser canvas limit (else Save/Download fails the same way).
+      const fw = fab.getWidth?.() ?? fab.width ?? 1, fh = fab.getHeight?.() ?? fab.height ?? 1
+      const mult = Math.max(1, Math.min(2, MAX_DIM / fw, MAX_DIM / fh))
+      const png = await doc.embedPng(fab.toDataURL({ format: 'png', multiplier: mult }))
       const { width, height } = pages[i].getSize()
       pages[i].drawImage(png, { x: 0, y: 0, width, height })
     }
@@ -254,7 +273,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   )
 
   return (
-    <div className="space-y-3">
+    <div className={fullscreen ? 'fixed inset-0 z-50 flex flex-col gap-2 bg-white p-3' : 'space-y-3'}>
       <div className="card p-3 flex flex-wrap items-center gap-2 sticky top-2 z-10">
         {!src && <><input type="file" accept="application/pdf" onChange={onFile} disabled={!ready} className="text-sm" /><span className="mx-1 h-5 w-px bg-slate-200" /></>}
         <Btn t="select" label="Select" />
@@ -289,9 +308,14 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
           </button>
         )}
         <button onClick={flattenDownload} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Download copy</button>
+        <span className="mx-1 h-5 w-px bg-slate-200" />
+        <button onClick={() => setFullscreen(v => !v)} title={fullscreen ? 'Exit full screen (Esc)' : 'Review using the whole screen'}
+          className="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-300 hover:bg-slate-50">
+          {fullscreen ? '✕ Exit full screen' : '⛶ Full screen'}
+        </button>
       </div>
       <p className="text-xs text-slate-500">{status}</p>
-      <div ref={containerRef} className="rounded-lg bg-slate-100 p-6 max-h-[80vh] overflow-auto" />
+      <div ref={containerRef} className={`rounded-lg bg-slate-100 p-6 overflow-auto ${fullscreen ? 'flex-1 min-h-0' : 'max-h-[80vh]'}`} />
     </div>
   )
 }
