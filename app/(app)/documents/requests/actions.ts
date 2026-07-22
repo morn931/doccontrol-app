@@ -201,6 +201,62 @@ export async function deleteRequest(id: string): Promise<{ ok: boolean; error?: 
   return { ok: true }
 }
 
+/**
+ * Return (un-book) a placeholder number that was booked from the Number Picker.
+ * Frees the number back into the picker and removes the request. Allowed only until a
+ * drawing has been submitted for review against it (a line gets linked_document_id) —
+ * after that the number is committed and the return is refused.
+ */
+export async function returnBooking(requestId: string): Promise<{ ok: boolean; error?: string }> {
+  const c = await ctx()
+  if (!c) return { ok: false, error: 'Not signed in' }
+  const svc = createServiceClient()
+
+  const { data: bk } = await svc.from('doc_number_booking')
+    .select('id, docno, title, package_code, booked_by, booked_by_email')
+    .eq('request_id', requestId).eq('released', false).maybeSingle()
+  if (!bk) return { ok: false, error: 'This request has no active booking to return.' }
+
+  // Only the person who booked it, or Document Control, may return it.
+  const isBooker = (!!bk.booked_by && bk.booked_by === c.profile?.id) ||
+    (!!bk.booked_by_email && bk.booked_by_email === c.profile?.email)
+  const isController = can(c.perms, FK.ACTION_ASSIGN_DOC_NUMBER, c.role)
+  if (!isBooker && !isController) return { ok: false, error: 'Only the person who booked this number (or Document Control) can return it.' }
+
+  // Irreversible once a drawing has been submitted for review.
+  const { data: lines } = await svc.from('document_number_request_line')
+    .select('linked_document_id').eq('request_id', requestId)
+  if ((lines ?? []).some((l: any) => l.linked_document_id)) // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: false, error: 'A drawing has already been submitted for review against this number — it can no longer be returned.' }
+
+  // Release the booking (frees the number back into the picker) and remove the request.
+  await svc.from('doc_number_booking').update({ released: true }).eq('id', bk.id)
+  const { error: de } = await svc.from('document_number_request').delete().eq('id', requestId)
+  if (de) return { ok: false, error: de.message }
+
+  // Tell the Document Controller so she can update her records (best-effort).
+  try {
+    const { data: me } = await svc.from('users').select('full_name').eq('id', c.profile?.id ?? '').maybeSingle()
+    const who = (me?.full_name ?? '').trim() || c.profile?.email || 'A user'
+    const controller = await controllerEmailFrom(svc)
+    await sendMail({
+      to: controller,
+      subject: `Placeholder number returned — ${bk.docno}`,
+      htmlBody: brandedEmail({
+        heading: 'A booked placeholder number was returned',
+        bodyHtml: `<p><b>${who}</b> has returned the placeholder document number below — it was booked but is no longer needed.
+          It is now free to be booked again. Please update your records.</p>
+          <p style="margin:12px 0"><b>Document number:</b> ${bk.docno}<br/>
+          <b>Title:</b> ${bk.title ?? '—'}<br/>
+          <b>Package:</b> ${bk.package_code ?? '—'}</p>`,
+      }),
+    })
+  } catch {}
+
+  revalidatePath('/documents/requests')
+  return { ok: true }
+}
+
 // ─── Drawing Number Picker — pre-check for an existing (placeholder) number ───
 // A placeholder = an Aconex Review Tracker row whose court is 'NOT_TRANSMITTED'
 // ("not yet submitted — PPE"), owned by FV / MC / VV or blank, and not already booked.

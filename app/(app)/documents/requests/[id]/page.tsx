@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import AllocatePanel, { type LineForAlloc } from './allocate-panel'
 import SubmitDrawing from './submit-drawing'
+import ReturnBooking from './return-booking'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('users').select('role').eq('auth_user_id', user.id).single()
+  const { data: profile } = await supabase.from('users').select('id, role').eq('auth_user_id', user.id).single()
   const role = (profile?.role ?? 'reviewer') as string
   const perms = await getPermissions(supabase)
   const canAssign = can(perms, FK.ACTION_ASSIGN_DOC_NUMBER, role)
@@ -28,6 +29,15 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const nm = (kind: string, code: string | null) => (code ? (lk.find((l) => l.kind === kind && l.code === code)?.name ?? code) : '—')
   const lines = (lineRows ?? []) as Line[]
 
+  // A booking is reversible ("return the number") only until a drawing is submitted for
+  // review (a line gains linked_document_id). Offer it to the booker or Document Control.
+  const { data: booking } = await supabase.from('doc_number_booking')
+    .select('docno, booked_by, booked_by_email').eq('request_id', id).eq('released', false).maybeSingle()
+  const submitted = lines.some((l) => l.linked_document_id)
+  const isBooker = !!booking && ((!!booking.booked_by && booking.booked_by === profile?.id) ||
+    (!!booking.booked_by_email && booking.booked_by_email === user.email))
+  const canReturn = !!booking && !submitted && (isBooker || canAssign)
+
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-4 flex items-center justify-between">
@@ -39,6 +49,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
         </div>
         <Link href="/documents/requests" className="text-sm font-medium text-teal-700 hover:underline">← Requests</Link>
       </div>
+
+      {canReturn && booking && <ReturnBooking requestId={id} docno={booking.docno} />}
 
       {req.status === 'assigned' && (
         <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
