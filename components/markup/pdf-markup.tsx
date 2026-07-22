@@ -206,6 +206,57 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
     e.target.value = ''
   }
 
+  // ── Sign-off stamp: your central Coreflow signature + details, dropped as an overlay ──
+  function loadImg(src: string): Promise<HTMLImageElement> {
+    return new Promise((res, rej) => { const i = new window.Image(); i.onload = () => res(i); i.onerror = rej; i.src = src })
+  }
+  async function composeStamp(sigUrl: string, name: string): Promise<string> {
+    const W = 620, H = 232
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H
+    const g = cv.getContext('2d')!
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H)
+    g.strokeStyle = '#0b8b93'; g.lineWidth = 3; g.strokeRect(4, 4, W - 8, H - 8)
+    const sig = await loadImg(sigUrl)
+    const sw = W * 0.5 - 32, sh = H - 56
+    const sc = Math.min(sw / sig.width, sh / sig.height, 1)
+    g.drawImage(sig, 22, (H - sig.height * sc) / 2, sig.width * sc, sig.height * sc)
+    g.strokeStyle = '#94a3b8'; g.lineWidth = 1; g.beginPath(); g.moveTo(W * 0.52, 16); g.lineTo(W * 0.52, H - 16); g.stroke()
+    const now = new Date()
+    const off = -now.getTimezoneOffset(), sgn = off >= 0 ? '+' : '-'
+    const tz = `${sgn}${String(Math.floor(Math.abs(off) / 60)).padStart(2, '0')}:${String(Math.abs(off) % 60).padStart(2, '0')}`
+    const ts = now.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    const vid = ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(now.getTime())).replace(/-/g, '').slice(0, 10).toUpperCase()
+    const tx = W * 0.52 + 18
+    g.fillStyle = '#0b2440'; g.font = 'bold 16px Helvetica, Arial'; g.fillText('Reviewed & Approved', tx, 40)
+    g.fillStyle = '#334155'; g.font = '12px Helvetica, Arial'
+    g.fillText(`Digitally signed by ${name}`, tx, 70)
+    g.fillText('PPE Technologies', tx, 90)
+    g.fillText(`Date: ${ts} ${tz}`, tx, 118)
+    g.fillText('Signed via Coreflow · CoreDocs', tx, 138)
+    g.fillStyle = '#64748b'; g.font = '11px Helvetica, Arial'; g.fillText(`Verify ID: ${vid}`, tx, 164)
+    return cv.toDataURL('image/png')
+  }
+  async function applySignature() {
+    setStatus('Fetching your signature…')
+    try {
+      const res = await fetch('/api/signature/mine')
+      const data = await res.json()
+      if (!data?.signature) {
+        setStatus('No signature on file — set one up at coreflow.build → ✍ Signature, then try again.')
+        return
+      }
+      const stamp = await composeStamp(data.signature, data.name || 'Reviewer')
+      const fabric = fabricLibRef.current
+      const img = await fabric.FabricImage.fromURL(stamp)
+      const s = Math.min(1, 300 / (img.width || 300))
+      img.set({ left: 60, top: 60, scaleX: s, scaleY: s })
+      const fab = activeFab(); fab.add(img); fab.setActiveObject(img); fab.renderAll()
+      setStatus('Signature stamp added — drag it onto the approval block, then Save to SharePoint.')
+    } catch (e: any) {
+      setStatus('Could not add the signature: ' + (e?.message || 'error'))
+    }
+  }
+
   function undo() {
     const entry = undoRef.current.pop()
     if (entry) { entry.fab.remove(entry.obj); entry.fab.discardActiveObject(); entry.fab.renderAll() }
@@ -290,6 +341,9 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
         <Btn t="highlight" label="▉ Highlight" />
         <button onClick={() => imgInputRef.current?.click()} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">🖼 Image</button>
         <input ref={imgInputRef} type="file" accept="image/*" onChange={onImage} className="hidden" />
+        <span className="mx-1 h-5 w-px bg-slate-200" />
+        <button onClick={applySignature} title="Add your Coreflow sign-off signature stamp"
+          className="px-3 py-1.5 rounded-md text-sm font-semibold border border-teal-600 text-teal-700 hover:bg-teal-50">✍ Apply signature</button>
         <input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-8 w-8 rounded border border-slate-300" />
         <span className="mx-1 h-5 w-px bg-slate-200" />
         <button onClick={undo} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">↶ Undo</button>
