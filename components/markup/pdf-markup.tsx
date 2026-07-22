@@ -283,7 +283,11 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   async function flattenBytes(): Promise<Uint8Array | null> {
     if (!pdfBytesRef.current) return null
     const { PDFDocument } = await import('pdf-lib')
-    const doc = await PDFDocument.load(pdfBytesRef.current)
+    // ignoreEncryption: vendors often "lock" a PDF with a permissions/owner-password
+    // restriction (Adobe "restrict editing") after e-signing. Without this flag pdf-lib
+    // throws on load and Save fails; with it we can still stamp our appearance on top.
+    // (A user-password/can't-even-open PDF would never have rendered in the viewer.)
+    const doc = await PDFDocument.load(pdfBytesRef.current, { ignoreEncryption: true })
     const pages = doc.getPages()
     for (let i = 0; i < fabsRef.current.length; i++) {
       const fab = fabsRef.current[i]
