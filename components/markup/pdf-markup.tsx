@@ -25,6 +25,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   const wrappersRef = useRef<HTMLElement[]>([])
   const undoRef = useRef<{ fab: any; obj: any }[]>([])
   const skipHistoryRef = useRef(false)
+  const pendingSigRef = useRef<{ sigUrl: string; panelUrl: string } | null>(null)  // armed by "Apply signature" → placed on next click
 
   const [ready, setReady] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -148,6 +149,11 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
     const fabric = fabricLibRef.current
     fab.on('object:added', (e: any) => { if (skipHistoryRef.current || e.target?._skipHistory) return; undoRef.current.push({ fab, obj: e.target }) })
     fab.on('mouse:down', (opt: any) => {
+      if (pendingSigRef.current) {   // "Apply signature" armed → drop it where the user clicked
+        const pp = fab.getScenePoint ? fab.getScenePoint(opt.e) : fab.getPointer(opt.e)
+        placeSignatureAt(fab, pp)
+        return
+      }
       const t = toolRef.current
       if ((t !== 'text' && t !== 'shape') || opt.target) return
       const p = fab.getScenePoint ? fab.getScenePoint(opt.e) : fab.getPointer(opt.e)
@@ -236,25 +242,32 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
         setStatus('No signature on file — set one up at coreflow.build → ✍ Signature, then try again.')
         return
       }
-      const fabric = fabricLibRef.current
-      const fab = activeFab()
-      // 1) the signature itself — its own object; drop it into the block and resize to fit
-      const sig = await fabric.FabricImage.fromURL(data.signature)
-      const sigW = 240
-      const ss = sigW / (sig.width || sigW)
-      sig.set({ left: 60, top: 60, scaleX: ss, scaleY: ss, opacity: 0.92 })
-      fab.add(sig)
-      // 2) the audit details — a SEPARATE object; place it wherever there is room to read
-      const panel = await composeTextPanel(data.name || 'Reviewer')
-      const txt = await fabric.FabricImage.fromURL(panel)
-      const txtW = 300
-      const ts = txtW / (txt.width || txtW)
-      txt.set({ left: 60 + sigW + 20, top: 60, scaleX: ts, scaleY: ts })
-      fab.add(txt); fab.setActiveObject(sig); fab.renderAll()
-      setStatus('Added as two pieces — drop the signature into the block and size it to fit; move the details panel where it reads. Then Save to SharePoint.')
+      const panelUrl = await composeTextPanel(data.name || 'Reviewer')
+      pendingSigRef.current = { sigUrl: data.signature, panelUrl }
+      setTool('select')  // so the placement click selects/places rather than draws
+      fabsRef.current.forEach((f: any) => { f.isDrawingMode = false; f.defaultCursor = 'crosshair' })
+      setStatus('Now click where you want the signature — it drops there. Then size/move each piece and Save to SharePoint.')
     } catch (e: any) {
-      setStatus('Could not add the signature: ' + (e?.message || 'error'))
+      setStatus('Could not fetch the signature: ' + (e?.message || 'error'))
     }
+  }
+  async function placeSignatureAt(fab: any, p: { x: number; y: number }) {
+    const pend = pendingSigRef.current
+    if (!pend) return
+    pendingSigRef.current = null
+    fabsRef.current.forEach((f: any) => { f.defaultCursor = 'default' })
+    const fabric = fabricLibRef.current
+    // 1) the signature — dropped at the click; size it to fill the block
+    const sig = await fabric.FabricImage.fromURL(pend.sigUrl)
+    const sigW = 240, ss = sigW / (sig.width || sigW)
+    sig.set({ left: p.x, top: p.y, scaleX: ss, scaleY: ss, opacity: 0.92 })
+    fab.add(sig)
+    // 2) the audit details — a separate object just to the right; move where it reads
+    const txt = await fabric.FabricImage.fromURL(pend.panelUrl)
+    const txtW = 300, ts = txtW / (txt.width || txtW)
+    txt.set({ left: p.x + sigW + 20, top: p.y, scaleX: ts, scaleY: ts })
+    fab.add(txt); fab.setActiveObject(sig); fab.renderAll()
+    setStatus('Placed — size the signature into the block, move the details panel, then Save to SharePoint.')
   }
 
   function undo() {
