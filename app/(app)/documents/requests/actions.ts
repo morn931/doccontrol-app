@@ -200,3 +200,95 @@ export async function deleteRequest(id: string): Promise<{ ok: boolean; error?: 
   revalidatePath('/documents/requests')
   return { ok: true }
 }
+
+// ─── Drawing Number Picker — pre-check for an existing (placeholder) number ───
+// A placeholder = an Aconex Review Tracker row whose court is 'NOT_TRANSMITTED'
+// ("not yet submitted — PPE"), owned by FV / MC / VV or blank, and not already booked.
+export type Placeholder = {
+  docno: string; title: string | null; discipline: string | null; doc_type: string | null; package_code: string | null
+}
+const PLACEHOLDER_OWNER_INITIALS = ['(FV)', '(MC)', '(VV)'] // Flippie, Morne, Vossie
+
+export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
+  const c = await ctx()
+  if (!c) return []
+  const svc = createServiceClient()
+
+  const { data } = await svc.from('aconex_review_doc')
+    .select('docno, title, discipline, doc_type, doc_owner, package_code')
+    .eq('court', 'NOT_TRANSMITTED')
+    .limit(20000)
+
+  const ownerOk = (o: string | null) => {
+    const s = (o ?? '').trim()
+    if (!s) return true // blank owner counts
+    return PLACEHOLDER_OWNER_INITIALS.some((init) => s.includes(init))
+  }
+  const placeholders = ((data ?? []) as any[]).filter((r) => ownerOk(r.doc_owner)) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  // Exclude anything already booked (table may not exist until migration 022 — treat as none).
+  let booked = new Set<string>()
+  const { data: b, error: be } = await svc.from('doc_number_booking').select('docno').eq('released', false)
+  if (!be) booked = new Set((b ?? []).map((x: any) => x.docno)) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  return placeholders
+    .filter((r) => !booked.has(r.docno))
+    .map((r) => ({ docno: r.docno, title: r.title, discipline: r.discipline, doc_type: r.doc_type, package_code: r.package_code }))
+    .sort((a, b2) => a.docno.localeCompare(b2.docno))
+}
+
+export async function bookPlaceholder(docno: string): Promise<{ ok: boolean; error?: string; requestId?: string }> {
+  const c = await ctx()
+  if (!c) return { ok: false, error: 'Not signed in' }
+  if (!can(c.perms, FK.ACTION_REQUEST_DOC_NUMBER, c.role)) return { ok: false, error: 'Not authorised to book a number.' }
+  const svc = createServiceClient()
+
+  // Already booked? (the unique index also enforces this, but check for a clean message)
+  const { data: existing } = await svc.from('doc_number_booking')
+    .select('id').eq('docno', docno).eq('released', false).maybeSingle()
+  if (existing) return { ok: false, error: 'That number was just booked by someone else — refresh the list.' }
+
+  const { data: ph } = await svc.from('aconex_review_doc')
+    .select('docno, title, discipline, doc_type, package_code, revision').eq('docno', docno).limit(1).maybeSingle()
+  if (!ph) return { ok: false, error: 'Placeholder not found.' }
+
+  // Create an already-"assigned" Document Request pre-filled with the existing number,
+  // so it drops straight into the normal upload flow (same as a Doc-Control allocation).
+  const year = new Date().getFullYear()
+  const { count } = await svc.from('document_number_request').select('id', { count: 'exact', head: true })
+  const request_no = `DNR-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`
+  const { data: hdr, error: he } = await svc.from('document_number_request').insert({
+    request_no,
+    requestor_user_id: c.profile?.id ?? null,
+    requestor_email: c.profile?.email ?? null,
+    package_code: ph.package_code ?? null,
+    status: 'assigned',
+    notes: 'Booked from an existing placeholder number via the Number Picker.',
+  }).select('id').single()
+  if (he || !hdr) return { ok: false, error: he?.message ?? 'Could not create request' }
+
+  const { data: line, error: le } = await svc.from('document_number_request_line').insert({
+    request_id: hdr.id,
+    line_no: 1,
+    discipline_code: ph.discipline ?? null,
+    document_type_code: ph.doc_type ?? null,
+    title2: ph.title ?? null,
+    revision: ph.revision || 'A',
+    rdmc_document_number: ph.docno,
+    full_title: ph.title ?? null,
+    line_status: 'assigned',
+    assigned_by: c.profile?.id ?? null,
+    assigned_at: new Date().toISOString(),
+  }).select('id').single()
+  if (le || !line) return { ok: false, error: le?.message ?? 'Could not create request line' }
+
+  const { error: bkErr } = await svc.from('doc_number_booking').insert({
+    docno: ph.docno, package_code: ph.package_code ?? null, title: ph.title ?? null, discipline: ph.discipline ?? null,
+    booked_by: c.profile?.id ?? null, booked_by_email: c.profile?.email ?? null,
+    request_id: hdr.id, request_line_id: line.id,
+  })
+  if (bkErr) return { ok: false, error: `Could not record the booking: ${bkErr.message}` }
+
+  revalidatePath('/documents/requests')
+  return { ok: true, requestId: hdr.id }
+}

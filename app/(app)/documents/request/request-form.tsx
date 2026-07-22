@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createRequest, type LineInput } from '../requests/actions'
+import NumberPicker from './number-picker'
 
 type Opt = { code: string; name: string }
 type Pkg = { id: string; code: string; name: string }
@@ -22,6 +23,7 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
   const [dueBy, setDueBy] = useState('')
   const [notes, setNotes] = useState('')
   const [lines, setLines] = useState<Line[]>([blank(), blank(), blank()])
+  const [gateOpen, setGateOpen] = useState(false)
 
   const set = (key: number, patch: Partial<Line>) =>
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
@@ -61,7 +63,12 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
         <Link href="/documents/requests" className="text-sm font-medium text-teal-700 hover:underline">← Requests</Link>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <NumberPicker onConfirmNone={() => setGateOpen(true)} confirmed={gateOpen} />
+
+      {!gateOpen && (
+        <p className="mb-2 text-xs text-slate-400">The new-number form below unlocks once you confirm no existing number fits.</p>
+      )}
+      <div className={`rounded-xl border border-slate-200 bg-white p-4 transition ${gateOpen ? '' : 'pointer-events-none select-none opacity-40'}`}>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="text-xs font-medium text-slate-600">Package
             <select value={packageCode} onChange={(e) => setPackageCode(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
