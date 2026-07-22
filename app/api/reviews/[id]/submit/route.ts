@@ -237,8 +237,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       updated_at:   completedAt,
     }).eq('id', batchId)
 
-    // Notify controller
-    const controllerEmail = batch?.controller_email
+    // Notify controller — fall back to the configured Document Controller email
+    // (system_settings 'doc_request_controller_email', default mornec@ppetech.co.za)
+    // when the batch has none, so she's always told a batch is ready for transmittal.
+    let controllerEmail: string | null = batch?.controller_email ?? null
+    if (!controllerEmail || !controllerEmail.trim()) {
+      const { data: dcSetting } = await db.from('system_settings')
+        .select('value').eq('key', 'doc_request_controller_email').maybeSingle()
+      controllerEmail = ((dcSetting as any)?.value as string | undefined)?.trim() || 'mornec@ppetech.co.za'
+    }
     if (controllerEmail) {
       try {
         const emails = controllerEmail.split(/[;,]/).map((e: string) => e.trim()).filter(Boolean)
