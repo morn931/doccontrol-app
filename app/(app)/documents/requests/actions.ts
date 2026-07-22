@@ -205,8 +205,10 @@ export async function deleteRequest(id: string): Promise<{ ok: boolean; error?: 
 // A placeholder = an Aconex Review Tracker row whose court is 'NOT_TRANSMITTED'
 // ("not yet submitted — PPE"), owned by FV / MC / VV or blank, and not already booked.
 export type Placeholder = {
-  docno: string; title: string | null; discipline: string | null; doc_type: string | null; package_code: string | null
+  docno: string; title: string | null; discipline: string | null; doc_type: string | null; package_code: string | null; wbs: string | null
 }
+// WBS/area is the CCCC segment of the RDMC number: 6105AK124-<6186>-EDBD-0001
+const wbsOf = (docno: string): string | null => docno?.split('-')?.[1] ?? null
 const PLACEHOLDER_OWNER_INITIALS = ['(FV)', '(MC)', '(VV)'] // Flippie, Morne, Vossie
 
 export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
@@ -233,7 +235,7 @@ export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
 
   return placeholders
     .filter((r) => !booked.has(r.docno))
-    .map((r) => ({ docno: r.docno, title: r.title, discipline: r.discipline, doc_type: r.doc_type, package_code: r.package_code }))
+    .map((r) => ({ docno: r.docno, title: r.title, discipline: r.discipline, doc_type: r.doc_type, package_code: r.package_code, wbs: wbsOf(r.docno) }))
     .sort((a, b2) => a.docno.localeCompare(b2.docno))
 }
 
