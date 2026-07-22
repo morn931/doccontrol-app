@@ -9,12 +9,14 @@
      content itself, which sits inside the page's content box and DOES get the #F4F6F8
      background painted under it, right out to near the physical edge. */
   @page { size: A4 portrait; margin: 3mm; }
+  /* The on-screen dashboard type scale (Tailwind's rem-based text/spacing) reads fine at
+     desktop zoom but prints oversized and sparse on a physical A4 page — text AND padding/
+     gaps all shrink together here since Tailwind's whole scale is rem-based, so this one
+     rule densifies the entire report proportionally without touching any component's
+     classes or the on-screen sizing at all. */
+  html { font-size: 78%; }
   html, body { background: #F4F6F8 !important; }
   aside, nav, header, .no-print, .print-hide { display: none !important; }
-  /* CoreDocs' (app) layout has an un-tagged "welcome hero" band (168px, its own
-     background image) above every page's content — otherwise prints as a large
-     blank gap, the same issue already fixed the same way in CostFlow. */
-  .app-hero { display: none !important; }
   main, .print-page {
     max-width: none !important; background: #F4F6F8 !important;
     padding: 7mm 9mm 13mm !important; box-sizing: border-box; min-height: 291mm;
@@ -44,14 +46,18 @@
      against print rendering and can print blank. A real <img src> is always eager-fetched
      by the HTML preloader regardless of display state, so it's reliably ready in time. */
   .print-crane {
-    flex: 0 0 auto; align-self: stretch; position: relative; width: 160px; overflow: hidden;
-    /* fade the left edge so the image's own near-white bg (241,245,249) blends into our
-       #F4F6F8 page instead of showing a hard rectangle — same pixels, eased alpha only */
-    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 40%);
-    mask-image: linear-gradient(to right, transparent 0%, black 40%);
+    /* Deliberately no mask-image here: it's a nice-to-have edge fade, but CSS masks are
+       compiled into duplicated/rasterized image objects in Chrome's PDF export, and
+       different PDF viewers (Acrobat included) composite that inconsistently — showing
+       a hard opaque edge instead of a fade, or worse. A plain hard-edged crop is fully
+       portable across every PDF viewer, so that's the trade-off made here. The crop is
+       narrow/tight (130px, tall zoom via height:140%) so the small strip of the image's
+       own near-white bg (241,245,249 vs our #F4F6F8) reads as a thin, barely-visible
+       seam rather than a large flat rectangle. */
+    flex: 0 0 auto; align-self: stretch; position: relative; width: 130px; overflow: hidden;
   }
   .print-crane-img {
-    position: absolute; right: 0; bottom: 0; height: 132%; width: auto; max-width: none;
+    position: absolute; right: 0; bottom: 0; height: 140%; width: auto; max-width: none;
   }
   .print-date { position: absolute; top: -10px; right: 0; font-size: 8px; color: #5B7290; white-space: nowrap; }
 
