@@ -209,7 +209,7 @@ export type Placeholder = {
 }
 // WBS/area is the CCCC segment of the RDMC number: 6105AK124-<6186>-EDBD-0001
 const wbsOf = (docno: string): string | null => docno?.split('-')?.[1] ?? null
-const PLACEHOLDER_OWNER_INITIALS = ['FV', 'MC', 'VV'] // Flippie, Morne, Vossie
+const PLACEHOLDER_OWNER_INITIALS = ['FV', 'MC', 'VV', 'JV2'] // Flippie, Morne, Vossie (VV / JV2)
 
 export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
   const c = await ctx()
