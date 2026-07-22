@@ -96,7 +96,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                 ✅ Drawing submitted for review — it&apos;s now an internal batch in <a className="font-medium underline" href="/batches">Incoming Batches</a>.
               </div>
             ) : canSubmit ? (
-              <SubmitDrawing lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} />
+              <SubmitDrawing lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} packageId={req.package_id ?? null} />
             ) : null)}
           </div>
         ))}

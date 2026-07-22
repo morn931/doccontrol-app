@@ -39,6 +39,13 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
     if (batchRes.ok) {
       const b = await batchRes.json()
       setBatch(b)
+      // Internal submit — prefill the sequence with the engineer's recommended reviewers.
+      // The Document Controller still edits freely (add/remove/reorder) before starting.
+      if (Array.isArray(b.recommended_reviewers) && b.recommended_reviewers.length) {
+        setReviewers(b.recommended_reviewers.map((r: any, i: number) => ({
+          email: r.email, name: r.name ?? r.email, sequenceNumber: i + 1,
+        })))
+      }
       // Fetch suggestions with package context
       const pkgId = b.packages?.id
       if (pkgId) {
@@ -126,6 +133,13 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
           {batch?.packages?.package_name ?? 'Unknown Package'} — {batch?.document_versions?.length ?? 0} document{(batch?.document_versions?.length ?? 0) !== 1 ? 's' : ''}
         </p>
       </div>
+
+      {/* Prefilled from the internal submitter's recommendations */}
+      {batch?.source === 'internal' && Array.isArray(batch?.recommended_reviewers) && batch.recommended_reviewers.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          The review sequence below was <b>recommended by the submitter</b> and pre-filled for you. Add, remove or reorder as you see fit — you have the final say.
+        </div>
+      )}
 
       {/* AI Suggestions */}
       {unusedSuggestions.length > 0 && (

@@ -21,8 +21,24 @@ import { randomUUID } from 'crypto'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import { parseDocumentFileName } from '@/lib/utils/document-number-parser'
 import { uploadBytesToLibrary } from '@/lib/services/graph'
+import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 
 const norm = (s: string) => s.replace(/\s+/g, '').toUpperCase()
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://docs.coreflow.build'
+
+type Rec = { email: string; name: string }
+function parseRecs(raw: unknown): Rec[] {
+  try {
+    const arr = JSON.parse(String(raw ?? '[]'))
+    if (!Array.isArray(arr)) return []
+    const seen = new Set<string>()
+    return arr
+      .map((r: any) => ({ email: String(r?.email ?? '').trim(), name: String(r?.name ?? '').trim() }))
+      .filter((r) => r.email && !seen.has(r.email) && (seen.add(r.email), true))
+      .map((r) => ({ email: r.email, name: r.name || r.email }))
+      .slice(0, 20)
+  } catch { return [] }
+}
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -39,6 +55,7 @@ export async function POST(req: Request) {
   const form = await req.formData()
   const file = form.get('file') as File | null
   const lineId = String(form.get('lineId') ?? '')
+  const recommendedReviewers = parseRecs(form.get('recommendedReviewers'))
   if (!lineId) return NextResponse.json({ error: 'Missing request line.' }, { status: 400 })
   if (!file || file.size === 0) return NextResponse.json({ error: 'Choose a drawing file to upload.' }, { status: 400 })
 
@@ -86,6 +103,7 @@ export async function POST(req: Request) {
     status:          'metadata_pending',
     file_count:      1,
     received_at:     new Date().toISOString(),
+    recommended_reviewers: recommendedReviewers.length ? recommendedReviewers : null,
   }).select('id').single()
   if (be || !batch) return NextResponse.json({ error: be?.message ?? 'Could not create batch.' }, { status: 500 })
 
@@ -125,6 +143,30 @@ export async function POST(req: Request) {
     actor_user_id: profile?.id ?? null, actor_email: profile?.email ?? null,
     event_data: { rdmc: line.rdmc_document_number, revision, fileName: file.name, requestId: line.request_id },
   })
+
+  // Notify the Document Controller that an internal drawing is ready to assign — include the
+  // engineer's recommended reviewers (she prefills from these on Assign Reviewers, final say hers).
+  // Best-effort: never fail the submission on email.
+  try {
+    const { data: setting } = await svc.from('system_settings').select('value').eq('key', 'doc_request_controller_email').maybeSingle()
+    const controller = (setting?.value ?? '').trim() || 'mornec@ppetech.co.za'
+    const recsHtml = recommendedReviewers.length
+      ? `<p style="margin:12px 0"><b>Reviewers recommended by the submitter:</b></p>
+         <ul style="padding-left:18px;color:#374151">${recommendedReviewers.map((r) => `<li>${r.name} &lt;${r.email}&gt;</li>`).join('')}</ul>
+         <p style="color:#6b7280;font-size:13px">These will pre-fill the review sequence — you can add or remove reviewers before starting.</p>`
+      : `<p style="color:#6b7280">The submitter did not recommend any reviewers.</p>`
+    await sendMail({
+      to: controller,
+      subject: `Internal drawing submitted for review — ${line.rdmc_document_number} (Rev ${revision})`,
+      htmlBody: brandedEmail({
+        heading: 'Internal drawing ready to assign reviewers',
+        bodyHtml: `<p><b>${profile?.email ?? 'An engineer'}</b> has submitted an internal drawing for review.</p>
+          <p style="margin:12px 0"><b>Document:</b> ${line.rdmc_document_number} (Rev ${revision})<br/>
+          <b>Title:</b> ${title ?? '—'}</p>${recsHtml}`,
+        cta: { href: `${APP_URL}/batches/${batch.id}/assign`, label: 'Assign reviewers →' },
+      }),
+    })
+  } catch {}
 
   return NextResponse.json({
     success: true, batchId: batch.id, docNumber: line.rdmc_document_number, revision,
