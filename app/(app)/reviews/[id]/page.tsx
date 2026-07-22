@@ -18,6 +18,14 @@ const OUTCOME_CODES = [
   { code: 'S1', label: 'Superseded',                                              color: 'border-slate-400   bg-slate-50   text-slate-600'  },
 ]
 
+// Internal-review outcomes (a drawing from a PPE internal reviewer, not a client/vendor):
+// only A1 / B1 / Q1, and the A1/B1 labels drop the client resubmit-disposition clause.
+const INTERNAL_OUTCOME_CODES = [
+  { code: 'A1', label: 'Data Complete — No Comments',                       color: 'border-emerald-500 bg-green-50 text-emerald-800' },
+  { code: 'B1', label: 'Data Complete — With Comments',                     color: 'border-amber-500   bg-amber-50 text-amber-800'   },
+  { code: 'Q1', label: 'Quality is below Standard — Revise and Resubmit',   color: 'border-red-700     bg-red-100  text-red-900'     },
+]
+
 const OUTCOME_COLORS: Record<string, string> = {
   A1:'bg-green-100 text-emerald-700', D1:'bg-blue-100 text-teal-700',
   B1:'bg-amber-100 text-amber-700', B2:'bg-amber-100 text-amber-700',
@@ -150,6 +158,9 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   // hide "Open & Markup" — such files can only be opened in SharePoint.
   const isPdf = /\.pdf$/i.test((dv as any).file_name || (dv as any).central_file_url || '')
   const batch = dv.batches ?? {}
+  // Internal-review outcomes are a reduced set (A1/B1/Q1); client/vendor reviews keep the full list.
+  const isInternal = batch.source === 'internal'
+  const outcomeOptions = isInternal ? INTERNAL_OUTCOME_CODES : OUTCOME_CODES
   const isCompleted = task.status === 'completed' || submitted
   const canSubmit   = ['sent','opened','in_progress','pending'].includes(task.status) && !submitted
 
@@ -486,7 +497,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
               Select Review Outcome <span className="text-red-500">*</span>
             </h2>
             <div className="space-y-2">
-              {OUTCOME_CODES.map(oc => (
+              {outcomeOptions.map(oc => (
                 <label key={oc.code}
                   className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
                     outcome === oc.code ? oc.color + ' border-2' : 'border-slate-200 hover:border-slate-300 bg-white'
@@ -561,7 +572,8 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 {task.review_outcome_code}
               </span>
               <span className="text-slate-600 text-sm">
-                {OUTCOME_CODES.find(o => o.code === task.review_outcome_code)?.label}
+                {(outcomeOptions.find(o => o.code === task.review_outcome_code)
+                  ?? OUTCOME_CODES.find(o => o.code === task.review_outcome_code))?.label}
               </span>
             </div>
           )}

@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         document_type, topic, ai_text, central_file_url, status,
         doc_unique_id, document_id, uploaded_at,
         batches (
-          id, batch_guid, comments,
+          id, batch_guid, comments, source,
           packages(package_name, package_code),
           vendors(name, code)
         )
