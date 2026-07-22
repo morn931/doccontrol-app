@@ -214,34 +214,34 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   // crisp text (supersampled), signature scaled to fill its half of the block.
   async function composeStamp(sigUrl: string, name: string): Promise<string> {
     const SS = 4                         // supersample → crisp text at any drag size
-    const W = 560, H = 150               // logical layout units
+    const W = 540, H = 176               // logical layout units
     const cv = document.createElement('canvas'); cv.width = W * SS; cv.height = H * SS
     const g = cv.getContext('2d')!; g.scale(SS, SS)   // NO fill (transparent), NO border
 
-    // signature — left ~48%, scaled to fill, vertically centred
+    // signature — left ~50%, scaled to fill the whole half (bigger), vertically centred
     const sig = await loadImg(sigUrl)
-    const sw = W * 0.48 - 8, sh = H - 14
+    const sw = W * 0.50 - 6, sh = H - 12
     const sc = Math.min(sw / sig.width, sh / sig.height)
     const sigW = sig.width * sc, sigH = sig.height * sc
     g.globalAlpha = 0.92
-    g.drawImage(sig, 6 + (sw - sigW) / 2, (H - sigH) / 2, sigW, sigH)
+    g.drawImage(sig, 4 + (sw - sigW) / 2, (H - sigH) / 2, sigW, sigH)
     g.globalAlpha = 1
 
-    // text — right, Adobe layout
+    // text — right half, larger so it reads without blowing the whole stamp up
     const now = new Date()
     const off = -now.getTimezoneOffset(), sgn = off >= 0 ? '+' : '-'
     const p2 = (n: number) => String(n).padStart(2, '0')
     const tz = `${sgn}${p2(Math.floor(Math.abs(off) / 60))}'${p2(Math.abs(off) % 60)}'`
     const dt = `${now.getFullYear()}.${p2(now.getMonth() + 1)}.${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())} ${tz}`
     const vid = ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(now.getTime())).replace(/-/g, '').slice(0, 10).toUpperCase()
-    const tx = W * 0.50
+    const tx = W * 0.52
     g.textBaseline = 'alphabetic'
-    g.fillStyle = '#0b3b8c'; g.font = 'bold 15px Helvetica, Arial'; g.fillText('Reviewed & Approved', tx, 27)
-    g.fillStyle = '#1e293b'; g.font = '12.5px Helvetica, Arial'
-    g.fillText(`Digitally signed by ${name}`, tx, 51)
-    g.fillText(`Date: ${dt}`, tx, 71)
-    g.fillStyle = '#475569'; g.font = '11.5px Helvetica, Arial'; g.fillText('PPE Technologies', tx, 93)
-    g.fillStyle = '#94a3b8'; g.font = '10.5px Helvetica, Arial'; g.fillText(`Verify ID: ${vid}`, tx, 112)
+    g.fillStyle = '#0b3b8c'; g.font = 'bold 20px Helvetica, Arial'; g.fillText('Reviewed & Approved', tx, 34)
+    g.fillStyle = '#1e293b'; g.font = '15.5px Helvetica, Arial'
+    g.fillText(`Digitally signed by ${name}`, tx, 66)
+    g.fillText(`Date: ${dt}`, tx, 90)
+    g.fillStyle = '#475569'; g.font = '13.5px Helvetica, Arial'; g.fillText('PPE Technologies', tx, 118)
+    g.fillStyle = '#94a3b8'; g.font = '12px Helvetica, Arial'; g.fillText(`Verify ID: ${vid}`, tx, 140)
     return cv.toDataURL('image/png')
   }
   async function applySignature() {
