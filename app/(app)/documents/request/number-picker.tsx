@@ -74,7 +74,7 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
     <select
       value={f[field]}
       onChange={(e) => setF((prev) => ({ ...prev, [field]: e.target.value }))}
-      className="rounded-lg border border-teal-300 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-300"
+      className="min-w-[120px] rounded-lg border border-teal-300 bg-white py-1.5 pl-2.5 pr-8 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-300"
     >
       <option value="">{label}: all</option>
       {options.map((o) => <option key={o} value={o}>{o}</option>)}

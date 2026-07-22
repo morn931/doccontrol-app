@@ -209,7 +209,7 @@ export type Placeholder = {
 }
 // WBS/area is the CCCC segment of the RDMC number: 6105AK124-<6186>-EDBD-0001
 const wbsOf = (docno: string): string | null => docno?.split('-')?.[1] ?? null
-const PLACEHOLDER_OWNER_INITIALS = ['(FV)', '(MC)', '(VV)'] // Flippie, Morne, Vossie
+const PLACEHOLDER_OWNER_INITIALS = ['FV', 'MC', 'VV'] // Flippie, Morne, Vossie
 
 export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
   const c = await ctx()
@@ -224,7 +224,10 @@ export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
   const ownerOk = (o: string | null) => {
     const s = (o ?? '').trim()
     if (!s) return true // blank owner counts
-    return PLACEHOLDER_OWNER_INITIALS.some((init) => s.includes(init))
+    const up = s.toUpperCase()
+    // Match "Flippie van Vuuren (FV)" (bracketed) OR a raw unmapped "FV" — never a bare
+    // substring, so "McAllister" is not caught by MC.
+    return PLACEHOLDER_OWNER_INITIALS.some((i) => up === i || up.includes(`(${i})`))
   }
   const placeholders = ((data ?? []) as any[]).filter((r) => ownerOk(r.doc_owner)) // eslint-disable-line @typescript-eslint/no-explicit-any
 
