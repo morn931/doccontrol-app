@@ -210,30 +210,38 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   function loadImg(src: string): Promise<HTMLImageElement> {
     return new Promise((res, rej) => { const i = new window.Image(); i.onload = () => res(i); i.onerror = rej; i.src = src })
   }
+  // Adobe-appearance stamp: transparent background (document shows through), no border,
+  // crisp text (supersampled), signature scaled to fill its half of the block.
   async function composeStamp(sigUrl: string, name: string): Promise<string> {
-    const W = 620, H = 232
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H
-    const g = cv.getContext('2d')!
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H)
-    g.strokeStyle = '#0b8b93'; g.lineWidth = 3; g.strokeRect(4, 4, W - 8, H - 8)
+    const SS = 4                         // supersample → crisp text at any drag size
+    const W = 560, H = 150               // logical layout units
+    const cv = document.createElement('canvas'); cv.width = W * SS; cv.height = H * SS
+    const g = cv.getContext('2d')!; g.scale(SS, SS)   // NO fill (transparent), NO border
+
+    // signature — left ~48%, scaled to fill, vertically centred
     const sig = await loadImg(sigUrl)
-    const sw = W * 0.5 - 32, sh = H - 56
-    const sc = Math.min(sw / sig.width, sh / sig.height, 1)
-    g.drawImage(sig, 22, (H - sig.height * sc) / 2, sig.width * sc, sig.height * sc)
-    g.strokeStyle = '#94a3b8'; g.lineWidth = 1; g.beginPath(); g.moveTo(W * 0.52, 16); g.lineTo(W * 0.52, H - 16); g.stroke()
+    const sw = W * 0.48 - 8, sh = H - 14
+    const sc = Math.min(sw / sig.width, sh / sig.height)
+    const sigW = sig.width * sc, sigH = sig.height * sc
+    g.globalAlpha = 0.92
+    g.drawImage(sig, 6 + (sw - sigW) / 2, (H - sigH) / 2, sigW, sigH)
+    g.globalAlpha = 1
+
+    // text — right, Adobe layout
     const now = new Date()
     const off = -now.getTimezoneOffset(), sgn = off >= 0 ? '+' : '-'
-    const tz = `${sgn}${String(Math.floor(Math.abs(off) / 60)).padStart(2, '0')}:${String(Math.abs(off) % 60).padStart(2, '0')}`
-    const ts = now.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    const p2 = (n: number) => String(n).padStart(2, '0')
+    const tz = `${sgn}${p2(Math.floor(Math.abs(off) / 60))}'${p2(Math.abs(off) % 60)}'`
+    const dt = `${now.getFullYear()}.${p2(now.getMonth() + 1)}.${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())} ${tz}`
     const vid = ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(now.getTime())).replace(/-/g, '').slice(0, 10).toUpperCase()
-    const tx = W * 0.52 + 18
-    g.fillStyle = '#0b2440'; g.font = 'bold 16px Helvetica, Arial'; g.fillText('Reviewed & Approved', tx, 40)
-    g.fillStyle = '#334155'; g.font = '12px Helvetica, Arial'
-    g.fillText(`Digitally signed by ${name}`, tx, 70)
-    g.fillText('PPE Technologies', tx, 90)
-    g.fillText(`Date: ${ts} ${tz}`, tx, 118)
-    g.fillText('Signed via Coreflow · CoreDocs', tx, 138)
-    g.fillStyle = '#64748b'; g.font = '11px Helvetica, Arial'; g.fillText(`Verify ID: ${vid}`, tx, 164)
+    const tx = W * 0.50
+    g.textBaseline = 'alphabetic'
+    g.fillStyle = '#0b3b8c'; g.font = 'bold 15px Helvetica, Arial'; g.fillText('Reviewed & Approved', tx, 27)
+    g.fillStyle = '#1e293b'; g.font = '12.5px Helvetica, Arial'
+    g.fillText(`Digitally signed by ${name}`, tx, 51)
+    g.fillText(`Date: ${dt}`, tx, 71)
+    g.fillStyle = '#475569'; g.font = '11.5px Helvetica, Arial'; g.fillText('PPE Technologies', tx, 93)
+    g.fillStyle = '#94a3b8'; g.font = '10.5px Helvetica, Arial'; g.fillText(`Verify ID: ${vid}`, tx, 112)
     return cv.toDataURL('image/png')
   }
   async function applySignature() {
@@ -248,7 +256,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
       const stamp = await composeStamp(data.signature, data.name || 'Reviewer')
       const fabric = fabricLibRef.current
       const img = await fabric.FabricImage.fromURL(stamp)
-      const s = Math.min(1, 300 / (img.width || 300))
+      const s = 460 / (img.width || 460)   // bigger default; supersampled so it stays crisp when dragged larger
       img.set({ left: 60, top: 60, scaleX: s, scaleY: s })
       const fab = activeFab(); fab.add(img); fab.setActiveObject(img); fab.renderAll()
       setStatus('Signature stamp added — drag it onto the approval block, then Save to SharePoint.')
