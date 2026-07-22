@@ -308,6 +308,42 @@ export async function bookPlaceholder(docno: string): Promise<{ ok: boolean; err
   })
   if (bkErr) return { ok: false, error: `Could not record the booking: ${bkErr.message}` }
 
+  // Notify both the booker and the Document Controller (best-effort — never fail the booking on email).
+  try {
+    const { data: me } = await svc.from('users').select('full_name').eq('id', c.profile?.id ?? '').maybeSingle()
+    const bookerName = (me?.full_name ?? '').trim() || c.profile?.email || 'A user'
+    const detailHtml = `<p style="margin:12px 0"><b>Document number:</b> ${ph.docno}<br/>
+      <b>Title:</b> ${ph.title ?? '—'}<br/>
+      <b>Package:</b> ${ph.package_code ?? '—'}${ph.discipline ? `<br/><b>Discipline:</b> ${ph.discipline}` : ''}</p>`
+
+    // 1) Confirmation to the person who booked it.
+    if (c.profile?.email) {
+      await sendMail({
+        to: c.profile.email,
+        subject: `You booked document number ${ph.docno}`,
+        htmlBody: brandedEmail({
+          heading: 'Document number booked',
+          bodyHtml: `<p>You have booked out the existing (placeholder) document number below. It is now reserved to you
+            and has dropped into your requests, ready to upload against.</p>${detailHtml}`,
+          cta: { href: `${APP_URL}/documents/requests/${hdr.id}`, label: 'Open request to upload →' },
+        }),
+      })
+    }
+
+    // 2) Notice to the Document Controller so she can update her records.
+    const controller = await controllerEmailFrom(svc)
+    await sendMail({
+      to: controller,
+      subject: `Placeholder number booked — ${ph.docno}`,
+      htmlBody: brandedEmail({
+        heading: 'An existing placeholder number was booked',
+        bodyHtml: `<p><b>${bookerName}</b> has booked an existing placeholder document number.
+          Please update your records to show it is now allocated.</p>${detailHtml}`,
+        cta: { href: `${APP_URL}/documents/requests/${hdr.id}`, label: 'View the request →' },
+      }),
+    })
+  } catch {}
+
   revalidatePath('/documents/requests')
   return { ok: true, requestId: hdr.id }
 }
