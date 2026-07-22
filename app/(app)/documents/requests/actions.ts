@@ -216,10 +216,19 @@ export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
   if (!c) return []
   const svc = createServiceClient()
 
-  const { data } = await svc.from('aconex_review_doc')
-    .select('docno, title, discipline, doc_type, doc_owner, package_code')
-    .eq('court', 'NOT_TRANSMITTED')
-    .limit(20000)
+  // Page through — PostgREST caps responses at max_rows (1000) regardless of .limit,
+  // and there are thousands of NOT_TRANSMITTED rows (Vossie alone owns ~4k).
+  const rows: any[] = [] // eslint-disable-line @typescript-eslint/no-explicit-any
+  for (let from = 0; from < 100000; from += 1000) {
+    const { data, error } = await svc.from('aconex_review_doc')
+      .select('docno, title, discipline, doc_type, doc_owner, package_code')
+      .eq('court', 'NOT_TRANSMITTED')
+      .order('docno', { ascending: true })
+      .range(from, from + 999)
+    if (error) break
+    rows.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
 
   const ownerOk = (o: string | null) => {
     const s = (o ?? '').trim()
@@ -229,7 +238,7 @@ export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
     // substring, so "McAllister" is not caught by MC.
     return PLACEHOLDER_OWNER_INITIALS.some((i) => up === i || up.includes(`(${i})`))
   }
-  const placeholders = ((data ?? []) as any[]).filter((r) => ownerOk(r.doc_owner)) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const placeholders = rows.filter((r) => ownerOk(r.doc_owner))
 
   // Exclude anything already booked (table may not exist until migration 022 — treat as none).
   let booked = new Set<string>()
