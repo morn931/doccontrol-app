@@ -17,6 +17,17 @@ function outcomeText(code: string): string {
   return (OUTCOME_CODES as any)[code]?.text ?? code
 }
 
+// Internal reviews (a PPE engineer's drawing, not a client/vendor submission) use a
+// reduced code set (A1/B1/Q1) and drop the client resubmit-disposition clause on A1/B1.
+const INTERNAL_OUTCOME_TEXT: Record<string, string> = {
+  A1: 'Data Complete - No Comments',
+  B1: 'Data Complete - With Comments',
+}
+const INTERNAL_LEGEND_CODES = ['A1', 'B1', 'Q1']
+function outcomeTextFor(code: string, internal = false): string {
+  return internal && INTERNAL_OUTCOME_TEXT[code] ? INTERNAL_OUTCOME_TEXT[code] : outcomeText(code)
+}
+
 async function nextTransmittalNumber(db: any): Promise<string> {
   const year = new Date().getFullYear()
   const { data: seq } = await db.from('transmittal_sequences').select('last_seq').eq('year', year).single()
@@ -76,6 +87,13 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
   const CW = PW - M * 2        // 515.28
   const RH = 18                 // standard row height
   const PAGE_BOTTOM = PH - 38  // leave room for footer
+
+  // Internal transmittals use the reduced code set + shortened A1/B1 wording.
+  const internal = !!data.internal
+  const txt = (code: string) => outcomeTextFor(code, internal)
+  const legend = internal
+    ? INTERNAL_LEGEND_CODES.map((c) => ({ code: c, text: txt(c) }))
+    : Object.values(OUTCOME_CODES).map((oc: any) => ({ code: oc.code, text: oc.text })) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   return new Promise<Buffer>((resolve, reject) => {
     const pdf = new PDFDoc({ size: 'A4', margin: M, bufferPages: true, autoFirstPage: true })
@@ -147,7 +165,7 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
       ['Vendor',             data.vendorName, false],
       ['Project Package',    `${data.packageCode}  —  ${data.packageName}`, false],
       ['No. of Documents',   String(data.documents.length), false],
-      ['Overall Outcome',    `${data.overallCode}  —  ${outcomeText(data.overallCode)}`, true],
+      ['Overall Outcome',    `${data.overallCode}  —  ${txt(data.overallCode)}`, true],
       ['Prepared By',        data.controllerEmail, false],
     ]
     if (data.engineeringLink) infoRows.push(['Saved to', `ENG2  ›  ${data.engineeringLibrary ?? ''}`, false])
@@ -189,7 +207,7 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
       const reviewerRowHeights = d.reviewers.map(rv =>
         Math.max(RH,
           calcH(rv.name,              RC[0]),
-          calcH(outcomeText(rv.code), RC[2]),
+          calcH(txt(rv.code), RC[2]),
           calcH(rv.comment || '—',   RC[3]),
         )
       )
@@ -203,7 +221,7 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
         y += 16  // document 1 now flows after the summary; gap between docs sharing a page
       }
 
-      y = sectionHdr(y, `DOCUMENT ${i+1} OF ${data.documents.length}  ·  ${d.outcomeCode}: ${outcomeText(d.outcomeCode)}`)
+      y = sectionHdr(y, `DOCUMENT ${i+1} OF ${data.documents.length}  ·  ${d.outcomeCode}: ${txt(d.outcomeCode)}`)
       y += 6
 
       const DC1 = 105, DC2 = CW - DC1
@@ -212,7 +230,7 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
         ['Document Title',  d.docName ?? d.fileName],
         ['Revision',        d.revision ?? '0'],
         ['Discipline',      [d.discipline, d.documentType, d.topic].filter(Boolean).join('  ·  ') || '—'],
-        ['Overall Outcome', `${d.outcomeCode}  —  ${outcomeText(d.outcomeCode)}`],
+        ['Overall Outcome', `${d.outcomeCode}  —  ${txt(d.outcomeCode)}`],
       ]
       for (let r = 0; r < metaRows.length; r++) {
         y = ensureSpace(y, RH)
@@ -238,14 +256,14 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
         const f = r % 2 === 0 ? LGRAY : '#FFFFFF'
         cell(RX[0], y, RC[0], rowH, rv.name,              { fill: f, wrap: true })
         cell(RX[1], y, RC[1], rowH, rv.code,              { fill: oBg(rv.code), fg: oFg(rv.code), bold: true, align: 'center' })
-        cell(RX[2], y, RC[2], rowH, outcomeText(rv.code), { fill: f, fg: '#555555', wrap: true })
+        cell(RX[2], y, RC[2], rowH, txt(rv.code), { fill: f, fg: '#555555', wrap: true })
         cell(RX[3], y, RC[3], rowH, rv.comment || '—',   { fill: f, wrap: true })
         y += rowH
       }
     }
 
     // ── Acknowledgement — flows after the documents; a new page only if it won't fit ─
-    const ackHeight = (RH + 2) + 8 + 36 + RH + RH * 4 + 14 + 12 + Object.keys(OUTCOME_CODES).length * RH + 10
+    const ackHeight = (RH + 2) + 8 + 36 + RH + RH * 4 + 14 + 12 + legend.length * RH + 10
     y = ensureSpace(y + 16, ackHeight)
     y = sectionHdr(y, 'ACKNOWLEDGEMENT OF RECEIPT')
     y += 8
@@ -268,7 +286,7 @@ async function buildTransmittalPdf(data: TransmittalData): Promise<Buffer> {
 
     pdf.font('Helvetica-Bold').fontSize(8).fillColor(BLUE).text('REVIEW CODE LEGEND', M, y, { lineBreak: false })
     y += 12
-    Object.values(OUTCOME_CODES).forEach((oc: any, i) => {
+    legend.forEach((oc, i) => {
       const f = i % 2 === 0 ? LGRAY : '#FFFFFF'
       cell(M,      y, 28,      RH, oc.code, { fill: oBg(oc.code), fg: oFg(oc.code), bold: true, align: 'center' })
       cell(M + 28, y, CW - 28, RH, oc.text, { fill: f })
@@ -318,6 +336,7 @@ export interface TransmittalData {
   documents:         TransmittalDocument[]
   engineeringLink?:  string   // internal only — where the reviewed doc was placed in ENG2
   engineeringLibrary?: string // internal only — the ENG2 discipline library name
+  internal?:         boolean  // internal review → reduced A1/B1/Q1 codes + shortened wording
 }
 
 // ─── GET — build transmittal preview (no PDF, no email) + email suggestions ───
@@ -644,12 +663,14 @@ async function returnInternalToEngineer(db: any, batchId: string, batch: any, pr
   const transmittalNumber = await nextTransmittalNumber(db)
   const transmittalDate = format(new Date(), 'd MMMM yyyy')
 
+  const overallText = outcomeTextFor(overallCode, true)
   const transmittalData: TransmittalData = {
     transmittalNumber, vendorName: 'PPE Internal Engineering',
     packageCode: batch.packages?.package_code ?? '—',
     packageName: batch.packages?.package_name ?? 'Internal Engineering',
     overallCode, controllerEmail, controllerName, documents,
     engineeringLink: engineeringLink ?? undefined, engineeringLibrary: destLibrary,
+    internal: true,
   }
 
   let pdfBuffer: Buffer
@@ -662,13 +683,13 @@ async function returnInternalToEngineer(db: any, batchId: string, batch: any, pr
   await sendEmail({
     to: toEmail, cc: [controllerEmail].filter(Boolean),
     subject: `Internal document reviewed — ${transmittalNumber} — ${documents[0]?.fileName ?? ''} (${overallCode})`,
-    htmlBody: `<p>Hi,</p><p>Your internally-submitted document has been reviewed. Overall outcome: <b>${overallCode} — ${outcomeText(overallCode)}</b>.</p>${linkHtml}<p>The full review transmittal (per-reviewer comments and codes) is attached.</p><p>Kind regards,<br/>${controllerName}<br/>PPE Document Control</p>`,
+    htmlBody: `<p>Hi,</p><p>Your internally-submitted document has been reviewed. Overall outcome: <b>${overallCode} — ${overallText}</b>.</p>${linkHtml}<p>The full review transmittal (per-reviewer comments and codes) is attached.</p><p>Kind regards,<br/>${controllerName}<br/>PPE Document Control</p>`,
     attachments: [{ name: `${transmittalNumber}.pdf`, contentType: 'application/pdf', content: pdfBuffer }],
   })
 
   await db.from('transmittals').insert({
     transmittal_number: transmittalNumber, batch_id: batchId, package_id: batch.package_id,
-    final_outcome_code: overallCode, final_outcome_text: outcomeText(overallCode),
+    final_outcome_code: overallCode, final_outcome_text: overallText,
     generated_by: profile?.id ?? null, status: 'sent',
   })
   await db.from('batches').update({
