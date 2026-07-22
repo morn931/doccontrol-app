@@ -206,42 +206,25 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
     e.target.value = ''
   }
 
-  // ── Sign-off stamp: your central Coreflow signature + details, dropped as an overlay ──
-  function loadImg(src: string): Promise<HTMLImageElement> {
-    return new Promise((res, rej) => { const i = new window.Image(); i.onload = () => res(i); i.onerror = rej; i.src = src })
-  }
-  // Adobe-appearance stamp: transparent background (document shows through), no border,
-  // crisp text (supersampled), signature scaled to fill its half of the block.
-  async function composeStamp(sigUrl: string, name: string): Promise<string> {
-    const SS = 4                         // supersample → crisp text at any drag size
-    const W = 540, H = 176               // logical layout units
+  // ── Sign-off = TWO independent overlays: the signature (drop into the approval block and
+  // size to fit) + a separate details panel (place where there's room; stays legible). ──
+  async function composeTextPanel(name: string): Promise<string> {
+    const SS = 4, W = 300, H = 128       // text-only; transparent, no border, supersampled
     const cv = document.createElement('canvas'); cv.width = W * SS; cv.height = H * SS
-    const g = cv.getContext('2d')!; g.scale(SS, SS)   // NO fill (transparent), NO border
-
-    // signature — left ~50%, scaled to fill the whole half (bigger), vertically centred
-    const sig = await loadImg(sigUrl)
-    const sw = W * 0.50 - 6, sh = H - 12
-    const sc = Math.min(sw / sig.width, sh / sig.height)
-    const sigW = sig.width * sc, sigH = sig.height * sc
-    g.globalAlpha = 0.92
-    g.drawImage(sig, 4 + (sw - sigW) / 2, (H - sigH) / 2, sigW, sigH)
-    g.globalAlpha = 1
-
-    // text — right half, larger so it reads without blowing the whole stamp up
+    const g = cv.getContext('2d')!; g.scale(SS, SS)
     const now = new Date()
     const off = -now.getTimezoneOffset(), sgn = off >= 0 ? '+' : '-'
     const p2 = (n: number) => String(n).padStart(2, '0')
     const tz = `${sgn}${p2(Math.floor(Math.abs(off) / 60))}'${p2(Math.abs(off) % 60)}'`
     const dt = `${now.getFullYear()}.${p2(now.getMonth() + 1)}.${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}:${p2(now.getSeconds())} ${tz}`
     const vid = ((typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(now.getTime())).replace(/-/g, '').slice(0, 10).toUpperCase()
-    const tx = W * 0.52
     g.textBaseline = 'alphabetic'
-    g.fillStyle = '#0b3b8c'; g.font = 'bold 20px Helvetica, Arial'; g.fillText('Reviewed & Approved', tx, 34)
+    g.fillStyle = '#0b3b8c'; g.font = 'bold 20px Helvetica, Arial'; g.fillText('Reviewed & Approved', 1, 22)
     g.fillStyle = '#1e293b'; g.font = '15.5px Helvetica, Arial'
-    g.fillText(`Digitally signed by ${name}`, tx, 66)
-    g.fillText(`Date: ${dt}`, tx, 90)
-    g.fillStyle = '#475569'; g.font = '13.5px Helvetica, Arial'; g.fillText('PPE Technologies', tx, 118)
-    g.fillStyle = '#94a3b8'; g.font = '12px Helvetica, Arial'; g.fillText(`Verify ID: ${vid}`, tx, 140)
+    g.fillText(`Digitally signed by ${name}`, 1, 50)
+    g.fillText(`Date: ${dt}`, 1, 72)
+    g.fillStyle = '#475569'; g.font = '13.5px Helvetica, Arial'; g.fillText('PPE Technologies', 1, 98)
+    g.fillStyle = '#94a3b8'; g.font = '12px Helvetica, Arial'; g.fillText(`Verify ID: ${vid}`, 1, 118)
     return cv.toDataURL('image/png')
   }
   async function applySignature() {
@@ -253,13 +236,22 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
         setStatus('No signature on file — set one up at coreflow.build → ✍ Signature, then try again.')
         return
       }
-      const stamp = await composeStamp(data.signature, data.name || 'Reviewer')
       const fabric = fabricLibRef.current
-      const img = await fabric.FabricImage.fromURL(stamp)
-      const s = 460 / (img.width || 460)   // bigger default; supersampled so it stays crisp when dragged larger
-      img.set({ left: 60, top: 60, scaleX: s, scaleY: s })
-      const fab = activeFab(); fab.add(img); fab.setActiveObject(img); fab.renderAll()
-      setStatus('Signature stamp added — drag it onto the approval block, then Save to SharePoint.')
+      const fab = activeFab()
+      // 1) the signature itself — its own object; drop it into the block and resize to fit
+      const sig = await fabric.FabricImage.fromURL(data.signature)
+      const sigW = 240
+      const ss = sigW / (sig.width || sigW)
+      sig.set({ left: 60, top: 60, scaleX: ss, scaleY: ss, opacity: 0.92 })
+      fab.add(sig)
+      // 2) the audit details — a SEPARATE object; place it wherever there is room to read
+      const panel = await composeTextPanel(data.name || 'Reviewer')
+      const txt = await fabric.FabricImage.fromURL(panel)
+      const txtW = 300
+      const ts = txtW / (txt.width || txtW)
+      txt.set({ left: 60 + sigW + 20, top: 60, scaleX: ts, scaleY: ts })
+      fab.add(txt); fab.setActiveObject(sig); fab.renderAll()
+      setStatus('Added as two pieces — drop the signature into the block and size it to fit; move the details panel where it reads. Then Save to SharePoint.')
     } catch (e: any) {
       setStatus('Could not add the signature: ' + (e?.message || 'error'))
     }
