@@ -146,6 +146,9 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
 
   const { task, docChain, myBatchTasks, previousRevisions, isLastReviewer } = ctx
   const dv    = task.document_versions ?? {}
+  // The in-app viewer/markup is PDF-only. For any other format (Word, Excel, etc.)
+  // hide "Open & Markup" — such files can only be opened in SharePoint.
+  const isPdf = /\.pdf$/i.test((dv as any).file_name || (dv as any).central_file_url || '')
   const batch = dv.batches ?? {}
   const isCompleted = task.status === 'completed' || submitted
   const canSubmit   = ['sent','opened','in_progress','pending'].includes(task.status) && !submitted
@@ -257,7 +260,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                   <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-primary">
                     <ExternalLink className="h-4 w-4" /> Open Document
                   </a>
-                  {ctx.canMarkupBeta && (
+                  {ctx.canMarkupBeta && isPdf && (
                     <Link href={`/reviews/${id}/markup`}
                       className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">
                       🖊 Markup in-app (beta)
@@ -266,11 +269,16 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 </>
               ) : (
                 <>
-                  <Link href={`/reviews/${id}/markup`} className="btn-primary">🖊 Open &amp; Markup</Link>
+                  {isPdf && <Link href={`/reviews/${id}/markup`} className="btn-primary">🖊 Open &amp; Markup</Link>}
                   <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-                    <ExternalLink className="h-3.5 w-3.5" /> Open in SharePoint
+                    className={isPdf
+                      ? "inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                      : "btn-primary"}>
+                    <ExternalLink className={isPdf ? "h-3.5 w-3.5" : "h-4 w-4"} /> Open in SharePoint
                   </a>
+                  {!isPdf && (
+                    <span className="text-right text-[11px] text-slate-400">Not a PDF — in-app markup isn&apos;t available for this format.</span>
+                  )}
                 </>
               )
             ) : (
