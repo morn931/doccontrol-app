@@ -42,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       {/* CoreFlow platform-wide hero band — slate backdrop, contained artwork */}
       <div
-        className="relative min-h-[168px] overflow-hidden bg-[var(--page-bg)] bg-contain bg-no-repeat max-sm:bg-bottom bg-right"
+        className="app-hero relative min-h-[168px] overflow-hidden bg-[var(--page-bg)] bg-contain bg-no-repeat max-sm:bg-bottom bg-right"
         style={{ backgroundImage: "url('/coreflow/header/backgrounds/hero-industrial-desktop-1920w_inverted.png')" }}
       >
         <div className="flex flex-col justify-center min-h-[168px] px-6 py-6">

@@ -8,6 +8,7 @@ import { outcomeColorClass } from '@/lib/utils/outcome-codes'
 import type { ReviewOutcomeCode } from '@/lib/types/database'
 import { assembleTransmittalDocs, outcomeText } from '@/lib/services/transmittal-data'
 import PrintButton from './print-button'
+import { PrintHeader } from '@/components/print/PrintHeader'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,12 +46,26 @@ export default async function TransmittalViewPage({ params }: { params: Promise<
         <PrintButton />
       </div>
 
-      <div>
+      <PrintHeader
+        title={`TRANSMITTAL — ${t.transmittal_number}`}
+        subtitle={`CoreDocs · ${(t.vendors as any)?.name ?? '—'} · ${(t.packages as any)?.package_code ?? ''} — ${(t.packages as any)?.package_name ?? ''}`}
+        date={t.generated_at ? format(new Date(t.generated_at), 'd MMM yyyy') : '—'}
+      />
+
+      {/* on-screen only; PrintHeader carries the title in print */}
+      <div className="print:hidden">
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-2xl font-bold text-slate-900 font-mono">{t.transmittal_number}</h1>
           <span className={`px-2 py-0.5 rounded text-xs font-bold ${outcomeColorClass(oc as ReviewOutcomeCode)}`}>{oc}</span>
         </div>
         <p className="text-slate-500 text-sm mt-0.5">Document Transmittal — read-only</p>
+      </div>
+
+      {/* transmittal number/outcome badge — kept visible in print too since it's the
+          unique identifying info, not just decoration */}
+      <div className="hidden print:flex items-center gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold text-slate-900 font-mono">{t.transmittal_number}</h1>
+        <span className={`px-2 py-0.5 rounded text-xs font-bold ${outcomeColorClass(oc as ReviewOutcomeCode)}`}>{oc}</span>
       </div>
 
       {/* Transmittal information */}

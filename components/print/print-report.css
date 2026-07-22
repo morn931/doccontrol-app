@@ -1,0 +1,83 @@
+/* Shared CoreFlow print/PDF report system — used by every report's print output.
+   Screen layout is untouched; everything here is scoped to @media print (except the
+   watermark <img>, which must stay in the DOM outside of @media print too — see below). */
+
+@media print {
+  /* Chrome always paints the @page margin band pure white, ignoring any CSS background —
+     there's no way to tint that literal margin area. So the true margin is kept to a thin,
+     printer-safe sliver, and the rest of the visual "margin" is done as padding on the
+     content itself, which sits inside the page's content box and DOES get the #F4F6F8
+     background painted under it, right out to near the physical edge. */
+  @page { size: A4 portrait; margin: 3mm; }
+  html, body { background: #F4F6F8 !important; }
+  aside, nav, header, .no-print, .print-hide { display: none !important; }
+  /* CoreDocs' (app) layout has an un-tagged "welcome hero" band (168px, its own
+     background image) above every page's content — otherwise prints as a large
+     blank gap, the same issue already fixed the same way in CostFlow. */
+  .app-hero { display: none !important; }
+  main, .print-page {
+    max-width: none !important; background: #F4F6F8 !important;
+    padding: 7mm 9mm 13mm !important; box-sizing: border-box; min-height: 291mm;
+  }
+
+  .print-header {
+    display: flex !important; position: relative; align-items: flex-start; gap: 14px;
+    min-height: 52px; margin-top: 12px; margin-bottom: 14px;
+  }
+  .print-crane, .print-date, .print-header-fill { display: block !important; }
+  .print-logo { height: 40px; width: auto; object-fit: contain; }
+  .print-divider { align-self: stretch; width: 1px; background: #BFD7EA; }
+  /* Fixed column width (not flex-shrink:0 sized-to-content) so a long title wraps onto a
+     second line instead of pushing wider into the crane box. Wrapped lines are justified
+     so they read as a clean block rather than a ragged edge. The crane sits at height:100%
+     of this row, so if the row grows taller for a 2-line title, the crop simply shows a
+     touch more of the same undistorted asset — never stretched, never clipped mid-line. */
+  .print-title-block { flex: 0 0 320px; min-width: 0; padding-right: 24px; }
+  .print-title { font-size: 16px; font-weight: 700; color: #012042; letter-spacing: 0.01em; text-align: justify; }
+  .print-subtitle { font-size: 9px; color: #4B5563; margin-top: 3px; text-align: justify; }
+  .print-header-fill { flex: 1 1 auto; align-self: stretch; }
+
+  /* Crane/skyline box, strictly to the right of the title — never overlaps logo, divider,
+     title or subtitle, since it's a fixed-width flex sibling, not an overlay. Uses a real
+     <img> (see PrintHeader.tsx), not a CSS background-image: Chrome defers fetching
+     background-images on display:none elements until they become visible, which races
+     against print rendering and can print blank. A real <img src> is always eager-fetched
+     by the HTML preloader regardless of display state, so it's reliably ready in time. */
+  .print-crane {
+    flex: 0 0 auto; align-self: stretch; position: relative; width: 160px; overflow: hidden;
+    /* fade the left edge so the image's own near-white bg (241,245,249) blends into our
+       #F4F6F8 page instead of showing a hard rectangle — same pixels, eased alpha only */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 40%);
+    mask-image: linear-gradient(to right, transparent 0%, black 40%);
+  }
+  .print-crane-img {
+    position: absolute; right: 0; bottom: 0; height: 132%; width: auto; max-width: none;
+  }
+  .print-date { position: absolute; top: -10px; right: 0; font-size: 8px; color: #5B7290; white-space: nowrap; }
+
+  .print-watermark-band { opacity: 0.6; }
+
+  .print-flat { background: transparent !important; border-color: transparent !important; box-shadow: none !important; }
+  table { background: #fff; }
+  thead tr { background: #012042 !important; }
+  thead th { background: #012042 !important; color: #fff !important; }
+
+  @page { @bottom-right { content: counter(page) " / " counter(pages); font-size: 8px; color: #94a3b8; } }
+}
+
+/* Continues the header art's own dotted-flow wave a little further down, behind the
+   report's headline/summary block, so header and body read as one uninterrupted flow.
+   Crops to source px 168-202 of the 1150x202 master (pure dots, no structure) at native
+   scale — no stretching, no repeated pylons/cranes below the header.
+   This band (and its <img>) stays in the DOM outside @media print too — opacity:0, not
+   display:none — purely so the real <img> eager-fetches well before print time; the same
+   defer-until-visible bug that affects background-image on hidden elements does not
+   affect real <img> tags, but only if they're actually present in the render tree from
+   page load, not conjured by a print-only ::before pseudo-element. */
+.print-watermark { position: relative; }
+.print-watermark-band {
+  position: absolute; left: 0; right: 0; top: -2px; height: 34px; overflow: hidden; z-index: 0;
+  opacity: 0; pointer-events: none;
+}
+.print-watermark-img { position: absolute; left: 0; top: -168px; width: 1150px; max-width: none; }
+.print-watermark > *:not(.print-watermark-band) { position: relative; z-index: 1; }
