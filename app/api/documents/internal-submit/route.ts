@@ -22,6 +22,7 @@ import { getPermissions, can, FK } from '@/lib/permissions'
 import { parseDocumentFileName } from '@/lib/utils/document-number-parser'
 import { uploadBytesToLibrary } from '@/lib/services/graph'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+import { splitEmails } from '@/lib/utils/emails'
 
 const norm = (s: string) => s.replace(/\s+/g, '').toUpperCase()
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://docs.coreflow.build'
@@ -149,7 +150,8 @@ export async function POST(req: Request) {
   // Best-effort: never fail the submission on email.
   try {
     const { data: setting } = await svc.from('system_settings').select('value').eq('key', 'doc_request_controller_email').maybeSingle()
-    const controller = (setting?.value ?? '').trim() || 'mornec@ppetech.co.za'
+    const controller = splitEmails(setting?.value)
+    if (!controller.length) controller.push('mornec@ppetech.co.za')
     const recsHtml = recommendedReviewers.length
       ? `<p style="margin:12px 0"><b>Reviewers recommended by the submitter:</b></p>
          <ul style="padding-left:18px;color:#374151">${recommendedReviewers.map((r) => `<li>${r.name} &lt;${r.email}&gt;</li>`).join('')}</ul>

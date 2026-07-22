@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+import { splitEmails } from '@/lib/utils/emails'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://docs.coreflow.build'
 const CONTROLLER_KEY = 'doc_request_controller_email'
@@ -50,7 +51,7 @@ export async function setControllerEmail(email: string): Promise<{ ok: boolean; 
   if (c.role !== 'developer' && c.role !== 'admin') return { ok: false, error: 'Developers only.' }
   const svc = createServiceClient()
   const { error } = await svc.from('system_settings')
-    .upsert({ key: CONTROLLER_KEY, value: email.trim(), updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .upsert({ key: CONTROLLER_KEY, value: splitEmails(email).join('; '), updated_at: new Date().toISOString() }, { onConflict: 'key' })
   if (error) return { ok: false, error: error.message }
   revalidatePath('/developer/doc-requests')
   return { ok: true }
@@ -105,7 +106,7 @@ export async function createRequest(input: {
 
   // Notify the Document Controller (best-effort — never fail the request on email).
   try {
-    const to = await controllerEmailFrom(svc)
+    const to = splitEmails(await controllerEmailFrom(svc))
     await sendMail({
       to,
       subject: `New document number request ${request_no}`,
@@ -238,7 +239,7 @@ export async function returnBooking(requestId: string): Promise<{ ok: boolean; e
   try {
     const { data: me } = await svc.from('users').select('full_name').eq('id', c.profile?.id ?? '').maybeSingle()
     const who = (me?.full_name ?? '').trim() || c.profile?.email || 'A user'
-    const controller = await controllerEmailFrom(svc)
+    const controller = splitEmails(await controllerEmailFrom(svc))
     await sendMail({
       to: controller,
       subject: `Placeholder number returned — ${bk.docno}`,
@@ -387,7 +388,7 @@ export async function bookPlaceholder(docno: string): Promise<{ ok: boolean; err
     }
 
     // 2) Notice to the Document Controller so she can update her records.
-    const controller = await controllerEmailFrom(svc)
+    const controller = splitEmails(await controllerEmailFrom(svc))
     await sendMail({
       to: controller,
       subject: `Placeholder number booked — ${ph.docno}`,

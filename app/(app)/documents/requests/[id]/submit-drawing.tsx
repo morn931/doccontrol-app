@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import EmailPicker, { type EmailEntry } from '@/components/email-picker'
 
-type Rec = { email: string; name: string }
+type Rec = EmailEntry
 
 /**
  * The internal-engineering document-submission area: drag or browse the drawing to
@@ -25,32 +26,25 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId }: {
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  // Recommended-reviewers picker
+  // Recommended-reviewers picker — quick-pick chips from historical patterns + a company
+  // email combobox (EmailPicker) for anyone else.
   const [suggestions, setSuggestions] = useState<{ email: string; name: string; reviewCount: number }[]>([])
-  const [users, setUsers] = useState<{ email: string; full_name: string | null; role: string }[]>([])
   const [recs, setRecs] = useState<Rec[]>([])
-  const [search, setSearch] = useState('')
 
   useEffect(() => {
     const qs = packageId ? `?packageId=${packageId}` : ''
     fetch(`/api/reviewer-suggestions${qs}`)
-      .then((r) => (r.ok ? r.json() : { suggestions: [], users: [] }))
-      .then((d) => { setSuggestions(d.suggestions ?? []); setUsers(d.users ?? []) })
+      .then((r) => (r.ok ? r.json() : { suggestions: [] }))
+      .then((d) => setSuggestions(d.suggestions ?? []))
       .catch(() => {})
   }, [packageId])
 
-  function addRec(email: string, name: string) {
+  const addRec = (email: string, name: string) => {
     const e = email.trim()
-    if (!e || recs.find((r) => r.email === e)) return
+    if (!e || recs.find((r) => r.email.toLowerCase() === e.toLowerCase())) return
     setRecs([...recs, { email: e, name: name.trim() || e }])
-    setSearch('')
   }
-  const removeRec = (email: string) => setRecs(recs.filter((r) => r.email !== email))
-
   const unusedSuggestions = suggestions.filter((s) => !recs.find((r) => r.email === s.email))
-  const filteredUsers = users.filter((u) =>
-    !recs.find((r) => r.email === u.email) &&
-    (u.email.toLowerCase().includes(search.toLowerCase()) || (u.full_name ?? '').toLowerCase().includes(search.toLowerCase())))
 
   function pick(f: File | null) { setMsg(null); setFile(f) }
 
@@ -109,21 +103,10 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId }: {
 
       {/* Recommend reviewers (internal only) — the Document Controller prefills from these, final say hers */}
       <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-        <div className="text-xs font-semibold text-slate-700">Recommend reviewers <span className="font-normal text-slate-400">(optional — the Document Controller decides finally)</span></div>
-
-        {recs.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {recs.map((r) => (
-              <span key={r.email} className="flex items-center gap-1 rounded-full border border-teal-300 bg-teal-50 px-2 py-0.5 text-xs text-teal-800">
-                {r.name}
-                <button onClick={() => removeRec(r.email)} className="text-teal-500 hover:text-rose-600" title="Remove">✕</button>
-              </span>
-            ))}
-          </div>
-        )}
+        <div className="mb-2 text-xs font-semibold text-slate-700">Recommend reviewers <span className="font-normal text-slate-400">(optional — the Document Controller decides finally)</span></div>
 
         {unusedSuggestions.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mb-2 flex flex-wrap gap-1.5">
             {unusedSuggestions.slice(0, 6).map((s) => (
               <button key={s.email} onClick={() => addRec(s.email, s.name)}
                 className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800">
@@ -133,32 +116,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId }: {
           </div>
         )}
 
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search a name or type a full email to add…"
-          className="mt-2 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-teal-300"
-        />
-        {search && (
-          <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-slate-100">
-            {filteredUsers.slice(0, 8).map((u) => (
-              <button key={u.email} onClick={() => addRec(u.email, u.full_name ?? u.email)}
-                className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-xs hover:bg-teal-50">
-                <span className="font-medium text-slate-700">{u.full_name ?? u.email}</span>
-                <span className="text-slate-400">{u.email} · {u.role}</span>
-              </button>
-            ))}
-            {filteredUsers.length === 0 && search.includes('@') && (
-              <button onClick={() => addRec(search, search)}
-                className="w-full px-2.5 py-1.5 text-left text-xs text-teal-700 hover:bg-teal-50">
-                Add “{search.trim()}” by email
-              </button>
-            )}
-            {filteredUsers.length === 0 && !search.includes('@') && (
-              <p className="px-2.5 py-1.5 text-xs text-slate-400">No match — type a full email to add directly.</p>
-            )}
-          </div>
-        )}
+        <EmailPicker value={recs} onChange={setRecs} placeholder="Search company emails or type one to add…" />
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-2">
