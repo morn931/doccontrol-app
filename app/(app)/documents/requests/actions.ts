@@ -216,18 +216,23 @@ export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
   if (!c) return []
   const svc = createServiceClient()
 
-  // Page through — PostgREST caps responses at max_rows (1000) regardless of .limit,
-  // and there are thousands of NOT_TRANSMITTED rows (Vossie alone owns ~4k).
+  // Page through with KEYSET pagination (docno > last) — PostgREST caps responses at
+  // max_rows (1000), and there are thousands of NOT_TRANSMITTED rows (Vossie alone owns
+  // ~4k). Keyset (not .range()) gives every page a distinct URL so Next.js's fetch cache
+  // can't hand back page 1 for every page.
   const rows: any[] = [] // eslint-disable-line @typescript-eslint/no-explicit-any
-  for (let from = 0; from < 100000; from += 1000) {
+  let last = ''
+  for (let guard = 0; guard < 200; guard++) {
     const { data, error } = await svc.from('aconex_review_doc')
       .select('docno, title, discipline, doc_type, doc_owner, package_code')
       .eq('court', 'NOT_TRANSMITTED')
+      .gt('docno', last)
       .order('docno', { ascending: true })
-      .range(from, from + 999)
-    if (error) break
-    rows.push(...(data ?? []))
-    if (!data || data.length < 1000) break
+      .limit(1000)
+    if (error || !data || data.length === 0) break
+    rows.push(...data)
+    last = data[data.length - 1].docno
+    if (data.length < 1000) break
   }
 
   const ownerOk = (o: string | null) => {

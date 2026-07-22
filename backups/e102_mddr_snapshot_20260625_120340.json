@@ -1,0 +1,1702 @@
+[
+ {
+  "id": "11dcf0a0-657a-447b-95b5-2e34c418c827",
+  "normalized_document_number": "6105AE102-0000-GBOS-0001",
+  "vendor_doc_id": "4HCH018594",
+  "planned_completion_date": "2026-02-19",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "8dc84671-f273-4982-b469-b03cf5677602",
+  "normalized_document_number": "6105AE102-0000-GSCH-0001",
+  "vendor_doc_id": "4HCH018593",
+  "planned_completion_date": "2026-01-15",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "ccf4772a-9525-408c-9cec-1045f8446702",
+  "normalized_document_number": "6105AE102-0000-GSCH-0002",
+  "vendor_doc_id": "4HCH018595",
+  "planned_completion_date": null,
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 33.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "016903fb-4921-4290-bcdf-76df027c452d",
+  "normalized_document_number": "6105AE102-6253-EGAD-0012",
+  "vendor_doc_id": "4HCH018148",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "e233c7e3-d2d6-477d-bd09-94f80be4d854",
+  "normalized_document_number": "6105AE102-6253-EDIA-0015",
+  "vendor_doc_id": "4HCH018454",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-06",
+  "actual_completion_date": "2026-05-16",
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "36e5c64f-db1d-4579-9d01-321098cf7f3c",
+  "normalized_document_number": "6105AE102-6253-ESLD-0007",
+  "vendor_doc_id": "4HCH018452",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "87048c14-71b7-4722-8fce-14bb27991f9d",
+  "normalized_document_number": "6105AE102-6253-ELST-0006",
+  "vendor_doc_id": "3BSY200402-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": "2026-05-17",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "f4950613-601d-4b86-99c7-0d3be177327c",
+  "normalized_document_number": "6105AE102-6253-ESPC-0001",
+  "vendor_doc_id": "XYK210045-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-04-09",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "e4a6d12a-5b9d-4ad6-9067-7cf13395951f",
+  "normalized_document_number": "6105AE102-0000-EPRC-0002",
+  "vendor_doc_id": "4HCH018141",
+  "planned_completion_date": "2026-02-19",
+  "actual_submission_date": "2026-04-13",
+  "actual_completion_date": "2026-04-19",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "eb388ba9-3441-4f9e-8774-e7b70d31ad77",
+  "normalized_document_number": "6105AE102-0000-EIOM-0001",
+  "vendor_doc_id": "4HCH018069",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "2a384a4e-eb4e-44d7-9d4c-e3802bec2ad5",
+  "normalized_document_number": "6105AE102-0000-EPRC-0001",
+  "vendor_doc_id": "4HCH018066",
+  "planned_completion_date": "2026-02-26",
+  "actual_submission_date": "2026-05-03",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "db8a30fd-bda6-483b-a9d5-8e0a0dbae071",
+  "normalized_document_number": "6105AE102-6253-ECAL-0007",
+  "vendor_doc_id": "4HCH018164",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-04-14",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "755ed0ae-5691-4290-87f4-227dcfa37cc4",
+  "normalized_document_number": "6105AE102-6253-ETRP-0001",
+  "vendor_doc_id": "4HCH018071",
+  "planned_completion_date": "2027-02-01",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "71adb65f-32f2-49af-929d-094a01c1886c",
+  "normalized_document_number": "6105AE102-0000-EITP-0003",
+  "vendor_doc_id": "4HCH018182",
+  "planned_completion_date": "2026-03-12",
+  "actual_submission_date": "2026-05-12",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "8b338ebf-f239-4280-a09c-7149de25b819",
+  "normalized_document_number": "6105AE102-0000-EDST-0001",
+  "vendor_doc_id": "4HCH018183",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "29072ae5-b4c8-4896-8f2a-974b684977ef",
+  "normalized_document_number": "6105AE102-0000-EMAN-0001",
+  "vendor_doc_id": "4HCH018140",
+  "planned_completion_date": "2026-04-02",
+  "actual_submission_date": "2026-04-13",
+  "actual_completion_date": "2026-04-19",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "8b371482-cd3a-4815-943a-944d1c5786df",
+  "normalized_document_number": "6105AE102-6253-ETRP-0005",
+  "vendor_doc_id": "4HCH018160",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "bd0a3cd3-736a-4f82-8243-bee8eb2cde87",
+  "normalized_document_number": "6105AE102-6253-ETRP-0003",
+  "vendor_doc_id": "4HCH018146",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "92cd22fd-628a-496a-bd37-0e2d9b3b9601",
+  "normalized_document_number": "6105AE102-6253-ECAL-0008",
+  "vendor_doc_id": "4HCH018169",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-04-14",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "146d05cc-097b-4f01-a488-e98ebe1bca67",
+  "normalized_document_number": "6105AE102-6253-ETRP-0004",
+  "vendor_doc_id": "4HCH018150",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "524d6ad8-3fd5-41e6-9b8c-7d4ee98ddb48",
+  "normalized_document_number": "6105AE102-6256-EGAD-0011",
+  "vendor_doc_id": "4HCH018459",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "057221c3-128b-4c7f-8b92-affa06a86efe",
+  "normalized_document_number": "6105AE102-6256-EGAD-0012",
+  "vendor_doc_id": "4HCH018463",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "256f48dd-a7ec-4300-8766-da04cd1bb32a",
+  "normalized_document_number": "6105AE102-6256-EDIA-0010",
+  "vendor_doc_id": "4HCH018159",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-16",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "336007a9-8125-4414-8e3d-5295e14c6087",
+  "normalized_document_number": "6105AE102-6256-EGAD-0005",
+  "vendor_doc_id": "4HCH018129",
+  "planned_completion_date": "2027-08-12",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "1bcfb9ce-42f6-4ce0-925b-b1d198646219",
+  "normalized_document_number": "6105AE102-6256-ETRP-0003",
+  "vendor_doc_id": "4HCH018154",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "65a7076e-4af0-4d2b-8ab0-a9e4afcc4c76",
+  "normalized_document_number": "6105AE102-6256-ESLD-0003",
+  "vendor_doc_id": "4HCH018172",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-23",
+  "actual_completion_date": "2026-05-10",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "58000130-2e05-46e7-a8ee-288ec7df9dc2",
+  "normalized_document_number": "6105AE102-6256-ETRP-0007",
+  "vendor_doc_id": "4HCH018461",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "642b80d8-5c6f-4130-ad73-62d25ecfa449",
+  "normalized_document_number": "6105AE102-6256-EGAD-0006",
+  "vendor_doc_id": "4HCH018130",
+  "planned_completion_date": "2027-08-12",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "5f5c0bac-ad37-4752-8169-6d3dce8fc888",
+  "normalized_document_number": "6105AE102-6256-ETRP-0004",
+  "vendor_doc_id": "4HCH018158",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "c9954438-b236-4a13-b818-a4788c14e3be",
+  "normalized_document_number": "6105AE102-6256-ETRP-0006",
+  "vendor_doc_id": "4HCH018175",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "7253a4b7-14f1-4995-9e78-0619d2fafe94",
+  "normalized_document_number": "6105AE102-6256-EGAD-0010",
+  "vendor_doc_id": "4HCH018176",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-03-26",
+  "actual_completion_date": "2026-04-23",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "ee37c85f-0ef0-48f1-91fc-f6de28d9de62",
+  "normalized_document_number": "6105AE102-6256-ETRP-0008",
+  "vendor_doc_id": "4HCH018465",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "75583def-6359-4553-9a0c-f582326f94c4",
+  "normalized_document_number": "6105AE102-6253-ESLD-0005",
+  "vendor_doc_id": "4HCH018162",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-23",
+  "actual_completion_date": "2026-05-10",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "d5f280a6-54e8-4f51-92e3-deb3563d8b1a",
+  "normalized_document_number": "6105AE102-6253-ECAL-0005",
+  "vendor_doc_id": "4HCH018115",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-06-07",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "47ab9869-31f8-4a6d-9f51-9bfbe6a9374a",
+  "normalized_document_number": "6105AE102-0000-ESPC-0001",
+  "vendor_doc_id": "4HCH018068",
+  "planned_completion_date": "2026-01-29",
+  "actual_submission_date": "2026-06-07",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "54aecf20-3954-48b2-83d3-403e0b73f6dc",
+  "normalized_document_number": "6105AE102-0000-ESPC-0002",
+  "vendor_doc_id": "4HCH018450",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-18",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "b7a081c3-2b9c-4db7-9620-4f40d1304bac",
+  "normalized_document_number": "6105AE102-6253-AGAD-0001",
+  "vendor_doc_id": "3BSY242011-LTZ",
+  "planned_completion_date": "2026-04-28",
+  "actual_submission_date": "2026-05-21",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "3508cb50-b228-4366-b08c-c34ae9ef4dae",
+  "normalized_document_number": "6105AE102-6256-AGAD-0001",
+  "vendor_doc_id": "4HCH018789",
+  "planned_completion_date": "2026-06-05",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "40f09549-c340-4381-90de-f1d231c0bf6c",
+  "normalized_document_number": "6105AE102-6253-EDIA-0008",
+  "vendor_doc_id": "3BSY200453-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-04-19",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "3b125f75-2ba3-479a-9c03-200a0a3f9a5d",
+  "normalized_document_number": "6105AE102-6256-EGAD-0003",
+  "vendor_doc_id": "4HCH018105",
+  "planned_completion_date": "2026-02-26",
+  "actual_submission_date": "2026-03-18",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "7b9ad291-2784-4d21-8f0d-3cc8400f0b6e",
+  "normalized_document_number": "6105AE102-6256-ECAL-0005",
+  "vendor_doc_id": "4HCH018117",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-06-02",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "648fc5ef-7936-4d3f-8ad7-63c4acef27d9",
+  "normalized_document_number": "6105AE102-6253-ESSD-0001",
+  "vendor_doc_id": "4HCH018107",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "c15331d7-576b-4ab8-b6e0-fdf4b403bf9d",
+  "normalized_document_number": "6105AE102-6253-ESPC-0002",
+  "vendor_doc_id": "3BSY200439-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-04-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "7b963eb8-80b7-476e-93f2-5b75236f1991",
+  "normalized_document_number": "6105AE102-6256-EGAD-0004",
+  "vendor_doc_id": "4HCH018106",
+  "planned_completion_date": "2026-02-26",
+  "actual_submission_date": "2026-03-18",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "15ab87a0-5655-4027-a816-1d6c4906bfa6",
+  "normalized_document_number": "6105AE102-6253-ESPC-0003",
+  "vendor_doc_id": "3BSY200550-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-05-25",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "109d31f7-7743-4380-a25c-2f8058756728",
+  "normalized_document_number": "6105AE102-6256-ECAL-0004",
+  "vendor_doc_id": "4HCH018082",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "75dca441-0e44-43a2-b71e-1f266208a037",
+  "normalized_document_number": "6105AE102-6256-EGAD-0009",
+  "vendor_doc_id": "4HCH018171",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-03-26",
+  "actual_completion_date": "2026-04-23",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "2b1983ec-53c9-4b24-bf6a-045b660fe3a4",
+  "normalized_document_number": "6105AE102-0000-EITP-0002",
+  "vendor_doc_id": "4HCH018142",
+  "planned_completion_date": "2026-03-12",
+  "actual_submission_date": "2026-05-06",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "2c8b5b01-c31a-4ca9-8d8d-443b2806f90c",
+  "normalized_document_number": "6105AE102-6253-EGAD-0002",
+  "vendor_doc_id": "4HCH018092",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "2ca32446-eae9-4ccd-b91e-ba58b5be0bde",
+  "normalized_document_number": "6105AE102-6253-EGAD-0015",
+  "vendor_doc_id": "XYK210004-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-04-12",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "9abcdc74-9876-4da1-a79f-d818bb5d2083",
+  "normalized_document_number": "6105AE102-6253-EGAD-0016",
+  "vendor_doc_id": "3BSM025617-A",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-06-07",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "c0a004b1-9771-4581-8c66-88b3e3ef49fe",
+  "normalized_document_number": "6105AE102-0000-EDIA-0001",
+  "vendor_doc_id": "4HCH018597",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-16",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "7b80e1dc-f119-4444-84da-2830c13d538f",
+  "normalized_document_number": "6105AE102-6253-EGAD-0004",
+  "vendor_doc_id": "4HCH018104",
+  "planned_completion_date": "2026-02-26",
+  "actual_submission_date": "2026-03-18",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "7e402989-38f9-4245-b448-304da19c9281",
+  "normalized_document_number": "6105AE102-6253-ELST-0007",
+  "vendor_doc_id": "4HCH019011",
+  "planned_completion_date": "2026-03-03",
+  "actual_submission_date": "2026-05-06",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "3a2b1e04-3dc1-4c06-b824-7dc229e3682a",
+  "normalized_document_number": "6105AE102-6256-ECAL-0007",
+  "vendor_doc_id": "4HCH018174",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-04-14",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "c1ceeb97-4b87-406a-9aa4-36d7260acced",
+  "normalized_document_number": "6105AE102-6256-ECAL-0008",
+  "vendor_doc_id": "4HCH018179",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-04-14",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "7abbe8ab-16d2-4741-a222-3417622a5056",
+  "normalized_document_number": "6105AE102-0000-EIOM-0002",
+  "vendor_doc_id": "4HCH018184",
+  "planned_completion_date": "2026-04-02",
+  "actual_submission_date": "2026-05-12",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "839ab697-d1b4-463c-837d-762d100f775a",
+  "normalized_document_number": "6105AE102-6253-EDIA-0013",
+  "vendor_doc_id": "3BSY241013-LTZ",
+  "planned_completion_date": "2026-03-26",
+  "actual_submission_date": "2026-04-21",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "d0702916-45fd-4f5c-91a0-8c260e31c136",
+  "normalized_document_number": "6105AE102-0000-EITP-0001",
+  "vendor_doc_id": "4HCH018067",
+  "planned_completion_date": "2026-01-29",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "49fdbdfa-b006-4eb1-9f19-bb00b100e772",
+  "normalized_document_number": "6105AE102-6253-ESSD-0002",
+  "vendor_doc_id": "4HCH018108",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-06-07",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "a52f710c-7bb1-4840-aeac-9dbc4b599e28",
+  "normalized_document_number": "6105AE102-6253-EDIA-0014",
+  "vendor_doc_id": "4HCH018163",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-05-12",
+  "actual_completion_date": "2026-05-17",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "d90db666-bb3a-4285-a67a-f1f04baf769d",
+  "normalized_document_number": "6105AE102-6256-EDIA-0007",
+  "vendor_doc_id": "4HCH018178",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-05-12",
+  "actual_completion_date": "2026-05-17",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "a9925029-eddf-4882-a441-ce9a234a6cac",
+  "normalized_document_number": "6105AE102-6253-ESLD-0004",
+  "vendor_doc_id": "4HCH018149",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "f4b91726-e8e8-4913-9286-09692d1ed98b",
+  "normalized_document_number": "6105AE102-6256-ECAL-0003",
+  "vendor_doc_id": "4HCH018081",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "c633b4c9-e6d3-42cc-bdc6-75a2f6566670",
+  "normalized_document_number": "6105AE102-6253-ECAL-0003",
+  "vendor_doc_id": "4HCH018079",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": "2026-05-19",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "2d61afa2-600a-4308-8d9d-ba5ba5928b69",
+  "normalized_document_number": "6105AE102-6253-EFND-0002",
+  "vendor_doc_id": "4HCH018112",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "45a53727-4080-4566-bcf8-ea4a38134f5a",
+  "normalized_document_number": "6105AE102-6256-ESLD-0004",
+  "vendor_doc_id": "4HCH018177",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-23",
+  "actual_completion_date": "2026-05-10",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "58b3e292-6edf-4cbc-aaa0-8fbab44cc70d",
+  "normalized_document_number": "6105AE102-6253-ESLD-0006",
+  "vendor_doc_id": "4HCH018167",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-23",
+  "actual_completion_date": "2026-05-10",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "301afcfd-50b9-419a-ab27-d2f132c489f4",
+  "normalized_document_number": "6105AE102-6253-ECAL-0004",
+  "vendor_doc_id": "4HCH018080",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "45a75d6b-210f-4e4d-8d88-4153a0ae302a",
+  "normalized_document_number": "6105AE102-6253-EGAD-0008",
+  "vendor_doc_id": "4HCH018455",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "94aab6bc-78f6-4ade-a6c5-8cd51a33e80f",
+  "normalized_document_number": "6105AE102-6253-EDIA-0001",
+  "vendor_doc_id": "4HCH018168",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-05-12",
+  "actual_completion_date": "2026-05-17",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "c1b80e38-8b2b-423c-9b9d-9dca35024d4b",
+  "normalized_document_number": "6105AE102-6256-EDIA-0009",
+  "vendor_doc_id": "4HCH018462",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-06",
+  "actual_completion_date": "2026-05-16",
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "a6263ca5-d9b3-47e6-ba0d-240b65f49296",
+  "normalized_document_number": "6105AE102-6253-EDIA-0002",
+  "vendor_doc_id": "3BSY200451-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-03-30",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "34d651b5-4e45-45c0-b1a1-01306b9b4963",
+  "normalized_document_number": "6105AE102-0000-EPRC-0004",
+  "vendor_doc_id": "4HCH018185",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "4f89b3a0-5e58-43f8-93e0-8fc10e00b93d",
+  "normalized_document_number": "6105AE102-6253-ESLD-0001",
+  "vendor_doc_id": "3BSY200450-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-04-21",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "5dc92437-a09c-4afb-832c-0e12efc072d0",
+  "normalized_document_number": "6105AE102-6256-ESLD-0002",
+  "vendor_doc_id": "4HCH018157",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "6b0ba691-ca77-4da4-a3cc-e6c8f48fa5d2",
+  "normalized_document_number": "6105AE102-6256-EGAD-0008",
+  "vendor_doc_id": "4HCH018156",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "901d3a52-9be3-48e7-bfc7-e73dc63d7a14",
+  "normalized_document_number": "6105AE102-6253-EGAD-0007",
+  "vendor_doc_id": "4HCH018451",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "cc7fa18e-086e-4968-b58d-637ada1b847b",
+  "normalized_document_number": "6105AE102-6256-EDIA-0002",
+  "vendor_doc_id": "4HCH018173",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-05-12",
+  "actual_completion_date": "2026-05-17",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "db397b4a-f5af-40a3-9f99-9579c904daee",
+  "normalized_document_number": "6105AE102-6253-EGAD-0013",
+  "vendor_doc_id": "4HCH018161",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-07",
+  "actual_completion_date": "2026-04-23",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "e2ecb137-b585-4e9e-9bd1-62551867bea1",
+  "normalized_document_number": "6105AE102-6253-EDIA-0011",
+  "vendor_doc_id": "3BSY200400-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": "2026-04-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "032ffb4e-653b-4f2d-b3ca-3529995c66d7",
+  "normalized_document_number": "6105AE102-6256-EFND-0002",
+  "vendor_doc_id": "4HCH018114",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "039339a4-a56f-4064-aad0-229858e547a5",
+  "normalized_document_number": "6105AE102-6253-EDIA-0016",
+  "vendor_doc_id": "XYK214100-LTZ",
+  "planned_completion_date": "2026-03-25",
+  "actual_submission_date": "2026-04-19",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "084bf2c1-656c-4565-8b82-d4262b4d0bde",
+  "normalized_document_number": "6105AE102-6256-EGAD-0014",
+  "vendor_doc_id": "4HCH018090",
+  "planned_completion_date": "2027-08-05",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "0aeacce1-7687-422e-aa59-d82d347b646a",
+  "normalized_document_number": "6105AE102-6256-EDIA-0003",
+  "vendor_doc_id": "4HCH018097",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "1054b7f9-e4fb-4ae3-ae47-1790c3048af8",
+  "normalized_document_number": "6105AE102-6256-ELST-0003",
+  "vendor_doc_id": "4HCH018125",
+  "planned_completion_date": "2027-02-04",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "11b27bd1-ddc3-401f-9926-c0c8206e7285",
+  "normalized_document_number": "6105AE102-6253-ECAL-0001",
+  "vendor_doc_id": "4HCH018075",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "136b2abc-61c8-4302-b348-49e82bcaf718",
+  "normalized_document_number": "6105AE102-6256-ETRP-0002",
+  "vendor_doc_id": "4HCH018074",
+  "planned_completion_date": "2027-08-05",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "14f56703-a9df-4a5d-91ca-439d2f072e56",
+  "normalized_document_number": "6105AE102-6256-EGAD-0013",
+  "vendor_doc_id": "4HCH018093",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "15c3833b-a4bc-464b-92b0-b4424c11f83c",
+  "normalized_document_number": "6105AE102-6256-ECAL-0001",
+  "vendor_doc_id": "4HCH018077",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "1aa6c3c4-82d2-47e2-9f7d-dd1aa6510ad3",
+  "normalized_document_number": "6105AE102-6253-EDIA-0003",
+  "vendor_doc_id": "4HCH018095",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "1bd75be4-e148-4316-b713-9495e9d9012c",
+  "normalized_document_number": "6105AE102-6253-EPID-0001",
+  "vendor_doc_id": "XYK219190-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": "2026-05-12",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "3ceb5964-c7a9-4120-aee3-2ec623bb892e",
+  "normalized_document_number": "6105AE102-6256-ECAL-0002",
+  "vendor_doc_id": "4HCH018078",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "49e8c664-bc0a-4e1b-a6dd-0420823f7491",
+  "normalized_document_number": "6105AE102-6253-EGAD-0001",
+  "vendor_doc_id": "4HCH018091",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "4d1a8bd3-1658-4230-82e1-b6864875d8ed",
+  "normalized_document_number": "6105AE102-6253-EGAD-0009",
+  "vendor_doc_id": "4HCH018127",
+  "planned_completion_date": "2027-02-04",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "548dd213-337b-44f4-9f78-b4f96f37f25a",
+  "normalized_document_number": "6105AE102-6253-EDIA-0006",
+  "vendor_doc_id": "4HCH018100",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "568ea1e9-108d-409d-ad3b-76f4c4daf90d",
+  "normalized_document_number": "6105AE102-6253-EGAD-0005",
+  "vendor_doc_id": "3BSY205521-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "6a2f921a-7da5-4bdb-8ffb-4146ea1ea124",
+  "normalized_document_number": "6105AE102-6256-ELST-0001",
+  "vendor_doc_id": "4HCH018121",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "6eece13b-1eb8-40cc-a6b4-7aefe623fe87",
+  "normalized_document_number": "6105AE102-6253-ADIA-0001",
+  "vendor_doc_id": "3BSY241024-LTZ",
+  "planned_completion_date": "2026-04-22",
+  "actual_submission_date": "2026-04-23",
+  "actual_completion_date": null,
+  "progress_percent": 33.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "709791b1-f071-4f72-acc8-f250ae1cd631",
+  "normalized_document_number": "6105AE102-0000-EINS-0001",
+  "vendor_doc_id": "4HCH018070",
+  "planned_completion_date": "2027-02-01",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "70ceb5cc-5ad1-41b4-b412-4983ea767ec1",
+  "normalized_document_number": "6105AE102-6253-EGAD-0010",
+  "vendor_doc_id": "4HCH018128",
+  "planned_completion_date": "2027-02-04",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "81fef7e5-99fa-4765-a1ae-d57ca5d7902c",
+  "normalized_document_number": "6105AE102-6253-EGAD-0018",
+  "vendor_doc_id": "XYK210780-LTZ",
+  "planned_completion_date": "2026-04-02",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "829c1d9f-993a-43f4-981c-cecc3c078718",
+  "normalized_document_number": "6105AE102-6256-ETRP-0005",
+  "vendor_doc_id": "4HCH018170",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "8358377b-6818-44a1-a2b9-d5e1d31425e9",
+  "normalized_document_number": "6105AE102-6256-EDIA-0005",
+  "vendor_doc_id": "4HCH018101",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "91171c97-7c0b-4e33-baae-ebcaecd11443",
+  "normalized_document_number": "6105AE102-6253-ETRP-0002",
+  "vendor_doc_id": "4HCH018072",
+  "planned_completion_date": "2027-02-01",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "91c07807-07f2-4b34-a363-c9fc8af3debf",
+  "normalized_document_number": "6105AE102-6253-ELST-0004",
+  "vendor_doc_id": "4HCH018124",
+  "planned_completion_date": "2027-02-04",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "95c8376a-ac95-4ec3-8dd1-2c1c84e67a2a",
+  "normalized_document_number": "6105AE102-6256-ELST-0002",
+  "vendor_doc_id": "4HCH018122",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "a18a3323-0bfb-4249-928f-1b728e758942",
+  "normalized_document_number": "6105AE102-6253-ESPC-0004",
+  "vendor_doc_id": "3BSY200580-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "a9d43db2-9b5a-4ed8-b948-db72d2668663",
+  "normalized_document_number": "6105AE102-0000-GCHR-0001",
+  "vendor_doc_id": "4HCH018591",
+  "planned_completion_date": "2026-01-15",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "b298f0b7-9c11-43e0-b1ab-1d29119c43d2",
+  "normalized_document_number": "6105AE102-6256-ELST-0004",
+  "vendor_doc_id": "4HCH018126",
+  "planned_completion_date": "2027-02-04",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "b2d43cc9-5029-44fc-9858-128ae036c43b",
+  "normalized_document_number": "6105AE102-6256-EFND-0001",
+  "vendor_doc_id": "4HCH018113",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "b5181efa-7f36-4a73-9393-c77f1de9eb65",
+  "normalized_document_number": "6105AE102-6253-ELST-0001",
+  "vendor_doc_id": "4HCH018119",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "b7d272ad-206f-4157-a24f-807c102a5f3e",
+  "normalized_document_number": "6105AE102-6253-ETRP-0008",
+  "vendor_doc_id": "4HCH018457",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "beb6a040-ed1e-490a-9beb-0d7eb8b7c1e2",
+  "normalized_document_number": "6105AE102-6256-ETRP-0001",
+  "vendor_doc_id": "4HCH018073",
+  "planned_completion_date": "2027-08-05",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "c16e056a-4d9d-4ab6-9106-89ebe357c992",
+  "normalized_document_number": "6105AE102-0000-GRPT-0001",
+  "vendor_doc_id": "4HCH018596",
+  "planned_completion_date": "2026-03-24",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "c43c9663-2aa6-4718-9be0-a733af93d600",
+  "normalized_document_number": "6105AE102-6253-EDIA-0004",
+  "vendor_doc_id": "4HCH018096",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "c76c29df-3df8-4764-a6cc-327aa8c712c4",
+  "normalized_document_number": "6105AE102-6253-ELST-0002",
+  "vendor_doc_id": "4HCH018120",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "c8bd8a57-422a-4cd6-864c-811912cc5a3a",
+  "normalized_document_number": "6105AE102-6253-ETRP-0006",
+  "vendor_doc_id": "4HCH018165",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "c95c43b6-1b81-4c9e-ba42-90556cd3bfdc",
+  "normalized_document_number": "6105AE102-6253-ELST-0003",
+  "vendor_doc_id": "4HCH018123",
+  "planned_completion_date": "2027-02-04",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "c9ce899d-92b6-48a7-b151-437189fb5b57",
+  "normalized_document_number": "6105AE102-6256-EDIA-0004",
+  "vendor_doc_id": "4HCH018098",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "d06616b0-f290-44a4-8821-be6b231488ad",
+  "normalized_document_number": "6105AE102-6253-ETRP-0007",
+  "vendor_doc_id": "4HCH018453",
+  "planned_completion_date": "2026-07-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "d7914ee9-33d7-4b0f-9c1f-bc24e08bf350",
+  "normalized_document_number": "6105AE102-6253-ECAL-0002",
+  "vendor_doc_id": "4HCH018076",
+  "planned_completion_date": "2026-04-30",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "e19504ae-0e7a-4662-925a-9ed95fea170e",
+  "normalized_document_number": "6105AE102-6253-EGAD-0006",
+  "vendor_doc_id": "3BSY205522-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "e2e92217-ac7a-43fd-8e6a-bd06225d9a08",
+  "normalized_document_number": "6105AE102-6253-EDIA-0005",
+  "vendor_doc_id": "4HCH018099",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "e9249bd2-ebb4-4bb3-8c28-459662a6d81f",
+  "normalized_document_number": "6105AE102-6253-EPID-0002",
+  "vendor_doc_id": "3BSY205523-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "f3864041-9040-49df-86f9-d367153e8480",
+  "normalized_document_number": "6105AE102-6256-EDIA-0006",
+  "vendor_doc_id": "4HCH018102",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "fdaa75b4-3b7b-45db-bad6-a9ddc5abee28",
+  "normalized_document_number": "6105AE102-0000-GPLN-0001",
+  "vendor_doc_id": "4HCH018592",
+  "planned_completion_date": "2026-01-15",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "4991a645-94ce-441c-b6c1-76210e7ece59",
+  "normalized_document_number": "6105AE102-6253-EGAD-0020",
+  "vendor_doc_id": "3BSY200401-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": "2026-04-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "49d824cc-b0a2-468d-9c5a-62ae70ae4716",
+  "normalized_document_number": "6105AE102-6253-EGAD-0023",
+  "vendor_doc_id": "4HCH018087",
+  "planned_completion_date": "2027-02-01",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 33.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "504f492e-db2e-42b5-b22c-41d6537e473d",
+  "normalized_document_number": "6105AE102-6253-EINS-0001",
+  "vendor_doc_id": "3BSY200457-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-05-20",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "5183410b-000b-410c-9f6f-4b39e750e353",
+  "normalized_document_number": "6105AE102-6253-EDIA-0010",
+  "vendor_doc_id": "4HCH018147",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-16",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "57b529b4-f015-455b-affa-5170110b2855",
+  "normalized_document_number": "6105AE102-6253-EGAD-0017",
+  "vendor_doc_id": "3BSM028364",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-04-21",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "66050a2b-5fe3-41c6-ad83-80450a17180d",
+  "normalized_document_number": "6105AE102-6256-EDIA-0008",
+  "vendor_doc_id": "4HCH018155",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-16",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "750f2643-e0ee-4cda-b9c5-e1998395e737",
+  "normalized_document_number": "6105AE102-6256-ECAL-0006",
+  "vendor_doc_id": "4HCH018118",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-06-02",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "7b2553ed-71c1-45a9-a05f-95e142cf44e4",
+  "normalized_document_number": "6105AE102-6253-EITP-0002",
+  "vendor_doc_id": "3BSY200420-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "881c5415-92fa-40a3-8a22-b05afa2ea45a",
+  "normalized_document_number": "6105AE102-6253-EGAD-0022",
+  "vendor_doc_id": "3BSY241030-LTZ",
+  "planned_completion_date": "2026-03-26",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "8fe4e7fa-daa0-4577-b6d8-31b756caf744",
+  "normalized_document_number": "6105AE102-6253-ESLD-0002",
+  "vendor_doc_id": "4HCH018145",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "90a466ba-2f0a-4afe-9f23-2bf611fc5332",
+  "normalized_document_number": "6105AE102-0000-EDIA-0002",
+  "vendor_doc_id": "4HCH018598",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-16",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "996ddd6f-e606-4f05-9283-413e7d5269e6",
+  "normalized_document_number": "6105AE102-6256-EGAD-0007",
+  "vendor_doc_id": "4HCH018152",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "a1d8bf1f-23e8-47c1-881b-499248012d25",
+  "normalized_document_number": "6105AE102-0000-EPRC-0003",
+  "vendor_doc_id": "4HCH018143",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": "2026-04-13",
+  "actual_completion_date": "2026-05-03",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "a666c7d8-4f3b-4d02-9a70-c8f602822a2d",
+  "normalized_document_number": "6105AE102-6253-ELST-0005",
+  "vendor_doc_id": "3BSY200458-LTZ",
+  "planned_completion_date": "2026-04-09",
+  "actual_submission_date": "2026-04-22",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "b7457e60-ca50-43cc-ac4d-cb72c0efd320",
+  "normalized_document_number": "6105AE102-6253-ESLD-0003",
+  "vendor_doc_id": "4HCH018456",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "b754ca23-9406-4266-99f9-7e79131c6b28",
+  "normalized_document_number": "6105AE102-6256-EGAD-0001",
+  "vendor_doc_id": "4HCH018089",
+  "planned_completion_date": "2027-08-05",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "bac89cfc-5786-45af-b159-a1e5b86a7b1f",
+  "normalized_document_number": "6105AE102-6253-EFND-0001",
+  "vendor_doc_id": "4HCH018111",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-05-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "be3a294e-e297-44c4-a75b-13f910140472",
+  "normalized_document_number": "6105AE102-6253-EGAD-0021",
+  "vendor_doc_id": "3BSY241010-LTZ",
+  "planned_completion_date": "2026-03-26",
+  "actual_submission_date": "2026-05-25",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "c3325158-4ecf-4878-828e-6f66349a0bcb",
+  "normalized_document_number": "6105AE102-6253-AGAD-0002",
+  "vendor_doc_id": "3BSY204112-LTZ",
+  "planned_completion_date": "2026-05-19",
+  "actual_submission_date": "2026-05-20",
+  "actual_completion_date": null,
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "c8fa0545-cfc8-4676-85c7-d56a793535ab",
+  "normalized_document_number": "6105AE102-6253-EGAD-0024",
+  "vendor_doc_id": "4HCH018088",
+  "planned_completion_date": "2027-02-01",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "d617e479-4596-4f69-83fb-1d3d309df2b2",
+  "normalized_document_number": "6105AE102-6253-EGAD-0019",
+  "vendor_doc_id": "XYK201635-LTZ",
+  "planned_completion_date": "2026-04-02",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "d78b8b51-37bc-4dca-a86a-15d940abeb99",
+  "normalized_document_number": "6105AE102-6256-ESSD-0002",
+  "vendor_doc_id": "4HCH018110",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-06-07",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "d892024c-ccb4-47f8-90bf-f129ef9cf37d",
+  "normalized_document_number": "6105AE102-6253-ECAL-0006",
+  "vendor_doc_id": "4HCH018116",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-06-02",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "dbd372d5-7879-42b4-a009-c701dfdb4c1b",
+  "normalized_document_number": "6105AE102-6253-AGAD-0003",
+  "vendor_doc_id": "XYK210776-LTZ",
+  "planned_completion_date": "2026-05-27",
+  "actual_submission_date": "2026-05-28",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "e1e75854-b51c-460b-bad3-f8d1c9831835",
+  "normalized_document_number": "6105AE102-6253-EDIA-0012",
+  "vendor_doc_id": "4HCH018151",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-16",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "e64d7588-3c2f-45a4-a553-109964ef7e06",
+  "normalized_document_number": "6105AE102-6253-EDIA-0007",
+  "vendor_doc_id": "3BSY200452-LTZ",
+  "planned_completion_date": "2026-02-12",
+  "actual_submission_date": "2026-04-27",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "ea4b92f4-a8b6-435a-a996-2cd24e2e1014",
+  "normalized_document_number": "6105AE102-6256-ESSD-0001",
+  "vendor_doc_id": "4HCH018109",
+  "planned_completion_date": "2026-05-14",
+  "actual_submission_date": "2026-06-07",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "eb7067ae-d130-4c18-a8b5-ff32d2c64d15",
+  "normalized_document_number": "6105AE102-6256-ESLD-0005",
+  "vendor_doc_id": "4HCH018460",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "f57e7159-3f57-4c1a-85f8-3ee42f84cc31",
+  "normalized_document_number": "6105AE102-6256-EGAD-0002",
+  "vendor_doc_id": "4HCH018094",
+  "planned_completion_date": "2026-07-09",
+  "actual_submission_date": null,
+  "actual_completion_date": null,
+  "progress_percent": 0.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "fd571177-caa7-4e0a-a2f4-6aee039e2db7",
+  "normalized_document_number": "6105AE102-6253-EGAD-0003",
+  "vendor_doc_id": "4HCH018103",
+  "planned_completion_date": "2026-02-26",
+  "actual_submission_date": "2026-03-18",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "ff313d68-301a-4dce-b0c4-923969cee3d8",
+  "normalized_document_number": "6105AE102-6253-EGAD-0011",
+  "vendor_doc_id": "4HCH018144",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "2306c135-8b37-4f28-ac74-98974639a11c",
+  "normalized_document_number": "6105AE102-6253-EGAD-0014",
+  "vendor_doc_id": "4HCH018166",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-03-26",
+  "actual_completion_date": "2026-04-23",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "3e901482-9fc1-45fd-a2b1-26435cd66c80",
+  "normalized_document_number": "6105AE102-6253-EITP-0001",
+  "vendor_doc_id": "XYK210044-LTZ",
+  "planned_completion_date": "2026-04-02",
+  "actual_submission_date": "2026-04-07",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "2bd38f6d-ba5d-4cbb-9623-35c7ae23b4c7",
+  "normalized_document_number": "6105AE102-6256-ESLD-0001",
+  "vendor_doc_id": "4HCH018153",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-05-11",
+  "actual_completion_date": "2026-05-21",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "23462c19-9381-45b8-8a7d-2d8e798f314d",
+  "normalized_document_number": "6105AE102-6256-ESLD-0006",
+  "vendor_doc_id": "4HCH018464",
+  "planned_completion_date": "2026-02-05",
+  "actual_submission_date": "2026-04-16",
+  "actual_completion_date": "2026-05-11",
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "3c99a2fe-d669-4f9e-9ae4-2452354767c5",
+  "normalized_document_number": "6105AE102-6253-EDIA-0009",
+  "vendor_doc_id": "4HCH018458",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-06",
+  "actual_completion_date": "2026-05-16",
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "0c0e39e5-56a1-4aa9-864d-0e19a2662db6",
+  "normalized_document_number": "6105AE102-6256-EDIA-0001",
+  "vendor_doc_id": "4HCH018466",
+  "planned_completion_date": "2026-03-19",
+  "actual_submission_date": "2026-05-06",
+  "actual_completion_date": "2026-05-16",
+  "progress_percent": 75.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "00048057-f831-452d-a7bc-8bdfefa11cb8",
+  "normalized_document_number": "6105AE102-6253-ADIA-0004",
+  "vendor_doc_id": "3BSY242013-LTZ",
+  "planned_completion_date": "2026-04-28",
+  "actual_submission_date": "2026-05-21",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "ec39183b-4532-41a8-8020-31bffe2f0f64",
+  "normalized_document_number": "6105AE102-0000-ADST-0001",
+  "vendor_doc_id": "4HCH019279",
+  "planned_completion_date": "2026-06-05",
+  "actual_submission_date": "2026-06-04",
+  "actual_completion_date": null,
+  "progress_percent": 85.0,
+  "progress_source": "review_system"
+ },
+ {
+  "id": "2708c1e6-a955-47de-a0f8-31f5f85fc2b1",
+  "normalized_document_number": "6105AE102-6253-APRC-0001",
+  "vendor_doc_id": "8ABA010138D0080",
+  "planned_completion_date": "2026-04-29",
+  "actual_submission_date": "2026-05-04",
+  "actual_completion_date": null,
+  "progress_percent": 33.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "dbe6ed14-a71e-4726-a986-61a1594d3c4f",
+  "normalized_document_number": "6105AE102-6253-ALST-0001",
+  "vendor_doc_id": "3BSY200409-LTZ",
+  "planned_completion_date": "2026-05-19",
+  "actual_submission_date": "2026-05-20",
+  "actual_completion_date": null,
+  "progress_percent": 33.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "32e2541d-2670-43d1-8f9e-894539350922",
+  "normalized_document_number": "6105AE102-6253-ADIA-0002",
+  "vendor_doc_id": "3BSY241023-LTZ",
+  "planned_completion_date": "2026-04-22",
+  "actual_submission_date": "2026-04-23",
+  "actual_completion_date": null,
+  "progress_percent": 33.0,
+  "progress_source": "register"
+ },
+ {
+  "id": "8b601348-601a-4608-a378-31e40c9c7f54",
+  "normalized_document_number": "6105AE102-6253-ADIA-0003",
+  "vendor_doc_id": "3BSY241022-LTZ",
+  "planned_completion_date": "2026-04-22",
+  "actual_submission_date": "2026-04-23",
+  "actual_completion_date": null,
+  "progress_percent": 33.0,
+  "progress_source": "register"
+ }
+]
