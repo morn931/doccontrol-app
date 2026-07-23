@@ -6,7 +6,7 @@ import { getPermissions, can, FK } from '@/lib/permissions'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { splitEmails } from '@/lib/utils/emails'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://docs.coreflow.build'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 const CONTROLLER_KEY = 'doc_request_controller_email'
 const DEFAULT_CONTROLLER = 'mornec@ppetech.co.za'
 

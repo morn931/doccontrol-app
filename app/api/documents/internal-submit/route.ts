@@ -25,7 +25,7 @@ import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { splitEmails } from '@/lib/utils/emails'
 
 const norm = (s: string) => s.replace(/\s+/g, '').toUpperCase()
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://docs.coreflow.build'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 
 type Rec = { email: string; name: string }
 function parseRecs(raw: unknown): Rec[] {
