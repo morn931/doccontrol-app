@@ -3,6 +3,7 @@ import { BookOpen } from 'lucide-react'
 import { CddlRegister, type CddlRow } from './cddl-register'
 import { getCddlMode } from './actions'
 import { createClient } from '@/lib/supabase/server'
+import { estimateHours } from '@/lib/cddl/hour-estimator'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +50,9 @@ export default async function CddlPage() {
   let res = await fetchAll(COLS)
   if (res.error) res = await fetchAll(COLS.replace(',retired,', ','))
   if (res.error) tableMissing = true
-  rows = res.rows
+  // Derive planned hours per document from the estimator (discipline + doc-type codes).
+  // Computed at read-time from code — the daily sync never stores or overrides it.
+  rows = res.rows.map((r) => ({ ...r, planned_hours: estimateHours(r.discipline, r.doc_type) }))
 
   if (!tableMissing) {
     const { data: s } = await supabase

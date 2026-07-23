@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import ExcelJS from 'exceljs'
+import { estimateHours } from '@/lib/cddl/hour-estimator'
 
 // CDDL Excel export — reproduces each ORIGINAL workbook's look & feel exactly.
 //
@@ -33,24 +34,29 @@ const K124_HEADERS = [
   'Sequential Number', 'Revision', 'RDMC Document Number', 'PPE Doc Number', 'Sht. # of #',
   'Area / Facility', 'Major Description', 'Broad Type', 'Full Title',
   'Rev A Transmittal Date', 'Rev 0 Transmittal Date', 'Aconex Doc Status', 'Aconex Review Status',
-  '% Complete', 'Doc Owner', 'Comments', 'Due Date', 'Main Group', 'Sub Group',
+  'Planned Hours', '% Complete', 'Earned Hours', 'Doc Owner', 'Comments', 'Due Date', 'Main Group', 'Sub Group',
   'BH', 'Drawing Pack', 'Activity ID', 'Schedule Status',
 ]
-// original column widths, A..AB (P had no explicit width in the source = default)
+// original column widths, A..AB (P had no explicit width in the source = default);
+// Planned/Earned Hours inserted around % Complete.
 const K124_WIDTHS = [
   17.43, 18.43, 16.43, 13.29, 17.71, 20.57, 12.14, 25.29, 28.57, 12.71,
-  48.71, 76.14, 63.57, 132.86, 22.71, 8.43, 21.86, 23.14, 15.0, 14.0,
+  48.71, 76.14, 63.57, 132.86, 22.71, 8.43, 21.86, 23.14, 13.0, 15.0, 13.0, 14.0,
   14.14, 23.29, 60.29, 65.14, 22.0, 29.43, 34.29, 13.0,
 ]
-const k124Cells = (r: Row) => [
-  '6105A', s(r.package_code), s(r.wbs), s(r.discipline), s(r.doc_type),
-  s(r.seq_no), s(r.revision), s(r.docno), s(r.ppe_docno), s(r.sheet),
-  s(r.area_facility), s(r.major_desc), s(r.broad_type), s(r.title),
-  s(r.rev_a_transmittal), s(r.rev0_transmittal), s(r.aconex_doc_status), s(r.aconex_review_status),
-  r.pct_complete == null ? 0 : Number(r.pct_complete), s(r.doc_owner_initials),
-  s(r.comments), s(r.due), s(r.main_group), s(r.sub_group),
-  s(r.bh), s(r.drawing_pack), s(r.activity_id), s(r.schedule_status),
-]
+const k124Cells = (r: Row) => {
+  const planned = estimateHours(s(r.discipline), s(r.doc_type))
+  const pct = r.pct_complete == null ? 0 : Number(r.pct_complete)
+  return [
+    '6105A', s(r.package_code), s(r.wbs), s(r.discipline), s(r.doc_type),
+    s(r.seq_no), s(r.revision), s(r.docno), s(r.ppe_docno), s(r.sheet),
+    s(r.area_facility), s(r.major_desc), s(r.broad_type), s(r.title),
+    s(r.rev_a_transmittal), s(r.rev0_transmittal), s(r.aconex_doc_status), s(r.aconex_review_status),
+    Math.round(planned), pct, Math.round(planned * pct), s(r.doc_owner_initials),
+    s(r.comments), s(r.due), s(r.main_group), s(r.sub_group),
+    s(r.bh), s(r.drawing_pack), s(r.activity_id), s(r.schedule_status),
+  ]
+}
 
 // ------------------------------------------------------------ Early Works ---
 const K038_HEADERS = [

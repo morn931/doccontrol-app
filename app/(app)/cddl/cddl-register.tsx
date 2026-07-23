@@ -29,6 +29,7 @@ export type CddlRow = {
   drawing_pack: string | null
   retired?: boolean | null
   package_code: string
+  planned_hours?: number | null   // derived from the hour estimator (read-time; not synced)
 }
 
 // Review-status buckets for the summary cards (same lexicon as the review tracker).
@@ -119,6 +120,16 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
   ]
 
   const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`)
+  const plannedOf = (r: CddlRow) => r.planned_hours ?? 0
+  const earnedOf = (r: CddlRow) => plannedOf(r) * (r.pct_complete ?? 0)
+  const hrs = (v: number) => (v ? v.toLocaleString('en-ZA', { maximumFractionDigits: 0 }) : '—')
+
+  // Hours roll-up across the current (filtered) view.
+  const totals = useMemo(() => {
+    let planned = 0, earned = 0
+    for (const r of shown) { planned += plannedOf(r); earned += earnedOf(r) }
+    return { planned, earned, pct: planned ? earned / planned : 0 }
+  }, [shown]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {
@@ -216,8 +227,17 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
           className="rounded-lg border border-navy-300 px-3 py-1.5 text-xs font-medium text-navy-700 hover:bg-navy-50">
           ⬇ Export to Excel (CDDL format)
         </a>
-        <span className="text-xs text-slate-400 ml-auto">{shown.length} shown</span>
+        <span className="ml-auto text-xs text-slate-500">
+          <b className="text-teal-700">{hrs(totals.earned)} h</b> earned of {hrs(totals.planned)} h planned
+          <span className="text-slate-400"> ({Math.round(totals.pct * 100)}%)</span>
+          <span className="mx-2 text-slate-300">·</span>
+          {shown.length} shown
+        </span>
       </div>
+      <p className="-mt-1 text-[11px] text-slate-400">
+        Planned hours are estimated per document from its discipline + doc-type (RDMC resource model, calibrated to 69,116 h).
+        Earned = Planned × %. Derived live — the daily 06:00 sync never overrides them.
+      </p>
 
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
@@ -230,7 +250,9 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Rev</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Doc status</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Review status</th>
+              <th className="px-3 py-2 font-semibold border-r border-navy-600 text-right">Planned h</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600 text-right">%</th>
+              <th className="px-3 py-2 font-semibold border-r border-navy-600 text-right">Earned h</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Owner</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Due</th>
               {editable && <th className="px-3 py-2 font-semibold"></th>}
@@ -246,7 +268,9 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
                 <td className="px-3 py-2 text-slate-500">{r.revision}</td>
                 <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{(r.aconex_doc_status ?? '').split(' - ')[0]}</td>
                 <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{r.aconex_review_status}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-500">{hrs(plannedOf(r))}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-slate-600">{pct(r.pct_complete)}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-medium text-teal-700">{hrs(earnedOf(r))}</td>
                 <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{r.doc_owner ?? '—'}</td>
                 <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{r.due ?? '—'}</td>
                 {editable && (
