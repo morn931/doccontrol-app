@@ -38,8 +38,9 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // API intake webhook is authenticated by shared secret, not session
+  // Secret-gated APIs (authenticated by shared secret, not session — e.g. cross-app feeds)
   if (pathname.startsWith('/api/intake/webhook')) return supabaseResponse
+  if (pathname.startsWith('/api/cddl/hours-summary')) return supabaseResponse
 
   // All other routes require authentication.
   if (!user) {
