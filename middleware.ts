@@ -28,9 +28,12 @@ export async function middleware(request: NextRequest) {
   // Public routes that don't need auth
   const publicRoutes = ['/login', '/auth/callback', '/auth/coreflow-bridge']
   if (publicRoutes.some(r => pathname.startsWith(r))) {
-    // If already logged in, redirect to dashboard
+    // If already logged in, redirect to the intended destination (deep links from
+    // review-notification emails carry ?next=/reviews/<id>) or the dashboard.
     if (user && pathname === '/login') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      const next = request.nextUrl.searchParams.get('next')
+      const dest = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+      return NextResponse.redirect(new URL(dest, request.url))
     }
     return supabaseResponse
   }
@@ -40,14 +43,22 @@ export async function middleware(request: NextRequest) {
 
   // All other routes require authentication.
   if (!user) {
+    // Preserve the intended destination through the auth hop, so deep links from
+    // notification emails (e.g. "Open Review Workspace" → /reviews/<id>) land on
+    // the review itself instead of the dashboard.
+    const next = pathname + (request.nextUrl.search || '')
     // Internal PPE staff: if they carry a valid Coreflow session, bridge them in
     // instead of bouncing to CoreDocs' own login. External users (no shared session)
     // fall through to the normal login.
     const ppeEmail = await readCoreflowPpeEmail(request.cookies.getAll())
     if (ppeEmail) {
-      return NextResponse.redirect(new URL('/auth/coreflow-bridge', request.url))
+      const url = new URL('/auth/coreflow-bridge', request.url)
+      url.searchParams.set('next', next)
+      return NextResponse.redirect(url)
     }
-    return NextResponse.redirect(new URL('/login', request.url))
+    const url = new URL('/login', request.url)
+    url.searchParams.set('next', next)
+    return NextResponse.redirect(url)
   }
 
   return supabaseResponse

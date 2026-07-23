@@ -1,22 +1,38 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState<string | null>(null)
   const [loading, setLoading]   = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Deep-link preservation: land on the originally requested page (e.g. a
+  // /reviews/<id> link from a notification email) instead of the dashboard.
+  const nextParam = searchParams.get('next')
+  const dest = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
+    ? nextParam
+    : '/dashboard'
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError(null)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError(error.message); setLoading(false) }
-    else { router.push('/dashboard'); router.refresh() }
+    else { router.push(dest); router.refresh() }
   }
 
   return (

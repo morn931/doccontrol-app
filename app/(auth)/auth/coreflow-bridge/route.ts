@@ -15,6 +15,14 @@ export async function GET(request: NextRequest) {
   const HUB = 'https://coreflow.build/login'
   const cookieStore = await cookies()
 
+  // Deep-link preservation: the middleware forwards the originally requested path
+  // (e.g. /reviews/<id> from a notification email) as ?next= — land there after
+  // the bridge instead of the dashboard. Same-origin relative paths only.
+  const nextParam = request.nextUrl.searchParams.get('next')
+  const dest = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
+    ? nextParam
+    : '/dashboard'
+
   const email = await readCoreflowPpeEmail(cookieStore.getAll())
   if (!email) return NextResponse.redirect(HUB)
 
@@ -62,7 +70,7 @@ export async function GET(request: NextRequest) {
     await admin.from('users').update({ auth_user_id: link.user.id }).eq('id', profile.id)
   }
 
-  const res = NextResponse.redirect(new URL('/dashboard', request.url))
+  const res = NextResponse.redirect(new URL(dest, request.url))
   const supa = createServerClient(ownUrl, ownAnon, {
     cookies: {
       getAll: () => cookieStore.getAll(),
