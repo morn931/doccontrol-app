@@ -235,8 +235,8 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
         </span>
       </div>
       <p className="-mt-1 text-[11px] text-slate-400">
-        Planned hours are estimated per document from its discipline + doc-type (RDMC resource model, calibrated to 69,116 h).
-        Earned = Planned × %. Derived live — the daily 06:00 sync never overrides them.
+        Planned hours are estimated per document from its discipline + doc-type, calibrated to the budget-derived
+        design/create hours (~51,124 h = 82.5% of the CoreTime engineering budget). Earned = Planned × %. Derived live — the daily 06:00 sync never overrides them.
       </p>
 
       <div className="card overflow-x-auto">
