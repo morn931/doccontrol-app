@@ -59,8 +59,9 @@ function LoginForm() {
             </div>
           )}
 
-          {/* PPE staff: one-login via Coreflow. External users use the form below. */}
-          <a href="/auth/coreflow-bridge"
+          {/* PPE staff: one-login via Coreflow. External users use the form below.
+              Carries the deep-link destination so review-email links survive the hop. */}
+          <a href={`/auth/coreflow-bridge${dest !== '/dashboard' ? `?next=${encodeURIComponent(dest)}` : ''}`}
             className="mb-4 flex w-full items-center justify-center gap-2 rounded-md border border-navy-200 bg-navy-50 px-4 py-2.5 text-sm font-medium text-navy-800 hover:bg-navy-100">
             Continue with Coreflow <span className="text-navy-400">— PPE staff</span>
           </a>

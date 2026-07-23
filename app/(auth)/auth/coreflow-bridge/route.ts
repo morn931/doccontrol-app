@@ -24,7 +24,13 @@ export async function GET(request: NextRequest) {
     : '/dashboard'
 
   const email = await readCoreflowPpeEmail(cookieStore.getAll())
-  if (!email) return NextResponse.redirect(HUB)
+  if (!email) {
+    // No shared Coreflow session in this browser — send them to the hub login
+    // WITH a return address, so after signing in there they come straight back
+    // to the deep link (shell login/middleware/callback honour ?next=).
+    const back = new URL(dest, request.url).toString()
+    return NextResponse.redirect(`${HUB}?next=${encodeURIComponent(back)}`)
+  }
 
   const ownUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const ownAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
