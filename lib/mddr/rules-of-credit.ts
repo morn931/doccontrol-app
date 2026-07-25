@@ -113,12 +113,17 @@ function finalize(stage: RuleOfCreditStage): ProgressResult {
 
 /**
  * PPE / CDDL variant. PPE's own deliverables carry NO vendor review-outcome codes,
- * so progress is derived from the Aconex document status + revision instead. There
- * is intentionally NO distinct "reviewed (75%)" stage for PPE docs (no review-return
- * code exists), so they step 25 → 85 → 100:
+ * so progress is derived from the Aconex document status + revision instead.
+ *
+ * Aligned to the PRDW rules of credit agreed with RDMC on a sister project
+ * (2026-07): our "IFR – Issued for Review" is the first transmittal to RDMC (client)
+ * for review — PRDW's "IFR – Issued for Client review, Rev A = 75%". Validated
+ * 2026-07-24: 33%+ in the CDDL = document genuinely touched (99.7% match to actual
+ * engineering files on SharePoint), so first client issue is credited at the agreed
+ * 75%, not the old 25% first-submission value. PPE docs step 0 → 75 → 85 → 100:
  *   · numeric revision (Rev 0+) .......................... 100%  (final IFC/IFD issue)
  *   · IFC / IFD / IFU (issued for construction/design/use)  85%  (accepted for use)
- *   · IFR / IFI (issued for review / information) ......... 25%  (submitted)
+ *   · IFR / IFI (issued for client review, Rev A) ......... 75%  (PRDW client review)
  *   · anything else / no revision ......................... 0%   (RES placeholders are
  *     filtered out by the caller before this is reached).
  */
@@ -129,6 +134,6 @@ export function computeProgressFromStatus(
   if (isNumericRevision(revision)) return finalize('FINAL_ISSUE')
   const a = String(aconexStatus ?? '').toUpperCase()
   if (a.startsWith('IFC') || a.startsWith('IFD') || a.startsWith('IFU')) return finalize('ACCEPTED')
-  if (a.startsWith('IFR') || a.startsWith('IFI')) return finalize('FIRST_SUBMISSION')
+  if (a.startsWith('IFR') || a.startsWith('IFI')) return finalize('REVIEWED')
   return finalize('NONE')
 }
