@@ -156,12 +156,12 @@ export default function EngineeringTrackerPage() {
           <thead className="sticky top-0 z-20">
             <tr>
               <th rowSpan={2} style={{ position: 'sticky', left: 0, minWidth: 280 }}
-                className="z-30 bg-navy-50 border-b border-r border-slate-200 px-3 py-2 text-left font-bold text-slate-700 align-bottom">
+                className="z-30 bg-navy-600 border-b border-r border-white/10 px-3 py-2 text-left font-bold text-white align-bottom">
                 Description
               </th>
               {GROUPS.map(g => (
                 <th key={g.name} colSpan={g.span}
-                  className="bg-slate-100 border-b border-l border-slate-200 px-3 py-1.5 text-center font-bold text-slate-600 uppercase tracking-wide whitespace-nowrap">
+                  className="bg-navy-700 border-b border-l border-white/10 px-3 py-1.5 text-center font-bold text-white uppercase tracking-wide whitespace-nowrap">
                   {g.name}
                 </th>
               ))}
@@ -169,7 +169,7 @@ export default function EngineeringTrackerPage() {
             <tr>
               {COLS.map((c, i) => (
                 <th key={c.key as string} style={{ minWidth: c.width }}
-                  className={cn('bg-slate-50 border-b border-slate-200 px-2 py-1.5 text-right font-semibold text-slate-500 whitespace-nowrap',
+                  className={cn('bg-navy-600 border-b border-white/10 px-2 py-1.5 text-right font-semibold text-white whitespace-nowrap',
                     (i === 0 || COLS[i - 1].group !== c.group) && 'border-l')}>
                   {c.label}
                 </th>

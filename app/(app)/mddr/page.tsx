@@ -623,9 +623,9 @@ export default function MddrPage() {
                       onClick={e => { setMenuCol(col.key); setMenuAnchor((e.currentTarget as HTMLElement).getBoundingClientRect()) }}
                       style={{ minWidth: col.width ?? 100, ...(pinned ? { position: 'sticky', left: leftOffsets[i], top: 0 } : {}) }}
                       className={cn(
-                        'px-3 py-2.5 text-left font-semibold text-slate-600 cursor-pointer hover:bg-slate-100 whitespace-nowrap select-none bg-slate-50 border-b border-slate-200',
+                        'px-3 py-2.5 text-left font-semibold text-white cursor-pointer hover:bg-navy-700 whitespace-nowrap select-none bg-navy-600 border-b border-white/10',
                         pinned && 'z-30',
-                        i === pinnedCount - 1 && 'border-r border-slate-200',
+                        i === pinnedCount - 1 && 'border-r border-white/10',
                       )}
                     >
                       <span className="flex items-center gap-1 w-full">
@@ -635,7 +635,7 @@ export default function MddrPage() {
                             ? <ChevronUp   className="h-3 w-3 shrink-0" />
                             : <ChevronDown className="h-3 w-3 shrink-0" />
                         )}
-                        <Filter className={cn('h-3 w-3 ml-auto shrink-0', hasFilter ? 'text-navy-600 fill-navy-200' : 'text-slate-300')} />
+                        <Filter className={cn('h-3 w-3 ml-auto shrink-0', hasFilter ? 'text-brand fill-white/30' : 'text-white/40')} />
                       </span>
                     </th>
                   )
