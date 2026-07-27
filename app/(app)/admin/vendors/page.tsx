@@ -29,7 +29,7 @@ export default async function VendorsPage() {
           const awarded = p.vendor !== NOT_AWARDED
           return (
             <div key={p.id} className={card}>
-              <PackageIcon vendorName={awarded ? p.vendor : null} packageCode={p.package_code} size="h-24 w-24" />
+              <PackageIcon vendorName={awarded ? p.vendor : null} packageCode={p.package_code} size={awarded ? 'h-24 w-24' : 'h-16 w-16'} />
               <div>
                 <span className="block text-sm font-semibold text-slate-900">
                   {p.package_code} — {p.package_name || p.package_code}
