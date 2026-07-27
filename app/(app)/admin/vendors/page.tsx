@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { awardedVendor, NOT_AWARDED } from '@/lib/package-vendors'
+import PackageIcon from '@/components/vendors/package-icon'
 
 export default async function VendorsPage() {
   const db = createServiceClient()
@@ -13,31 +14,38 @@ export default async function VendorsPage() {
     vendor: awardedVendor(p.package_code),
   }))
 
+  const card =
+    'flex flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-5 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
+
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-[1600px]">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Vendors &amp; Packages</h1>
         <p className="text-slate-500 text-sm mt-1">Project packages and the vendor each is awarded to (PPE&apos;s own engineering = K124).</p>
       </div>
 
-      <div className="card divide-y divide-slate-50">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
         {rows.map((p: any) => {
           const awarded = p.vendor !== NOT_AWARDED
           return (
-            <div key={p.id} className="px-6 py-4 flex items-center gap-4">
-              <span className="px-2 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold shrink-0">{p.package_code}</span>
-              <span className="font-medium text-slate-900 flex-1 min-w-0 truncate">{p.package_name || p.package_code}</span>
-              <span className={
-                'px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 ' +
-                (awarded ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-400')
-              }>
-                {awarded ? `Awarded: ${p.vendor}` : NOT_AWARDED}
-              </span>
+            <div key={p.id} className={card}>
+              <PackageIcon vendorName={awarded ? p.vendor : null} packageCode={p.package_code} />
+              <div>
+                <span className="block text-sm font-semibold text-slate-900">
+                  {p.package_code} — {p.package_name || p.package_code}
+                </span>
+                <span className={
+                  'mt-1 inline-block px-2.5 py-1 rounded-full text-xs font-semibold ' +
+                  (awarded ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-400')
+                }>
+                  {awarded ? `Awarded: ${p.vendor}` : NOT_AWARDED}
+                </span>
+              </div>
             </div>
           )
         })}
         {rows.length === 0 && (
-          <div className="px-6 py-10 text-center text-slate-400 text-sm">No packages found.</div>
+          <p className="text-sm text-slate-500">No packages found.</p>
         )}
       </div>
     </div>
