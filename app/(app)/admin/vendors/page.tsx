@@ -15,7 +15,7 @@ export default async function VendorsPage() {
   }))
 
   const card =
-    'flex flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-5 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
+    'flex flex-col items-center gap-3 rounded-xl bg-white border border-slate-200 p-3 shadow-sm hover:border-teal-300 hover:shadow-md transition-all text-center'
 
   return (
     <div className="space-y-6 max-w-[1600px]">
@@ -29,7 +29,7 @@ export default async function VendorsPage() {
           const awarded = p.vendor !== NOT_AWARDED
           return (
             <div key={p.id} className={card}>
-              <PackageIcon vendorName={awarded ? p.vendor : null} packageCode={p.package_code} />
+              <PackageIcon vendorName={awarded ? p.vendor : null} packageCode={p.package_code} size="h-24 w-24" />
               <div>
                 <span className="block text-sm font-semibold text-slate-900">
                   {p.package_code} — {p.package_name || p.package_code}
