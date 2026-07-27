@@ -19,9 +19,13 @@ export const PACKAGE_VENDOR: Record<string, string> = {
   K124: 'PPE',          // PPE's own engineering deliverables
   K038: 'PPE',          // PPE's own early works
   ENG2: 'PPE',          // PPE's own engineering
-  K138: 'PSI',          // Balance of Plant — PSI, with Capital Drilling on site
   FLUOR: 'Fluor',
+  K138: 'PSI',          // Balance of Plant — logo only; not actually awarded (see vendors page)
 }
+
+// K138 shows the PSI/Capital Drilling logos (contract is with PSI) but is NOT
+// actually awarded yet — its "Awarded" pill must stay "Not awarded yet" regardless.
+export const LOGO_ONLY_PACKAGES = new Set(['K138'])
 
 export const NOT_AWARDED = 'Not awarded yet'
 

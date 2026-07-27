@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
-import { awardedVendor, NOT_AWARDED } from '@/lib/package-vendors'
+import { awardedVendor, NOT_AWARDED, LOGO_ONLY_PACKAGES } from '@/lib/package-vendors'
 import PackageIcon from '@/components/vendors/package-icon'
 
 export default async function VendorsPage() {
@@ -26,10 +26,12 @@ export default async function VendorsPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
         {rows.map((p: any) => {
-          const awarded = p.vendor !== NOT_AWARDED
+          const logoOnly = LOGO_ONLY_PACKAGES.has(p.package_code)
+          const awarded = p.vendor !== NOT_AWARDED && !logoOnly
+          const hasLogo = p.vendor !== NOT_AWARDED
           return (
             <div key={p.id} className={card}>
-              <PackageIcon vendorName={awarded ? p.vendor : null} packageCode={p.package_code} size={awarded ? 'h-24 w-24' : 'h-16 w-16'} />
+              <PackageIcon vendorName={hasLogo ? p.vendor : null} packageCode={p.package_code} size={hasLogo ? 'h-24 w-24' : 'h-16 w-16'} />
               <div>
                 <span className="block text-sm font-semibold text-slate-900">
                   {p.package_code} — {p.package_name || p.package_code}
