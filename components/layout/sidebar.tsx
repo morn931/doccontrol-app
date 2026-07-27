@@ -80,7 +80,7 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
             <div className="px-3 pt-4 pb-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Aconex</p>
             </div>
-            <NavLink href="/aconex-review" label="Aconex Review Tracker" icon="🔗" />
+            <NavLink href="/aconex-review" label="Aconex Review Tracker" icon={ICON_SURFACE('aconex-review-tracker')} />
           </>
         )}
 
@@ -90,7 +90,7 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
             <div className="px-3 pt-4 pb-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">CDDL</p>
             </div>
-            <NavLink href="/cddl" label="CDDL Register" icon="📚" />
+            <NavLink href="/cddl" label="CDDL Register" icon={ICON_SURFACE('cddl-register')} />
           </>
         )}
 
@@ -100,7 +100,7 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
             <div className="px-3 pt-4 pb-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">SDDR</p>
             </div>
-            <NavLink href="/sddr" label="SDDR Registers" icon="🏭" />
+            <NavLink href="/sddr" label="SDDR Registers" icon={ICON_SURFACE('sddr-registers')} />
           </>
         )}
 
