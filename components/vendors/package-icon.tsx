@@ -11,6 +11,7 @@ const VENDOR_LOGOS: Record<string, string> = {
   Fuelco: '/vendor-logos/fuelco.png',
   PRDW: '/vendor-logos/prdw.png',
   Wartsila: '/vendor-logos/wartsila.png',
+  Fluor: '/vendor-logos/fluor.avif',
 }
 
 // Package codes that show an extra vendor logo alongside their primary one
