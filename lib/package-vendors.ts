@@ -17,6 +17,9 @@ export const PACKAGE_VENDOR: Record<string, string> = {
   ICTS: 'PRDW',
   'ICT-S': 'PRDW',
   K124: 'PPE',          // PPE's own engineering deliverables
+  K038: 'PPE',          // PPE's own early works
+  ENG2: 'PPE',          // PPE's own engineering
+  K138: 'PSI',          // Balance of Plant — PSI, with Capital Drilling on site
 }
 
 export const NOT_AWARDED = 'Not awarded yet'
