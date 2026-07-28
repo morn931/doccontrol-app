@@ -41,6 +41,8 @@ export async function middleware(request: NextRequest) {
   // Secret-gated APIs (authenticated by shared secret, not session — e.g. cross-app feeds)
   if (pathname.startsWith('/api/intake/webhook')) return supabaseResponse
   if (pathname.startsWith('/api/cddl/hours-summary')) return supabaseResponse
+  // Vercel Cron routes self-authenticate with CRON_SECRET — skip the session gate.
+  if (pathname.startsWith('/api/cron/')) return supabaseResponse
 
   // All other routes require authentication.
   if (!user) {

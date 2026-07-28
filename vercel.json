@@ -11,12 +11,19 @@
     },
     "app/api/cron/sharepoint-sync/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/mddr-sync/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/cron/sharepoint-sync",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/mddr-sync",
+      "schedule": "0 3 * * *"
     }
   ],
   "git": {
