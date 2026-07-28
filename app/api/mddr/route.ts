@@ -14,7 +14,7 @@ const COLS = [
   'service_provider_pkg_no', 'vendor_name', 'doc_owner', 'sub_supplier',
   'document_number', 'normalized_document_number', 'ppe_doc_number', 'vendor_doc_id',
   'document_title', 'document_description', 'sheet_number', 'discipline', 'document_type',
-  'document_category', 'area', 'system', 'sub_system', 'tag_number', 'revision', 'revision_status',
+  'document_category', 'area', 'system', 'sub_system', 'tag_number', 'revision', 'target_revision', 'revision_status',
   'review_outcome_code', 'document_status', 'planned_start_date', 'planned_ifr_date',
   'planned_ifc_date', 'planned_completion_date', 'actual_submission_date', 'actual_review_date',
   'actual_return_date', 'actual_completion_date', 'activity_id', 'wbs_code',
@@ -115,14 +115,22 @@ export async function GET(req: NextRequest) {
     if (!data || data.length < PAGE) break   // last page
   }
 
-  // As-issued revision (from the file on record) + a flag where it disagrees with
-  // the register's `revision`. Lets the index show the truth of what will open and
-  // badge the forward/IFC-target gap. (Prototype A+B — 2026-07-28.)
+  // Resolve the as-issued revision (what actually opens) + the forward IFC target,
+  // and flag the gap. Works before AND after the Option C backfill:
+  //  · post-backfill: `revision` = as-issued, `target_revision` = forward (from DB)
+  //  · pre-backfill : `revision` = forward numeric — derive as-issued from the file
+  //    name and treat the numeric register value as the target.
+  const same = (a?: string | null, b?: string | null) => (a ?? '').trim().toUpperCase() === (b ?? '').trim().toUpperCase()
   for (const r of rows) {
     const fileRev = fileRevFromLink(r.file_link)
-    const reg = (r.revision ?? '').toString().trim().toUpperCase()
+    const reg = (r.revision ?? '').toString().trim()
+    const asIssued = fileRev || reg || null
+    const target = (r.target_revision && String(r.target_revision).trim())
+      || (fileRev && reg && !same(reg, fileRev) && /^\d+$/.test(reg) ? reg : null)
     r.file_revision = fileRev
-    r.revision_mismatch = !!fileRev && !!reg && fileRev !== reg
+    r.as_issued_revision = asIssued
+    r.target_revision = target
+    r.revision_mismatch = !!target && !same(target, asIssued)
   }
 
   // rows.length is exact when the set fits under `limit`; '+' when capped.

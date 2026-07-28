@@ -74,9 +74,21 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
   // ── apply to awarded MDDR entries ──
   let matched = 0, updated = 0, skipped = 0
   const errors: string[] = []
+  const sameRev = (a?: string | null, b?: string | null) => (a ?? '').trim().toUpperCase() === (b ?? '').trim().toUpperCase()
+  // Option C: `revision` should reflect the file on record (as-issued). When the
+  // register carried a forward numeric IFC target (e.g. "0") while the file is the
+  // approved draft, move that value to `target_revision`.
+  const reconcileRev = (e: any, fileRev: string | null): Record<string, string | null> => {
+    const fr = (fileRev ?? '').trim()
+    const reg = (e.revision ?? '').trim()
+    if (!fr || sameRev(fr, reg)) return {}
+    const patch: Record<string, string | null> = { revision: fr }
+    if (/^\d+$/.test(reg) && !e.target_revision) patch.target_revision = reg
+    return patch
+  }
   for (let from = 0; ; from += 500) {
     let q = db.from('mddr_entries')
-      .select('id, normalized_document_number, weighting_total, progress_source')
+      .select('id, normalized_document_number, weighting_total, progress_source, revision, target_revision')
       .eq('is_active', true)
       .not('normalized_document_number', 'is', null)
       .order('id', { ascending: true })   // stable order for offset pagination
@@ -87,25 +99,34 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
     if (!entries || entries.length === 0) break
 
     for (const e of entries) {
-      // Rows whose progress is owned elsewhere are not touched by the live review sync:
-      //  · 'register'       — set from an uploaded SDDR/CDDL (ABB packages).
-      //  · 'rules_of_credit'— hard-coded Rules-of-Credit (Siemens K125 / PPE K124).
-      // NULL-source rows are still synced.
-      if (e.progress_source === 'register' || e.progress_source === 'rules_of_credit') { skipped++; continue }
       const info = byDocNumber.get(e.normalized_document_number)
       if (!info) continue
       matched++
-      const outcome = worstCaseOutcome(info.outcomes)
-      const prog = computeProgress({ hasSubmission: true, latestOutcome: outcome, latestRevision: info.revision })
-      const earned = e.weighting_total != null ? (prog.percent / 100) * Number(e.weighting_total) : null
-      const { error: uErr } = await db.from('mddr_entries').update({
-        progress_percent: prog.percent, progress_milestone: prog.milestone, progress_source: 'review_system',
-        review_outcome_code: outcome, earned_value: earned,
-        ai_text: info.aiText,
-        linked_document_id: info.documentId, linked_version_id: info.versionId,
-        status_synced_at: new Date().toISOString(),
-        stage_submitted: prog.milestone >= 1, stage_reviewed: prog.milestone >= 2, stage_approved: prog.milestone >= 3,
-      }).eq('id', e.id)
+
+      // Revision reconciliation (Option C) applies to EVERY matched row — including
+      // register-/rules-owned ones — so the index always reflects the file on record.
+      const update: Record<string, any> = reconcileRev(e, info.revision)
+
+      // Progress is owned elsewhere for these sources — don't touch it:
+      //  · 'register'       — set from an uploaded SDDR/CDDL (ABB packages).
+      //  · 'rules_of_credit'— hard-coded Rules-of-Credit (Siemens K125 / PPE K124).
+      const progressOwnedElsewhere = e.progress_source === 'register' || e.progress_source === 'rules_of_credit'
+      if (!progressOwnedElsewhere) {
+        const outcome = worstCaseOutcome(info.outcomes)
+        const prog = computeProgress({ hasSubmission: true, latestOutcome: outcome, latestRevision: info.revision })
+        const earned = e.weighting_total != null ? (prog.percent / 100) * Number(e.weighting_total) : null
+        Object.assign(update, {
+          progress_percent: prog.percent, progress_milestone: prog.milestone, progress_source: 'review_system',
+          review_outcome_code: outcome, earned_value: earned,
+          ai_text: info.aiText,
+          linked_document_id: info.documentId, linked_version_id: info.versionId,
+          status_synced_at: new Date().toISOString(),
+          stage_submitted: prog.milestone >= 1, stage_reviewed: prog.milestone >= 2, stage_approved: prog.milestone >= 3,
+        })
+      }
+
+      if (Object.keys(update).length === 0) { skipped++; continue }
+      const { error: uErr } = await db.from('mddr_entries').update(update).eq('id', e.id)
       if (uErr) errors.push(`${e.normalized_document_number}: ${uErr.message}`); else updated++
     }
     if (entries.length < 500) break

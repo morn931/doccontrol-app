@@ -277,15 +277,15 @@ export default function DocumentsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-sm font-semibold text-slate-900">{r.document_number ?? '—'}</span>
-                  {/* Authoritative = revision of the file on record (what opens);
-                      the register's numeric value shows as the IFC target + ⚠ when they differ. */}
-                  {r.file_revision ? (
+                  {/* Authoritative = as-issued revision of the file on record (what opens);
+                      the register's forward value shows as the IFC target + ⚠ when they differ. */}
+                  {r.as_issued_revision ? (
                     <>
-                      <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold" title="Revision of the document actually on file (what opens)">Rev {r.file_revision}</span>
+                      <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold" title="As-issued revision of the document on file (what opens)">Rev {r.as_issued_revision}</span>
                       {r.revision_mismatch && (
                         <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-medium inline-flex items-center gap-1"
-                          title={`Register/MDDR lists Rev ${r.revision} (the IFC target after approval). The document on file is still Rev ${r.file_revision} — not yet re-issued.`}>
-                          ⚠ IFC target {r.revision}
+                          title={`Register/MDDR lists Rev ${r.target_revision} (the IFC target after approval). The document on file is still Rev ${r.as_issued_revision} — not yet re-issued.`}>
+                          ⚠ IFC target {r.target_revision}
                         </span>
                       )}
                     </>
