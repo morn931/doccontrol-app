@@ -21,23 +21,32 @@ const fileRevFromLink = (link?: string | null): string | null => {
 const same = (a?: string | null, b?: string | null) => (a ?? "").trim().toUpperCase() === (b ?? "").trim().toUpperCase();
 
 (async () => {
-  let scanned = 0, toFix = 0, applied = 0;
+  let scanned = 0, withFile = 0, toFix = 0, applied = 0;
   const byPkg: Record<string, number> = {};
   const samples: any[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await sb.from("mddr_entries")
+  // Keyset pagination on the PK (indexed) — the `file_link is null` filter over 87k
+  // rows full-scans and times out, so scan by id and filter the file in JS.
+  let last = "";
+  for (;;) {
+    let q = sb.from("mddr_entries")
       .select("id, package_code, revision, target_revision, file_link")
-      .not("file_link", "is", null)
-      .range(from, from + 999);
+      .order("id", { ascending: true }).limit(1000);
+    if (last) q = q.gt("id", last);
+    const { data, error } = await q;
     if (error) { console.error("scan error:", error.message); break; }
     if (!data?.length) break;
     for (const r of data as any[]) {
       scanned++;
+      if (!r.file_link) continue;
+      withFile++;
       const fileRev = fileRevFromLink(r.file_link);
       const reg = (r.revision ?? "").trim();
-      if (!fileRev || same(fileRev, reg)) continue;
+      // ONLY the reported defect: register holds a forward numeric IFC target (0/1…)
+      // while the file on record is still an approved draft letter (A/B/C…).
+      // Leaves blanks and letter/letter or numeric/numeric cases untouched.
+      if (!fileRev || !/^\d+$/.test(reg) || !/^[A-Za-z]/.test(fileRev) || same(fileRev, reg)) continue;
       const patch: Record<string, string | null> = { revision: fileRev };
-      if (/^\d+$/.test(reg) && !r.target_revision) patch.target_revision = reg;
+      if (!r.target_revision) patch.target_revision = reg;
       toFix++;
       byPkg[r.package_code ?? "?"] = (byPkg[r.package_code ?? "?"] ?? 0) + 1;
       if (samples.length < 15) samples.push({ pkg: r.package_code, from: reg || "(blank)", to: fileRev, target: patch.target_revision ?? r.target_revision ?? null });
@@ -46,8 +55,10 @@ const same = (a?: string | null, b?: string | null) => (a ?? "").trim().toUpperC
         if (uErr) console.error(`  update ${r.id}: ${uErr.message}`); else applied++;
       }
     }
+    last = (data[data.length - 1] as any).id;
     if (data.length < 1000) break;
   }
+  console.log(`Scanned (all rows): ${scanned} · with a file: ${withFile}`);
   console.log(`Scanned (rows with a file): ${scanned}`);
   console.log(`Rows needing reconciliation: ${toFix}`);
   console.log("By package:", JSON.stringify(byPkg));

@@ -81,9 +81,11 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
   const reconcileRev = (e: any, fileRev: string | null): Record<string, string | null> => {
     const fr = (fileRev ?? '').trim()
     const reg = (e.revision ?? '').trim()
-    if (!fr || sameRev(fr, reg)) return {}
+    // ONLY the reported defect: register = forward numeric IFC target (0/1…), file =
+    // approved draft letter (A/B/C…). Blanks / letter-letter / numeric-numeric untouched.
+    if (!fr || !/^\d+$/.test(reg) || !/^[A-Za-z]/.test(fr) || sameRev(fr, reg)) return {}
     const patch: Record<string, string | null> = { revision: fr }
-    if (/^\d+$/.test(reg) && !e.target_revision) patch.target_revision = reg
+    if (!e.target_revision) patch.target_revision = reg
     return patch
   }
   for (let from = 0; ; from += 500) {
