@@ -277,7 +277,21 @@ export default function DocumentsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-mono text-sm font-semibold text-slate-900">{r.document_number ?? '—'}</span>
-                  {r.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {r.revision}</span>}
+                  {/* Authoritative = revision of the file on record (what opens);
+                      the register's numeric value shows as the IFC target + ⚠ when they differ. */}
+                  {r.file_revision ? (
+                    <>
+                      <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold" title="Revision of the document actually on file (what opens)">Rev {r.file_revision}</span>
+                      {r.revision_mismatch && (
+                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-medium inline-flex items-center gap-1"
+                          title={`Register/MDDR lists Rev ${r.revision} (the IFC target after approval). The document on file is still Rev ${r.file_revision} — not yet re-issued.`}>
+                          ⚠ IFC target {r.revision}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    r.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {r.revision}</span>
+                  )}
                   {r.source_type && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', SOURCE_COLORS[r.source_type] ?? 'bg-slate-100 text-slate-600')}>{r.source_type}</span>}
                   {r.review_outcome_code && <span className={cn('px-1.5 py-0.5 rounded text-xs font-semibold', OUTCOME_COLORS[r.review_outcome_code] ?? 'bg-slate-100 text-slate-700')}>{r.review_outcome_code}</span>}
                   {r.progress_percent != null && <span className="text-xs text-slate-400">{Number(r.progress_percent).toFixed(0)}%</span>}

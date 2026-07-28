@@ -24,6 +24,17 @@ const COLS = [
   'comments', 'remarks', 'vendor_comments', 'is_awarded', 'is_active', 'sector', 'file_link',
 ].join(',')
 
+// The revision of the document ACTUALLY on file = the suffix of the stored file
+// name (RDMC convention `<docnumber>_<rev>.pdf`, e.g. `…-EIOM-0004_A.pdf` → A).
+// This is what a user opens, so it's the authoritative "as-issued" revision — the
+// register's `revision` can carry the forward/IFC target (e.g. "0") that the
+// vendor has not re-issued yet.
+function fileRevFromLink(link?: string | null): string | null {
+  if (!link) return null
+  const m = /_([A-Za-z]{1,2}\d?|\d+)\.[A-Za-z0-9]+(?:$|[?#])/.exec(link)
+  return m ? m[1].toUpperCase() : null
+}
+
 export async function GET(req: NextRequest) {
   const db     = createServiceClient()
   const url    = new URL(req.url)
@@ -102,6 +113,16 @@ export async function GET(req: NextRequest) {
     }
     rows.push(...(data ?? []))
     if (!data || data.length < PAGE) break   // last page
+  }
+
+  // As-issued revision (from the file on record) + a flag where it disagrees with
+  // the register's `revision`. Lets the index show the truth of what will open and
+  // badge the forward/IFC-target gap. (Prototype A+B — 2026-07-28.)
+  for (const r of rows) {
+    const fileRev = fileRevFromLink(r.file_link)
+    const reg = (r.revision ?? '').toString().trim().toUpperCase()
+    r.file_revision = fileRev
+    r.revision_mismatch = !!fileRev && !!reg && fileRev !== reg
   }
 
   // rows.length is exact when the set fits under `limit`; '+' when capped.
