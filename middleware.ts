@@ -43,6 +43,10 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/cddl/hours-summary')) return supabaseResponse
   // Vercel Cron routes self-authenticate with CRON_SECRET — skip the session gate.
   if (pathname.startsWith('/api/cron/')) return supabaseResponse
+  // Public token-gated share links ("anyone with the link", no login) — the page
+  // and its APIs self-authenticate against the share_link token.
+  if (pathname.startsWith('/share/')) return supabaseResponse
+  if (pathname.startsWith('/api/share/')) return supabaseResponse
 
   // All other routes require authentication.
   if (!user) {
