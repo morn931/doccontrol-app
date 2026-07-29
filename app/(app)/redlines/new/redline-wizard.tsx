@@ -6,6 +6,7 @@
 // to SharePoint, in-app viewer/markup to check quality, submit as one batch.
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { Plus, Trash2, Eye, Send, FileText, Camera, CheckCircle, UploadCloud, X } from 'lucide-react'
 
@@ -31,6 +32,10 @@ async function imagesToPdf(files: File[]): Promise<Uint8Array> {
 }
 
 export default function RedlineWizard() {
+  // Arrived from a CoreSHERQ dashboard tile? Offer the way back (site vs hq).
+  const from = useSearchParams().get('from') ?? ''
+  const sherqUrl = from === 'sherq-hq' ? 'https://sherq.coreflow.build/hq'
+    : from.startsWith('sherq') ? 'https://sherq.coreflow.build/site' : null
   const [me, setMe] = useState('')
   const [submissionId, setSubmissionId] = useState<string | null>(null)
   const [docs, setDocs] = useState<Draft[]>([])
@@ -238,14 +243,22 @@ export default function RedlineWizard() {
         <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-slate-900 mb-2">Redline batch submitted</h2>
         <p className="text-slate-500">Document Control has been notified and will route it to the responsible engineer.</p>
-        <button onClick={() => { setDone(false); setDocs([]); setSubmissionId(null); load() }}
-          className="btn-primary mt-6 inline-flex">Upload another redline</button>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <button onClick={() => { setDone(false); setDocs([]); setSubmissionId(null); load() }}
+            className="btn-primary inline-flex">Upload another redline</button>
+          {sherqUrl && (
+            <a href={sherqUrl} className="btn-secondary inline-flex">← Back to CoreSHERQ</a>
+          )}
+        </div>
       </div>
     </div>
   )
 
   return (
     <div className="max-w-3xl space-y-5">
+      {sherqUrl && (
+        <a href={sherqUrl} className="btn-secondary text-xs py-1.5 px-3 inline-flex w-fit">← Back to CoreSHERQ</a>
+      )}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Upload Site Redline</h1>
         <p className="text-slate-500 text-sm mt-1">

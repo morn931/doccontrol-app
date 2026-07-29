@@ -18,7 +18,8 @@ export default function RedlineDraftViewPage({ params }: { params: Promise<{ doc
           Check the scan is readable. You can add extra markup here — <b>☁ Save to SharePoint</b> bakes it into the file before you submit.
         </p>
       </div>
-      <PdfMarkup src={`/api/redlines/docs/${docId}/file`} endpointBase={`/api/redlines/docs/${docId}`} initialColor="#c62828" />
+      <PdfMarkup src={`/api/redlines/docs/${docId}/file`} endpointBase={`/api/redlines/docs/${docId}`}
+                 initialColor="#c62828" allowDraftSave={false} />
     </div>
   )
 }

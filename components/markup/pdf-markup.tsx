@@ -15,7 +15,7 @@ const SCALE = 1.4
 // canvas dimension exceeds this; normal documents are unaffected.
 const MAX_DIM = 10000
 
-export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string }) {
+export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase, allowDraftSave = true }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string; allowDraftSave?: boolean }) {
   // endpointBase generalises persistence: review tasks use /api/reviews/<id>,
   // draft site redlines pass /api/redlines/docs/<id> — same GET/POST /markup + /markup/commit contract.
   const apiBase = endpointBase ?? (reviewTaskId ? `/api/reviews/${reviewTaskId}` : null)
@@ -370,8 +370,10 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
         <button onClick={deleteSelected} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Delete</button>
         <span className="mx-1 h-5 w-px bg-slate-200" />
         {apiBase && (
-          <button onClick={save} disabled={saving} title="Save an editable draft (only you see it)"
-            className="px-3 py-1.5 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60">
+          <button onClick={save} disabled={saving || !allowDraftSave}
+            title={allowDraftSave ? 'Save an editable draft (only you see it)'
+                                  : 'Not needed here — use ☁ Save to SharePoint to keep your mark-ups'}
+            className="px-3 py-1.5 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed">
             {saving ? 'Saving…' : '💾 Save draft'}
           </button>
         )}
