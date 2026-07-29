@@ -15,14 +15,18 @@ type Draft = { id: string; drawing_number: string; description: string | null;
 
 const CHUNK = 5 * 1024 * 1024 - (5 * 1024 * 1024) % (320 * 1024) // multiple of 320 KiB
 
-async function imageToPdf(file: File): Promise<Uint8Array> {
+// Combine one or more photos/images into a single multi-page PDF, one image
+// per page in the order taken — a redline "pack" only needs the affected pages.
+async function imagesToPdf(files: File[]): Promise<Uint8Array> {
   const { PDFDocument } = await import('pdf-lib')
   const pdf = await PDFDocument.create()
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const img = /png$/i.test(file.type) || /\.png$/i.test(file.name)
-    ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes)
-  const page = pdf.addPage([img.width, img.height])
-  page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height })
+  for (const file of files) {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const img = /png$/i.test(file.type) || /\.png$/i.test(file.name)
+      ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes)
+    const page = pdf.addPage([img.width, img.height])
+    page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height })
+  }
   return pdf.save()
 }
 
@@ -47,8 +51,10 @@ export default function RedlineWizard() {
   const [changeDescription, setChangeDescription] = useState('')
   const [markedBy, setMarkedBy] = useState('')
   const [markedDate, setMarkedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [file, setFile] = useState<File | null>(null)
+  const [file, setFile] = useState<File | null>(null)          // a ready-made PDF scan
+  const [pages, setPages] = useState<File[]>([])               // photo pages (camera/images), combined on save
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { load() }, [])
   async function load() {
@@ -67,8 +73,9 @@ export default function RedlineWizard() {
   function resetForm() {
     setDrawingNumber(''); setMatched(null); setLookups([])
     setDescription(''); setChangeDescription('')
-    setMarkedDate(format(new Date(), 'yyyy-MM-dd')); setFile(null)
+    setMarkedDate(format(new Date(), 'yyyy-MM-dd')); setFile(null); setPages([])
     if (fileRef.current) fileRef.current.value = ''
+    if (cameraRef.current) cameraRef.current.value = ''
   }
 
   function onNumberChange(v: string) {
@@ -101,15 +108,27 @@ export default function RedlineWizard() {
   async function addDocument(keepOpen: boolean) {
     setError('')
     if (!matched) { setError('Select the drawing from the register list first — redlines can only be raised against documents that exist in the system.'); return }
-    if (!file) { setError('Attach the scanned redline (PDF) or a photo.'); return }
-    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
-    const isImg = /image\/(jpeg|png)/.test(file.type) || /\.(jpe?g|png)$/i.test(file.name)
-    if (!isPdf && !isImg) { setError('Only PDF scans or JPG/PNG photos are accepted.'); return }
+    if (!file && !pages.length) { setError('Attach the scanned redline (PDF) or take photos of the affected pages.'); return }
 
     try {
-      setBusy(isImg ? 'Converting photo to PDF…' : 'Preparing upload…')
-      const pdfBytes: Uint8Array = isImg ? await imageToPdf(file) : new Uint8Array(await file.arrayBuffer())
-      const safeBase = file.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|#%]+/g, '-')
+      let pdfBytes: Uint8Array
+      let isImg = false
+      if (pages.length) {
+        isImg = true
+        setBusy(`Combining ${pages.length} photo page${pages.length !== 1 ? 's' : ''} into one PDF…`)
+        pdfBytes = await imagesToPdf(pages)
+      } else if (/\.pdf$/i.test(file!.name) || file!.type === 'application/pdf') {
+        setBusy('Preparing upload…')
+        pdfBytes = new Uint8Array(await file!.arrayBuffer())
+      } else if (/image\/(jpeg|png)/.test(file!.type) || /\.(jpe?g|png)$/i.test(file!.name)) {
+        isImg = true
+        setBusy('Converting photo to PDF…')
+        pdfBytes = await imagesToPdf([file!])
+      } else {
+        setError('Only PDF scans or JPG/PNG photos are accepted.'); return
+      }
+      const safeBase = (file ? file.name.replace(/\.[^.]+$/, '') : `photo-pack-${pages.length}p`)
+        .replace(/[\\/:*?"<>|#%]+/g, '-')
       const fileName = `${drawingNumber.trim().replace(/[\\/:*?"<>|#%]+/g, '-')}__${safeBase}.pdf`
 
       setBusy('Requesting SharePoint upload…')
@@ -313,10 +332,46 @@ export default function RedlineWizard() {
                 placeholder="e.g. Cable route changed on level 2 — rerouted around new HVAC duct; gland sizes updated…" />
             </div>
             <div className="mt-3">
-              <label className="label">Scanned redline (PDF preferred) or photo (JPG/PNG)</label>
-              <input ref={fileRef} type="file" accept=".pdf,image/jpeg,image/png"
-                onChange={e => setFile(e.target.files?.[0] ?? null)} className="input" />
-              <p className="text-[11px] text-slate-400 mt-1">Photos are converted to PDF automatically. Scan-to-PC then upload gives the best quality.</p>
+              <label className="label">Scanned redline (PDF preferred) — or photograph the affected pages</label>
+              <div className="flex gap-2">
+                <input ref={fileRef} type="file" accept=".pdf,image/jpeg,image/png"
+                  onChange={e => { setFile(e.target.files?.[0] ?? null); if (e.target.files?.[0]) { setPages([]); if (cameraRef.current) cameraRef.current.value = '' } }}
+                  className="input flex-1" />
+                <button type="button" onClick={() => cameraRef.current?.click()}
+                  className="btn-secondary text-sm px-3 shrink-0" title="Photograph a page with this device's camera">
+                  <Camera className="h-4 w-4" /> Take photo
+                </button>
+                {/* hidden camera input — capture opens the camera on phones/tablets */}
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) { setPages(p => [...p, f]); setFile(null); if (fileRef.current) fileRef.current.value = '' }
+                    e.target.value = ''
+                  }} />
+              </div>
+              {pages.length > 0 && (
+                <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1">
+                  <p className="text-xs font-semibold text-slate-600">
+                    Photo pack — {pages.length} page{pages.length !== 1 ? 's' : ''} (combined into one PDF for this drawing; only the changed pages are needed)
+                  </p>
+                  {pages.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                      <Camera className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span className="flex-1 truncate">Page {i + 1} — {p.name} ({Math.max(1, Math.round(p.size / 1024))} KB)</span>
+                      <button type="button" onClick={() => setPages(ps => ps.filter((_, j) => j !== i))}
+                        className="text-slate-400 hover:text-red-500" title="Remove this page"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => cameraRef.current?.click()}
+                    className="text-xs text-navy-600 hover:text-navy-800 font-medium flex items-center gap-1">
+                    <Plus className="h-3 w-3" /> Take photo of next page
+                  </button>
+                </div>
+              )}
+              <p className="text-[11px] text-slate-400 mt-1">
+                Scan-to-PC then upload gives the best quality. Photos are a last resort — take one per affected
+                page and they're combined into a single PDF under this drawing number.
+              </p>
             </div>
             </fieldset>
             {error && <p className="text-sm text-red-600">{error}</p>}

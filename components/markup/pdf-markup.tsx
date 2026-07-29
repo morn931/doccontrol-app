@@ -369,13 +369,13 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
         <button onClick={undo} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">↶ Undo</button>
         <button onClick={deleteSelected} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Delete</button>
         <span className="mx-1 h-5 w-px bg-slate-200" />
-        {reviewTaskId && (
+        {apiBase && (
           <button onClick={save} disabled={saving} title="Save an editable draft (only you see it)"
             className="px-3 py-1.5 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60">
             {saving ? 'Saving…' : '💾 Save draft'}
           </button>
         )}
-        {reviewTaskId && src && (
+        {apiBase && src && (
           <button onClick={saveToSharePoint} disabled={saving} title="Write your mark-ups back to the SharePoint document for the next reviewer"
             className="px-3 py-1.5 rounded-md text-sm font-medium bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60">
             ☁ Save to SharePoint
