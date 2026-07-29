@@ -24,7 +24,7 @@ const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-
 // Every nav destination — the ACTIVE item is the LONGEST href that matches the current
 // path, so /documents/requests no longer also lights up /documents ("Document Search").
 const NAV_HREFS = [
-  '/dashboard', '/documents/requests', '/batches', '/reviews', '/transmittals', '/documents',
+  '/dashboard', '/documents/requests', '/redlines', '/batches', '/reviews', '/transmittals', '/documents',
   '/mddr', '/reporting', '/aconex-review', '/cddl', '/sddr',
   '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
 ]
@@ -62,6 +62,9 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
 
         {/* Document Requests — the origination step, kept right under Dashboard */}
         {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon={ICON('documents')} />}
+
+        {/* Upload Redline — driveway C front door; every internal person may submit */}
+        {role !== 'vendor' && <NavLink href="/redlines/new" label="Upload Redline" icon={ICON('documents')} />}
 
         {/* Permission-gated nav */}
         {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}

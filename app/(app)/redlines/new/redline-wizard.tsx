@@ -246,8 +246,10 @@ export default function RedlineWizard() {
         <div className="mt-6 flex items-center justify-center gap-3">
           <button onClick={() => { setDone(false); setDocs([]); setSubmissionId(null); load() }}
             className="btn-primary inline-flex">Upload another redline</button>
-          {sherqUrl && (
+          {sherqUrl ? (
             <a href={sherqUrl} className="btn-secondary inline-flex">← Back to CoreSHERQ</a>
+          ) : (
+            <Link href="/dashboard" className="btn-secondary inline-flex">← Back to Dashboard</Link>
           )}
         </div>
       </div>
@@ -256,8 +258,12 @@ export default function RedlineWizard() {
 
   return (
     <div className="max-w-3xl space-y-5">
-      {sherqUrl && (
+      {/* Return path mirrors the entrance: SHERQ tile → back to that SHERQ dashboard;
+          CoreDocs nav → back to the CoreDocs dashboard. */}
+      {sherqUrl ? (
         <a href={sherqUrl} className="btn-secondary text-xs py-1.5 px-3 inline-flex w-fit">← Back to CoreSHERQ</a>
+      ) : (
+        <Link href="/dashboard" className="btn-secondary text-xs py-1.5 px-3 inline-flex w-fit">← Back to Dashboard</Link>
       )}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Upload Site Redline</h1>
