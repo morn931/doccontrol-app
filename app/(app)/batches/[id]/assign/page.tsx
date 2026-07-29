@@ -26,6 +26,7 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
   const [error, setError]           = useState('')
   const [showPicker, setShowPicker] = useState(false)
   const [prevChain, setPrevChain]   = useState<any[]>([])
+  const [docOwner, setDocOwner]     = useState<{ raw: string; email: string | null; name: string | null } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -41,10 +42,13 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
     // Reviewers who reviewed the PREVIOUS revision of these documents — auto-included
     // so people manually added last time aren't forgotten (ruled 2026-07-28).
     let prev: any[] = []
+    let owner: { raw: string; email: string | null; name: string | null } | null = null
     if (prevRes.ok) {
       const pc = await prevRes.json()
       prev = Array.isArray(pc.chain) ? pc.chain : []
       setPrevChain(prev)
+      owner = pc.owner ?? null
+      setDocOwner(owner)
     }
     if (batchRes.ok) {
       const b = await batchRes.json()
@@ -52,7 +56,14 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
       // Prefill priority: previous revision's full chain first (a resubmission's
       // history outranks generic recommendations), then any internal-submitter
       // recommendations not already present. The DC still edits freely.
-      const seq: { email: string; name: string }[] = prev.map((c: any) => ({ email: c.email, name: c.name ?? c.email }))
+      // Redline batches: the MDDR document owner leads the sequence (when resolvable).
+      const seq: { email: string; name: string }[] = []
+      if (owner?.email) seq.push({ email: owner.email, name: owner.name ?? owner.email })
+      for (const c of prev) {
+        if (!seq.find(s => s.email.toLowerCase() === String(c.email).toLowerCase())) {
+          seq.push({ email: c.email, name: c.name ?? c.email })
+        }
+      }
       if (Array.isArray(b.recommended_reviewers)) {
         for (const r of b.recommended_reviewers) {
           if (!seq.find(s => s.email.toLowerCase() === String(r.email).toLowerCase())) {
@@ -150,6 +161,17 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
           {batch?.packages?.package_name ?? 'Unknown Package'} — {batch?.document_versions?.length ?? 0} document{(batch?.document_versions?.length ?? 0) !== 1 ? 's' : ''}
         </p>
       </div>
+
+      {/* MDDR document owner (redline batches) */}
+      {docOwner && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+          {docOwner.email ? (
+            <>MDDR lists <b>{docOwner.name}</b> as the <b>document owner</b> — pre-filled as the suggested first reviewer.</>
+          ) : (
+            <>MDDR lists <b>“{docOwner.raw}”</b> as the document owner, but that couldn't be matched to a user — add them manually if you know who it is.</>
+          )}
+        </div>
+      )}
 
       {/* Auto-included from the previous revision's review */}
       {prevChain.length > 0 && (
@@ -263,6 +285,12 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-slate-900 flex items-center gap-2">
                   {r.name}
+                  {docOwner?.email?.toLowerCase() === r.email.toLowerCase() && (
+                    <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 text-[10px] font-semibold"
+                      title="Listed as this document's owner in the MDDR register">
+                      ★ Suggested document owner
+                    </span>
+                  )}
                   {prevChain.find(c => c.email.toLowerCase() === r.email.toLowerCase()) && (
                     <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold"
                       title="Reviewed the previous revision — auto-included">
