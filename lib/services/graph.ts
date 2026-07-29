@@ -290,6 +290,32 @@ export async function uploadBytesToLibrary(
   return { webUrl: item.webUrl, id: item.id }
 }
 
+/** The folder inside the Internal Reviews library that holds site redline
+ *  uploads (driveway C front door). No new site/library needed. */
+export const REDLINE_FOLDER = process.env.REDLINE_FOLDER || 'Site Redlines'
+
+/** Create a Graph upload session for a nested path in the DocumentControl
+ *  library — the browser PUTs the chunks straight to the returned uploadUrl,
+ *  dodging Vercel's request-body cap for big scans. Per-segment encoding so
+ *  folder paths survive; Graph auto-creates missing parent folders. */
+export async function createLibraryUploadSession(
+  relPath: string,
+  libraryName: string = INTERNAL_REVIEW_LIBRARY,
+  siteUrl: string = INTERNAL_REVIEW_SITE_URL
+): Promise<{ uploadUrl: string }> {
+  const siteId  = await getSiteId(siteUrl)
+  const driveId = await getLibraryDriveId(siteId, libraryName)
+  const enc = relPath.split('/').map(encodeURIComponent).join('/')
+  const res = await graphFetch(
+    `/sites/${siteId}/drives/${driveId}/root:/${enc}:/createUploadSession`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename' } }) }
+  )
+  if (!res.ok) throw new Error(`createUploadSession for "${relPath}" failed (${res.status}): ${await res.text()}`)
+  const data = await res.json()
+  return { uploadUrl: data.uploadUrl }
+}
+
 /**
  * Send an email — now routed through the unified Coreflow sender
  * (projects@coreflow.build) via lib/coreflow-mail.ts, NOT the PPE Graph app above.

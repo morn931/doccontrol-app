@@ -15,7 +15,10 @@ const SCALE = 1.4
 // canvas dimension exceeds this; normal documents are unaffected.
 const MAX_DIM = 10000
 
-export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string }) {
+export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string }) {
+  // endpointBase generalises persistence: review tasks use /api/reviews/<id>,
+  // draft site redlines pass /api/redlines/docs/<id> — same GET/POST /markup + /markup/commit contract.
+  const apiBase = endpointBase ?? (reviewTaskId ? `/api/reviews/${reviewTaskId}` : null)
   const containerRef = useRef<HTMLDivElement>(null)
   const imgInputRef = useRef<HTMLInputElement>(null)
 
@@ -98,7 +101,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
       wireFab(fab)
       fabsRef.current.push(fab); wrappersRef.current.push(wrap)
     }
-    if (reviewTaskId) await loadSaved()
+    if (apiBase) await loadSaved()
     applyToolAll()
     setStatus(`${pdf.numPages} page(s). Scroll to move through the document.`)
   }
@@ -106,7 +109,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   // ── Persist / resume the reviewer's markup layer (Phase 2) ──────────────────
   async function loadSaved() {
     try {
-      const res = await fetch(`/api/reviews/${reviewTaskId}/markup`)
+      const res = await fetch(`${apiBase}/markup`)
       if (!res.ok) return
       const layer = (await res.json())?.markup?.layer
       if (!layer) return
@@ -135,10 +138,10 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
   }
 
   async function save() {
-    if (!reviewTaskId) return
+    if (!apiBase) return
     setSaving(true); setStatus('Saving mark-ups…')
     const { layer, comments } = serialize()
-    const res = await fetch(`/api/reviews/${reviewTaskId}/markup`, {
+    const res = await fetch(`${apiBase}/markup`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layer, comments }),
     })
     setSaving(false)
@@ -315,12 +318,12 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor }:
 
   // ── Phase 3: commit mark-ups back to the authoritative SharePoint file ───────
   async function saveToSharePoint() {
-    if (!reviewTaskId || !src) return
+    if (!apiBase || !src) return
     setSaving(true); setStatus('Saving to SharePoint…')
     await save()                                  // persist captured comments first
     const bytes = await flattenBytes()
     if (!bytes) { setSaving(false); return }
-    const res = await fetch(`/api/reviews/${reviewTaskId}/markup/commit`, {
+    const res = await fetch(`${apiBase}/markup/commit`, {
       method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: bytes as BlobPart,
     })
     if (res.ok) {
