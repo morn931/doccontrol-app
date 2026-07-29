@@ -25,6 +25,7 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
   const [starting, setStarting]     = useState(false)
   const [error, setError]           = useState('')
   const [showPicker, setShowPicker] = useState(false)
+  const [prevChain, setPrevChain]   = useState<any[]>([])
 
   useEffect(() => {
     loadData()
@@ -32,19 +33,35 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
 
   async function loadData() {
     setLoading(true)
-    const [batchRes, suggestRes] = await Promise.all([
+    const [batchRes, suggestRes, prevRes] = await Promise.all([
       fetch(`/api/batches/${id}`),
       fetch(`/api/reviewer-suggestions`),
+      fetch(`/api/batches/${id}/previous-chain`),
     ])
+    // Reviewers who reviewed the PREVIOUS revision of these documents — auto-included
+    // so people manually added last time aren't forgotten (ruled 2026-07-28).
+    let prev: any[] = []
+    if (prevRes.ok) {
+      const pc = await prevRes.json()
+      prev = Array.isArray(pc.chain) ? pc.chain : []
+      setPrevChain(prev)
+    }
     if (batchRes.ok) {
       const b = await batchRes.json()
       setBatch(b)
-      // Internal submit — prefill the sequence with the engineer's recommended reviewers.
-      // The Document Controller still edits freely (add/remove/reorder) before starting.
-      if (Array.isArray(b.recommended_reviewers) && b.recommended_reviewers.length) {
-        setReviewers(b.recommended_reviewers.map((r: any, i: number) => ({
-          email: r.email, name: r.name ?? r.email, sequenceNumber: i + 1,
-        })))
+      // Prefill priority: previous revision's full chain first (a resubmission's
+      // history outranks generic recommendations), then any internal-submitter
+      // recommendations not already present. The DC still edits freely.
+      const seq: { email: string; name: string }[] = prev.map((c: any) => ({ email: c.email, name: c.name ?? c.email }))
+      if (Array.isArray(b.recommended_reviewers)) {
+        for (const r of b.recommended_reviewers) {
+          if (!seq.find(s => s.email.toLowerCase() === String(r.email).toLowerCase())) {
+            seq.push({ email: r.email, name: r.name ?? r.email })
+          }
+        }
+      }
+      if (seq.length) {
+        setReviewers(seq.map((r, i) => ({ email: r.email, name: r.name, sequenceNumber: i + 1 })))
       }
       // Fetch suggestions with package context
       const pkgId = b.packages?.id
@@ -134,10 +151,28 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
         </p>
       </div>
 
+      {/* Auto-included from the previous revision's review */}
+      {prevChain.length > 0 && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
+          <b>These people were part of the review of {prevChain[0]?.fromRevision ? `Rev ${prevChain[0].fromRevision}` : 'the previous revision'} of this document</b>,
+          so they have been selected automatically to review again:{' '}
+          {prevChain.map((c, i) => (
+            <span key={c.email}>
+              {i > 0 && ', '}
+              <span className="font-medium">{c.name}</span>
+              {c.addedMidReview && <span className="ml-1 px-1 py-0.5 rounded bg-emerald-200 text-emerald-800 text-[10px] font-semibold">➕ added mid-review last time</span>}
+            </span>
+          ))}
+          . Remove or reorder as you see fit — you have the final say.
+        </div>
+      )}
+
       {/* Prefilled from the internal submitter's recommendations */}
       {batch?.source === 'internal' && Array.isArray(batch?.recommended_reviewers) && batch.recommended_reviewers.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
-          The review sequence below was <b>recommended by the submitter</b> and pre-filled for you. Add, remove or reorder as you see fit — you have the final say.
+          {prevChain.length > 0
+            ? <>Reviewers <b>recommended by the submitter</b> were appended after the previous-revision chain above.</>
+            : <>The review sequence below was <b>recommended by the submitter</b> and pre-filled for you. Add, remove or reorder as you see fit — you have the final say.</>}
         </div>
       )}
 
@@ -226,7 +261,15 @@ export default function AssignReviewersPage({ params }: { params: Promise<{ id: 
                 {r.sequenceNumber}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm text-slate-900">{r.name}</p>
+                <p className="font-medium text-sm text-slate-900 flex items-center gap-2">
+                  {r.name}
+                  {prevChain.find(c => c.email.toLowerCase() === r.email.toLowerCase()) && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px] font-semibold"
+                      title="Reviewed the previous revision — auto-included">
+                      ↺ reviewed previous rev{prevChain.find(c => c.email.toLowerCase() === r.email.toLowerCase())?.addedMidReview ? ' · was added mid-review' : ''}
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-slate-400">{r.email}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">

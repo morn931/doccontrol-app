@@ -173,12 +173,20 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
     t.sequence_number > task.sequence_number
   )
 
-  // Directory options for the add-reviewer picker: project users not already in the
-  // chain, filtered by the search term.
-  const chainEmails = new Set<string>(docChain.map((t: any) => (t.reviewer_email ?? '').toLowerCase()))
+  // Directory options for the add-reviewer picker. Reviewers with an OPEN task
+  // are excluded (they'll see the document anyway); reviewers who already
+  // COMPLETED may be selected again = a re-review loop-back (ruled 2026-07-28).
+  const openStatuses = ['pending', 'sent', 'opened', 'in_progress', 'overdue', 'needs_more_review']
+  const openEmails = new Set<string>(docChain
+    .filter((t: any) => openStatuses.includes(t.status))
+    .map((t: any) => (t.reviewer_email ?? '').toLowerCase()))
+  const completedEmails = new Set<string>(docChain
+    .filter((t: any) => t.status === 'completed')
+    .map((t: any) => (t.reviewer_email ?? '').toLowerCase()))
   const reviewerQuery = reviewerSearch.trim().toLowerCase()
   const matchedUsers = projectUsers
-    .filter(u => !chainEmails.has((u.email ?? '').toLowerCase()))
+    .filter(u => !openEmails.has((u.email ?? '').toLowerCase()))
+    .filter(u => (u.email ?? '').toLowerCase() !== (task.reviewer_email ?? '').toLowerCase())
     .filter(u => !reviewerQuery ||
       (u.email ?? '').toLowerCase().includes(reviewerQuery) ||
       (u.full_name ?? '').toLowerCase().includes(reviewerQuery))
@@ -330,6 +338,10 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 const isMe = t.id === id
                 const isDone = t.status === 'completed'
                 const isCurrent = isMe
+                // Re-review round: same reviewer appearing again later in the chain
+                const round = docChain.filter((o: any) =>
+                  (o.reviewer_email ?? '').toLowerCase() === (t.reviewer_email ?? '').toLowerCase() &&
+                  o.sequence_number <= t.sequence_number).length
                 return (
                   <div key={t.id} className={`px-5 py-3 flex items-start gap-3 ${isCurrent ? 'bg-navy-50' : ''}`}>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
@@ -344,6 +356,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                         <span className="font-medium text-sm text-slate-900">{reviewerName(t.reviewer_email)}</span>
                         <span className="text-xs text-slate-400">{t.reviewer_email}</span>
                         {isCurrent && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-semibold">You</span>}
+                        {round > 1 && <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-semibold">↩ Round {round}</span>}
                         {t.review_outcome_code && (
                           <span className={`px-2 py-0.5 rounded text-xs font-bold ${OUTCOME_COLORS[t.review_outcome_code] ?? 'bg-slate-100 text-slate-600'}`}>
                             {t.review_outcome_code}
@@ -384,6 +397,11 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                 ) : (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-slate-700">Add reviewer after your position ({task.sequence_number}):</p>
+                    <p className="text-xs text-slate-400">
+                      Someone who already reviewed can be selected again for a <b>re-review</b> — they slot in after you,
+                      and anyone still to review (incl. the final reviewer) stays after them.
+                      {futureReviewers.length === 0 && ' You are the last step, so the flow will return to you after their re-review.'}
+                    </p>
                     {newReviewerEmail ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-navy-100 text-navy-700 px-2.5 py-1 text-xs font-medium">
                         {newReviewerName || reviewerName(newReviewerEmail)}
@@ -403,7 +421,12 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
                               <button key={u.id} type="button"
                                 onClick={() => { setNewReviewerEmail(u.email); setNewReviewerName(u.full_name ?? ''); setReviewerSearch('') }}
                                 className="w-full text-left px-3 py-2 hover:bg-slate-50">
-                                <span className="block text-sm text-slate-800">{u.full_name ?? u.email}</span>
+                                <span className="flex items-center gap-2 text-sm text-slate-800">
+                                  {u.full_name ?? u.email}
+                                  {completedEmails.has((u.email ?? '').toLowerCase()) && (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold">↩ reviewed earlier — will re-review</span>
+                                  )}
+                                </span>
                                 <span className="block text-xs text-slate-400">{u.email}</span>
                               </button>
                             ))}
