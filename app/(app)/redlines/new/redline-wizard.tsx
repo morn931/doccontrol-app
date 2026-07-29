@@ -37,6 +37,12 @@ export default function RedlineWizard() {
 
   // form state
   const [drawingNumber, setDrawingNumber] = useState('')
+  // MDDR gate: the number must match a real register document before the rest
+  // of the form unlocks — no redlines against drawings that don't exist.
+  const [matched, setMatched] = useState<{ number: string; title: string | null; discipline: string | null; revision: string | null } | null>(null)
+  const [lookups, setLookups] = useState<any[]>([])
+  const [looking, setLooking] = useState(false)
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [description, setDescription] = useState('')
   const [changeDescription, setChangeDescription] = useState('')
   const [markedBy, setMarkedBy] = useState('')
@@ -59,14 +65,42 @@ export default function RedlineWizard() {
   }
 
   function resetForm() {
-    setDrawingNumber(''); setDescription(''); setChangeDescription('')
+    setDrawingNumber(''); setMatched(null); setLookups([])
+    setDescription(''); setChangeDescription('')
     setMarkedDate(format(new Date(), 'yyyy-MM-dd')); setFile(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  function onNumberChange(v: string) {
+    setDrawingNumber(v)
+    setMatched(null)
+    if (lookupTimer.current) clearTimeout(lookupTimer.current)
+    const clean = v.trim().toUpperCase().replace(/\s+/g, '')
+    // per the ruling: the register scan starts once the first "-" is typed
+    if (!clean.includes('-')) { setLookups([]); return }
+    setLooking(true)
+    lookupTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/redlines/lookup-number?q=${encodeURIComponent(clean)}`)
+        const d = res.ok ? await res.json() : { results: [] }
+        setLookups(d.results ?? [])
+        // fully-typed exact number → auto-select the match
+        const hit = (d.results ?? []).find((r: any) => r.normalized === clean)
+        if (hit) selectMatch(hit)
+      } finally { setLooking(false) }
+    }, 250)
+  }
+
+  function selectMatch(r: any) {
+    setMatched({ number: r.number, title: r.title, discipline: r.discipline, revision: r.revision })
+    setDrawingNumber(r.number)
+    setLookups([])
+    if (r.title && !description) setDescription(r.title)
+  }
+
   async function addDocument(keepOpen: boolean) {
     setError('')
-    if (!drawingNumber.trim()) { setError('Drawing number is required.'); return }
+    if (!matched) { setError('Select the drawing from the register list first — redlines can only be raised against documents that exist in the system.'); return }
     if (!file) { setError('Attach the scanned redline (PDF) or a photo.'); return }
     const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf'
     const isImg = /image\/(jpeg|png)/.test(file.type) || /\.(jpe?g|png)$/i.test(file.name)
@@ -216,16 +250,53 @@ export default function RedlineWizard() {
               <button onClick={() => { setShowForm(false); resetForm() }} className="p-1 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
             </div>
             <div>
-              <label className="label">Drawing number *</label>
-              <input value={drawingNumber} onChange={e => setDrawingNumber(e.target.value)}
-                placeholder="e.g. 6105AE102-6253-EFND-0002" className="input font-mono" autoFocus />
+              <label className="label">Drawing number * <span className="font-normal text-slate-400">— must exist in the register</span></label>
+              {matched ? (
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono text-sm font-semibold text-emerald-900">{matched.number}</p>
+                    <p className="text-xs text-emerald-700 truncate">
+                      {matched.title ?? 'Matched in the MDDR register'}
+                      {matched.discipline ? ` · ${matched.discipline}` : ''}{matched.revision ? ` · latest Rev ${matched.revision}` : ''}
+                    </p>
+                  </div>
+                  <button onClick={() => { setMatched(null); setDrawingNumber(''); }}
+                    className="text-xs text-emerald-700 underline shrink-0">change</button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input value={drawingNumber} onChange={e => onNumberChange(e.target.value)}
+                    placeholder="Start typing… e.g. 6105AE102-6253-EFND-0002" className="input font-mono" autoFocus />
+                  {(lookups.length > 0 || looking) && drawingNumber.includes('-') && (
+                    <div className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg divide-y divide-slate-50">
+                      {looking && <p className="px-3 py-2 text-xs text-slate-400">Searching the register…</p>}
+                      {lookups.map((r: any) => (
+                        <button key={r.normalized} type="button" onClick={() => selectMatch(r)}
+                          className="w-full text-left px-3 py-2 hover:bg-emerald-50">
+                          <span className="block font-mono text-sm text-slate-800">{r.number}</span>
+                          <span className="block text-xs text-slate-400 truncate">{r.title ?? '—'}{r.discipline ? ` · ${r.discipline}` : ''}</span>
+                        </button>
+                      ))}
+                      {!looking && lookups.length === 0 && (
+                        <p className="px-3 py-2 text-xs text-slate-400">No register documents match — check the number.</p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    The list narrows as you type (matching starts after the first “-”). Pick the document —
+                    the rest of the form unlocks once it's matched.
+                  </p>
+                </div>
+              )}
             </div>
+            <fieldset disabled={!matched} className={matched ? '' : 'opacity-40 pointer-events-none select-none'}>
             <div>
               <label className="label">Description</label>
               <input value={description} onChange={e => setDescription(e.target.value)}
                 placeholder="Drawing title / what it is" className="input" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
                 <label className="label">Marked up by</label>
                 <input value={markedBy} onChange={e => setMarkedBy(e.target.value)} className="input" />
@@ -235,24 +306,25 @@ export default function RedlineWizard() {
                 <input type="date" value={markedDate} onChange={e => setMarkedDate(e.target.value)} className="input" />
               </div>
             </div>
-            <div>
+            <div className="mt-3">
               <label className="label">Describe the changes you made *</label>
               <textarea value={changeDescription} onChange={e => setChangeDescription(e.target.value)}
                 rows={3} className="input resize-none"
                 placeholder="e.g. Cable route changed on level 2 — rerouted around new HVAC duct; gland sizes updated…" />
             </div>
-            <div>
+            <div className="mt-3">
               <label className="label">Scanned redline (PDF preferred) or photo (JPG/PNG)</label>
               <input ref={fileRef} type="file" accept=".pdf,image/jpeg,image/png"
                 onChange={e => setFile(e.target.files?.[0] ?? null)} className="input" />
               <p className="text-[11px] text-slate-400 mt-1">Photos are converted to PDF automatically. Scan-to-PC then upload gives the best quality.</p>
             </div>
+            </fieldset>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex gap-2 pt-1">
-              <button onClick={() => addDocument(true)} disabled={!!busy} className="btn-secondary text-sm flex-1 justify-center">
+              <button onClick={() => addDocument(true)} disabled={!!busy || !matched} className="btn-secondary text-sm flex-1 justify-center disabled:opacity-50">
                 {busy ? busy : 'Save & add another'}
               </button>
-              <button onClick={() => addDocument(false)} disabled={!!busy} className="btn-primary text-sm flex-1 justify-center">
+              <button onClick={() => addDocument(false)} disabled={!!busy || !matched} className="btn-primary text-sm flex-1 justify-center disabled:opacity-50">
                 {busy ? busy : 'Save & close'}
               </button>
             </div>

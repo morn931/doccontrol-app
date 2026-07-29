@@ -21,6 +21,17 @@ export async function POST(req: Request) {
   if (!s || s.created_by_email !== user.email) return NextResponse.json({ error: 'Not your submission' }, { status: 403 })
   if (s.status !== 'draft') return NextResponse.json({ error: 'Submission already submitted' }, { status: 409 })
 
+  // The drawing must exist in the MDDR register — no redlines against ghosts
+  // (mirrors the wizard's typeahead gate; this closes the API side).
+  const norm = String(drawingNumber).trim().toUpperCase().replace(/\s+/g, '')
+  const { data: reg } = await db.from('mddr_entries')
+    .select('id').eq('normalized_document_number', norm).limit(1).maybeSingle()
+  if (!reg) {
+    return NextResponse.json(
+      { error: `Drawing ${norm} is not in the MDDR register — redlines can only be raised against documents that exist in the system.` },
+      { status: 422 })
+  }
+
   const { data: doc, error } = await db.from('redline_document').insert({
     submission_id:      submissionId,
     drawing_number:     String(drawingNumber).trim(),
