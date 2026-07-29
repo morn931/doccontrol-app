@@ -55,8 +55,49 @@ export default function RedlineWizard() {
   const [pages, setPages] = useState<File[]>([])               // photo pages (camera/images), combined on save
   const fileRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
+  // In-app camera (desktop webcams included — the capture attribute only opens
+  // a camera on phones; PCs need getUserMedia with a live preview)
+  const [showCamera, setShowCamera] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  async function openCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } },
+      })
+      streamRef.current = stream
+      setShowCamera(true)
+      setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}) } }, 50)
+    } catch {
+      // no camera / permission denied → fall back to the native picker (which IS
+      // the camera on phones thanks to capture="environment")
+      cameraRef.current?.click()
+    }
+  }
+
+  function closeCamera() {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setShowCamera(false)
+  }
+
+  function capturePage() {
+    const video = videoRef.current
+    if (!video || !video.videoWidth) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight
+    canvas.getContext('2d')!.drawImage(video, 0, 0)
+    canvas.toBlob(blob => {
+      if (!blob) return
+      const f = new File([blob], `camera-page-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      setPages(p => [...p, f])
+      setFile(null); if (fileRef.current) fileRef.current.value = ''
+    }, 'image/jpeg', 0.92)
+  }
 
   useEffect(() => { load() }, [])
+  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()) }, [])
   async function load() {
     const res = await fetch('/api/redlines/mine')
     if (!res.ok) return
@@ -260,6 +301,26 @@ export default function RedlineWizard() {
         <Send className="h-5 w-5" /> Submit batch to Document Control ({docs.length})
       </button>
 
+      {/* in-app camera (desktop webcam + mobile) */}
+      {showCamera && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/80 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-4 w-full max-w-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-900">Photograph the affected page{pages.length > 0 ? `s — ${pages.length} captured` : ''}</h3>
+              <button onClick={closeCamera} className="p-1 text-slate-400 hover:text-slate-600"><X className="h-4 w-4" /></button>
+            </div>
+            <video ref={videoRef} playsInline muted className="w-full rounded-lg bg-black aspect-video object-contain" />
+            <p className="text-xs text-slate-400">Hold the page flat and fill the frame. Capture one page at a time — only the pages you changed.</p>
+            <div className="flex gap-2">
+              <button onClick={capturePage} className="btn-primary flex-1 justify-center">
+                <Camera className="h-4 w-4" /> Capture page {pages.length + 1}
+              </button>
+              <button onClick={closeCamera} className="btn-secondary px-6">Done ({pages.length})</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* add-document modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-start justify-center overflow-y-auto py-10">
@@ -337,7 +398,7 @@ export default function RedlineWizard() {
                 <input ref={fileRef} type="file" accept=".pdf,image/jpeg,image/png"
                   onChange={e => { setFile(e.target.files?.[0] ?? null); if (e.target.files?.[0]) { setPages([]); if (cameraRef.current) cameraRef.current.value = '' } }}
                   className="input flex-1" />
-                <button type="button" onClick={() => cameraRef.current?.click()}
+                <button type="button" onClick={openCamera}
                   className="btn-secondary text-sm px-3 shrink-0" title="Photograph a page with this device's camera">
                   <Camera className="h-4 w-4" /> Take photo
                 </button>
@@ -362,7 +423,7 @@ export default function RedlineWizard() {
                         className="text-slate-400 hover:text-red-500" title="Remove this page"><X className="h-3.5 w-3.5" /></button>
                     </div>
                   ))}
-                  <button type="button" onClick={() => cameraRef.current?.click()}
+                  <button type="button" onClick={openCamera}
                     className="text-xs text-navy-600 hover:text-navy-800 font-medium flex items-center gap-1">
                     <Plus className="h-3 w-3" /> Take photo of next page
                   </button>
