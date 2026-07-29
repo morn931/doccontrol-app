@@ -162,7 +162,13 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const isInternal = batch.source === 'internal'
   const outcomeOptions = isInternal ? INTERNAL_OUTCOME_CODES : OUTCOME_CODES
   const isCompleted = task.status === 'completed' || submitted
-  const canSubmit   = ['sent','opened','in_progress','pending'].includes(task.status) && !submitted
+  // Turn-order: an open step BEFORE mine (e.g. a re-review I sent back) blocks my
+  // submission — otherwise the last reviewer can consume their "final look" slot
+  // early and the batch closes without them (the Marnus case, 2026-07-29).
+  const OPEN_ANY = ['pending', 'sent', 'opened', 'in_progress', 'overdue', 'needs_more_review']
+  const earlierOpen = docChain.filter((t: any) =>
+    t.sequence_number < task.sequence_number && OPEN_ANY.includes(t.status))
+  const canSubmit   = ['sent','opened','in_progress','pending'].includes(task.status) && !submitted && earlierOpen.length === 0
 
   // Previous reviewers who already completed (visible to current reviewer)
   const completedBefore = docChain.filter((t: any) =>
@@ -509,6 +515,20 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Turn-order hold: a re-review sits ahead of me — my slot stays reserved */}
+      {!submitted && task.status !== 'completed' && earlierOpen.length > 0 && (
+        <div className="card p-4 bg-amber-50 border-amber-200">
+          <p className="text-sm font-semibold text-amber-900">
+            ⏳ Waiting for {[...new Set(earlierOpen.map((t: any) => reviewerName(t.reviewer_email)))].join(', ')} to
+            finish the re-review ahead of you.
+          </p>
+          <p className="text-xs text-amber-800 mt-1">
+            Your final review stays reserved — you'll be emailed when it returns to you, and you conclude the batch.
+            Anything you type below the markup is kept as a draft in the meantime.
+          </p>
         </div>
       )}
 

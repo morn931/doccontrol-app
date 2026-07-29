@@ -53,6 +53,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const docUniqueId = dv?.doc_unique_id ?? ''
   const completedAt = new Date().toISOString()
 
+  // Turn-order guard (2026-07-29, the Marnus case): a reviewer whose step sits
+  // BEHIND an open earlier step may not submit yet — e.g. the last reviewer
+  // sends a re-review back and then submits their own outcome a minute later,
+  // silently consuming their "final look" slot so the batch closes without
+  // them. Their form stays saveable as a draft; the engine notifies them when
+  // the detour returns.
+  const OPEN_BEFORE = ['pending', 'sent', 'opened', 'in_progress', 'overdue', 'needs_more_review']
+  const { data: earlier } = await db.from('review_tasks')
+    .select('reviewer_email, sequence_number, status')
+    .eq('batch_id', batchId)
+    .lt('sequence_number', task.sequence_number)
+    .in('status', OPEN_BEFORE)
+  if (earlier?.length) {
+    const who = [...new Set(earlier.map((t: any) => t.reviewer_email))].join(', ')
+    return NextResponse.json(
+      { error: `Not your turn yet — ${who} still has an open review ahead of you (a re-review you or someone requested). Your comments are kept as a draft; you'll be emailed when it returns to you.` },
+      { status: 409 })
+  }
+
   // Mark task complete in database
   const finalStatus = needMoreReview ? 'needs_more_review' : 'completed'
   await db.from('review_tasks').update({
