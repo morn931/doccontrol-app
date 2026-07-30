@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   // Preferred: server-side DISTINCT (migration 026) — cap-proof, so rare values
   // (a new Sector / vendor with only a handful of rows) still appear as chips.
   const rpc = await db.rpc('mddr_filter_options', { p_awarded: awarded, p_package: pkg || null, p_exclude_index: excludeIndex })
+  if (url.searchParams.get('debug') === '1') return NextResponse.json({ rpcError: rpc.error?.message ?? null, rpcStatus: rpc.status, hasData: !!rpc.data, data: rpc.data })
   if (!rpc.error && rpc.data) {
     const d: any = rpc.data
     return NextResponse.json({
