@@ -5,6 +5,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+// Invalid package codes to hide from the Package filter chips (docs under them are
+// left untouched — this only removes them as selectable options).
+const IGNORE_PACKAGES = new Set(['A002', 'M004', 'M005', 'P006'])
+
 // Returns distinct packages and vendors (optionally filtered by package)
 export async function GET(req: NextRequest) {
   const db  = createServiceClient()
@@ -19,7 +23,7 @@ export async function GET(req: NextRequest) {
   if (!rpc.error && rpc.data) {
     const d: any = rpc.data
     return NextResponse.json({
-      packages: d.packages ?? [], vendors: d.vendors ?? [], disciplines: d.disciplines ?? [],
+      packages: (d.packages ?? []).filter((p: string) => !IGNORE_PACKAGES.has(p)), vendors: d.vendors ?? [], disciplines: d.disciplines ?? [],
       documentTypes: d.documentTypes ?? [], statuses: d.statuses ?? [], sectors: d.sectors ?? [], revisions: d.revisions ?? [],
     })
   }
@@ -44,5 +48,5 @@ export async function GET(req: NextRequest) {
     distinct('sector', false), distinct('revision'),
   ])
 
-  return NextResponse.json({ packages, vendors, disciplines, documentTypes, statuses, sectors, revisions })
+  return NextResponse.json({ packages: packages.filter((p) => !IGNORE_PACKAGES.has(p)), vendors, disciplines, documentTypes, statuses, sectors, revisions })
 }
