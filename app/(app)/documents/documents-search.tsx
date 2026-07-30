@@ -13,14 +13,15 @@ const SOURCE_COLORS: Record<string, string> = {
   SDDR: 'bg-teal-100 text-teal-700', CDDL: 'bg-teal-100 text-teal-700', MDDR: 'bg-navy-100 text-navy-700',
 }
 
-function Chip({ active, onClick, children, color = 'navy' }: any) {
+function Chip({ active, onClick, children, color = 'navy', disabled = false, title }: any) {
   const on = color === 'teal' ? 'bg-teal-600 border-teal-600' : color === 'purple' ? 'bg-teal-600 border-teal-600'
     : color === 'amber' ? 'bg-amber-500 border-amber-500' : color === 'rose' ? 'bg-rose-600 border-rose-600'
     : 'bg-navy-700 border-navy-700'
   return (
-    <button onClick={onClick}
+    <button onClick={disabled ? undefined : onClick} disabled={disabled} title={title}
       className={cn('px-3 py-1 lg:py-1 max-lg:py-1.5 max-lg:px-3.5 rounded-full text-xs font-semibold border transition-colors',
-        active ? `${on} text-white` : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
+        disabled ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+          : active ? `${on} text-white` : 'bg-white text-slate-600 border-slate-300 hover:border-navy-400 hover:text-navy-700')}>
       {children}
     </button>
   )
@@ -213,7 +214,14 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
         {sectors.length > 0 && (
           <div className="flex flex-wrap gap-2 items-center">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide w-16">Sector:</span>
-            {['ALL', ...sectors].map(s => <Chip key={s} color="rose" active={selSector === s} onClick={() => setSelSector(s)}>{s}</Chip>)}
+            {['ALL', ...sectors].map(s => {
+              // Commercial / contractual documents aren't released on shared links yet —
+              // show the chip greyed & non-selectable so it reads as "coming soon".
+              const locked = shareMode && s === 'Contractual'
+              return <Chip key={s} color="rose" active={selSector === s} disabled={locked}
+                title={locked ? 'Commercial / contractual documents — not yet available on this link' : undefined}
+                onClick={() => setSelSector(s)}>{s}{locked ? ' 🔒' : ''}</Chip>
+            })}
           </div>
         )}
 
