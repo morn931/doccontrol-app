@@ -17,7 +17,10 @@ export default async function ShareDocumentsPage({ params }: { params: Promise<{
     <div className="min-h-screen bg-slate-50">
       <div className="border-b border-navy-200 bg-navy-700 text-white">
         <div className="mx-auto max-w-6xl px-6 py-2.5 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-3 text-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/coreflow/logo/coreflow-logo-white.png" alt="Coreflow" className="h-7 w-auto shrink-0 object-contain" />
+            <span className="h-5 w-px bg-white/25" />
             <span className="font-semibold">CoreDocs</span>
             <span className="opacity-70">· Document Search (shared, read-only preview)</span>
           </div>
