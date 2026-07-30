@@ -53,7 +53,7 @@ export async function GET(req: Request) {
         if (!isContractual(name, f.Doctype || '')) continue
         const base = name.replace(/\.[^.]+$/, '')
         records.push({
-          id: uuid5(web), source_type: 'CoreBase', source_types: ['CoreBase'], sector: 'Contractual',
+          id: uuid5(web), source_type: 'INDEX', source_types: ['INDEX'], sector: 'Contractual',
           vendor_name: mapVendor(f.Vendor || '', name), document_number: base, normalized_document_number: base,
           document_title: base, document_type: 'Contract', file_link: web, is_active: true, is_awarded: true, package_code: null,
         })
