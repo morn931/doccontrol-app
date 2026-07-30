@@ -3,6 +3,7 @@ import { getShareLink, touchShareLink } from '@/lib/share-tokens'
 import { GET as mddrGET } from '@/app/api/mddr/route'
 import { GET as metaGET } from '@/app/api/mddr/meta/route'
 import { GET as revsGET } from '@/app/api/mddr/revisions/route'
+import { POST as semanticPOST } from '@/app/api/mddr/semantic/route'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveOpenUrl } from '@/lib/services/sp-resolve'
 import { getFileBytesByUrl } from '@/lib/services/graph'
@@ -59,5 +60,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     }
   }
 
+  return new NextResponse('Not found', { status: 404 })
+}
+
+// Smart (semantic) search on the shared link — token-gated proxy to the AI endpoint.
+export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string; path?: string[] }> }) {
+  const { token, path } = await params
+  const link = await getShareLink(token)
+  if (!link || link.kind !== 'documents') return new NextResponse('Not found', { status: 404 })
+  if ((path ?? []).join('/') === 'semantic') return semanticPOST(req)
   return new NextResponse('Not found', { status: 404 })
 }

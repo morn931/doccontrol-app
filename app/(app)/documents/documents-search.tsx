@@ -34,6 +34,7 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
     list: (qs: string) => (shareMode ? `${apiBase}/mddr?${qs}` : `/api/mddr?${qs}`),
     revisions: (docnum: string) => (shareMode ? `${apiBase}/revisions?docnum=${encodeURIComponent(docnum)}` : `/api/mddr/revisions?docnum=${encodeURIComponent(docnum)}`),
     open: (id: string) => (shareMode ? `${apiBase}/open?id=${id}` : `/api/mddr/open?id=${id}`),
+    semantic: () => (shareMode ? `${apiBase}/semantic` : `/api/mddr/semantic`),
   }
 
   const [packages, setPackages] = useState<string[]>([])
@@ -114,17 +115,16 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [fetchRows, docnum, title, smart])
 
-  // Semantic search (internal only — not exposed on shared links).
+  // Semantic search (also available on shared links via the token-gated proxy).
   const smartRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (shareMode) return
     const q = smart.trim()
     if (!q) { setSmartRows([]); setSmartLoading(false); return }
     setSmartLoading(true)
     if (smartRef.current) clearTimeout(smartRef.current)
     smartRef.current = setTimeout(async () => {
       try {
-        const res = await fetch('/api/mddr/semantic', {
+        const res = await fetch(EP.semantic(), {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: q, package: selPackage, source: selSource, awarded }),
         })
@@ -143,7 +143,7 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
     setDiscipline(''); setDocType(''); setStatus(''); setRevision(''); setSelSector('ALL'); setProduced('files'); setDocnum(''); setTitle(''); setSmart('')
   }
 
-  const isSmart = !shareMode && smart.trim().length > 0
+  const isSmart = smart.trim().length > 0
   const shown = rows.slice(0, RENDER_CAP)
   const displayRows = isSmart ? smartRows : shown
 
@@ -173,8 +173,7 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
         <p className="text-slate-500 text-sm mt-1">Find any document across the Master Register (SDDR · CDDL · MDDR). Filters and searches narrow live.</p>
       </div>
 
-      {/* Smart (semantic) search — internal only */}
-      {!shareMode && (
+      {/* Smart (semantic) search */}
       <div className="card p-4 border-navy-200 bg-gradient-to-r from-navy-50/40 to-transparent">
         <label className="text-xs font-semibold text-navy-700 uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
           <Sparkles className="h-3.5 w-3.5" /> Smart search — describe the document
@@ -192,7 +191,6 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
           Meaning-based — finds documents by what they&apos;re about (from the AI summaries), even without exact keywords. Respects the Package / Source / Show filters below.
         </p>
       </div>
-      )}
 
       {/* Filters */}
       <div className={cn('card p-4 space-y-3', isSmart && 'opacity-60')}>
