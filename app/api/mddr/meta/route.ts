@@ -13,6 +13,18 @@ export async function GET(req: NextRequest) {
   const awarded = url.searchParams.get('awarded') ?? 'true'
   const excludeIndex = url.searchParams.get('exclude_index') === '1'
 
+  // Preferred: server-side DISTINCT (migration 026) — cap-proof, so rare values
+  // (a new Sector / vendor with only a handful of rows) still appear as chips.
+  const rpc = await db.rpc('mddr_filter_options', { p_awarded: awarded, p_package: pkg || null, p_exclude_index: excludeIndex })
+  if (!rpc.error && rpc.data) {
+    const d: any = rpc.data
+    return NextResponse.json({
+      packages: d.packages ?? [], vendors: d.vendors ?? [], disciplines: d.disciplines ?? [],
+      documentTypes: d.documentTypes ?? [], statuses: d.statuses ?? [], sectors: d.sectors ?? [], revisions: d.revisions ?? [],
+    })
+  }
+
+  // Fallback (until migration 026 is applied): JS distinct over a capped sample.
   // Generic distinct-value helper with the shared filters.
   async function distinct(col: string, withPackage = true): Promise<string[]> {
     let qy = db.from('mddr_entries').select(col).eq('is_active', true).not(col, 'is', null)
