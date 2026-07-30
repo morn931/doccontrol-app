@@ -32,8 +32,7 @@ function isContractual(name: string, dt: string) {
 
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET
-  const _k = new URL(req.url).searchParams.get('k') // TEMP one-time init key
-  if (secret && req.headers.get('authorization') !== `Bearer ${secret}` && _k !== 'init-4b43b686402dd503d1b3') return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  if (secret && req.headers.get('authorization') !== `Bearer ${secret}`) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   try {
     const siteId = await getSiteId(SITE_URL)
     const listsRes = await graphFetch(`/sites/${siteId}/lists?$select=id,displayName,name`)
