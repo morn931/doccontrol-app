@@ -6,7 +6,10 @@ import { GET as revsGET } from '@/app/api/mddr/revisions/route'
 import { POST as semanticPOST } from '@/app/api/mddr/semantic/route'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveOpenUrl } from '@/lib/services/sp-resolve'
-import { getFileBytesByUrl } from '@/lib/services/graph'
+import { getFileBytesByUrl, resolveDriveItemByUrl, getDriveItemContentBytes } from '@/lib/services/graph'
+
+const OFFICE_EXT = new Set(['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
+const INLINE_CT: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', txt: 'text/plain' }
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -38,20 +41,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     if (!row?.file_link) return new NextResponse('No file for this document', { status: 404 })
     const live = (await resolveOpenUrl(row.file_link, row.normalized_document_number || row.document_number)) || row.file_link
     try {
-      const bytes = await getFileBytesByUrl(live)
-      const fname = decodeURIComponent((live.split('?')[0].split('/').pop() || 'document.pdf'))
-      const ext = fname.split('.').pop()?.toLowerCase()
-      const ct = ext === 'pdf' ? 'application/pdf'
-        : ext === 'png' ? 'image/png'
-        : (ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg'
-        : (ext === 'xlsx') ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        : (ext === 'docx') ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        : 'application/octet-stream'
+      // Resolve to the REAL driveItem so the name/type are correct even when the
+      // stored URL is a "…Doc.aspx?sourcedoc=" viewer link. Office docs are rendered
+      // to PDF so they open inline in the browser (no download, no SharePoint, no
+      // "Doc.aspx" save prompt) — everything the client opens just displays.
+      const item = await resolveDriveItemByUrl(live)
+      let bytes: ArrayBuffer, ct: string, outName: string
+      if (item?.driveId) {
+        const ext = (item.name.split('.').pop() || '').toLowerCase()
+        if (OFFICE_EXT.has(ext)) {
+          bytes = await getDriveItemContentBytes(item.driveId, item.id, 'pdf')
+          ct = 'application/pdf'; outName = item.name.replace(/\.[^.]+$/, '.pdf')
+        } else {
+          bytes = await getDriveItemContentBytes(item.driveId, item.id)
+          ct = INLINE_CT[ext] ?? item.mimeType ?? 'application/octet-stream'; outName = item.name
+        }
+      } else {
+        // Fallback: stream raw bytes with best-effort type from the URL.
+        bytes = await getFileBytesByUrl(live)
+        const fname = decodeURIComponent((live.split('?')[0].split('/').pop() || 'document.pdf'))
+        const ext = (fname.split('.').pop() || '').toLowerCase()
+        ct = INLINE_CT[ext] ?? 'application/octet-stream'; outName = fname
+      }
       touchShareLink(token).catch(() => {})
       return new NextResponse(Buffer.from(bytes), {
         headers: {
           'Content-Type': ct,
-          'Content-Disposition': `inline; filename="${fname.replace(/"/g, '')}"`,
+          'Content-Disposition': `inline; filename="${outName.replace(/"/g, '')}"`,
           'Cache-Control': 'private, no-store',
         },
       })

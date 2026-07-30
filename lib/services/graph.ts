@@ -121,6 +121,26 @@ export async function getFileBytesByUrl(fileUrl: string): Promise<ArrayBuffer> {
   return res.arrayBuffer()
 }
 
+const shareId = (fileUrl: string) => 'u!' + Buffer.from(fileUrl).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+/** Resolve any SharePoint file / sharing / "…Doc.aspx?sourcedoc=" URL to its real
+ *  Graph driveItem (id, actual name, mime type, driveId). Handles the viewer-URL
+ *  case where the path extension (.aspx) doesn't reflect the real file. */
+export async function resolveDriveItemByUrl(fileUrl: string): Promise<{ id: string; name: string; mimeType?: string; driveId?: string } | null> {
+  const res = await graphFetch(`/shares/${shareId(fileUrl)}/driveItem?$select=id,name,file,parentReference`)
+  if (!res.ok) return null
+  const j = await res.json()
+  return { id: j.id, name: j.name, mimeType: j.file?.mimeType, driveId: j.parentReference?.driveId }
+}
+
+/** Download a driveItem's content bytes — optionally converted (format='pdf' renders
+ *  Office docs to PDF so they display inline in a browser). */
+export async function getDriveItemContentBytes(driveId: string, itemId: string, format?: string): Promise<ArrayBuffer> {
+  const res = await graphFetch(`/drives/${driveId}/items/${itemId}/content${format ? `?format=${format}` : ''}`)
+  if (!res.ok) throw new Error(`Failed to fetch driveItem content (${res.status}): ${await res.text()}`)
+  return res.arrayBuffer()
+}
+
 /** Replace a SharePoint file's content in place from a full file URL (simple upload,
  *  fine for the < ~4 MB flattened spec PDFs). SharePoint stays authoritative — this
  *  writes the marked-up copy back so the next reviewer sees prior mark-ups. */
