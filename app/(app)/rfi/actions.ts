@@ -1,6 +1,7 @@
 'use server'
 
 import { createServiceClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
 export type RfiRecipient = { name: string; org: string; type: string; status: string }
 export type RfiAttachment = {
@@ -26,6 +27,28 @@ export type RfiMail = {
   form_fields: Record<string, string> | null
   attachments: RfiAttachment[] | null
   body_html: string | null
+}
+
+/** Set / clear the "PPE responsible" person on an RFI. A non-empty name marks
+ *  the row manual (the daily sync will never overwrite it); clearing the name
+ *  returns the row to auto-suggestion on the next sync. */
+export async function updateRfiResponsible(
+  rfiId: string,
+  name: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const trimmed = name.trim()
+    const supabase = createServiceClient()
+    const { error } = await supabase
+      .from('aconex_rfi')
+      .update({ ppe_responsible: trimmed || null, ppe_responsible_manual: trimmed.length > 0 })
+      .eq('id', rfiId)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/rfi')
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 /** All cached Aconex mail for one RFI thread, oldest first. */

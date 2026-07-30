@@ -15,13 +15,15 @@ export default async function RfiTrackerPage() {
   let syncedAt: string | null = null
   let tableMissing = false
 
-  const { data, error } = await supabase
-    .from('aconex_rfi')
-    .select(
-      'id,thread_id,mail_no,corr_type,title,package_code,package_full,cause,cost_impact,schedule_impact,from_org,from_user,raised_date,response_due,aconex_status,last_mail_date,days_silent,mail_count,attachment_count,court_who,court_people,court_side,overdue,closed,summary'
-    )
-    .order('last_mail_date', { ascending: false })
-    .limit(2000)
+  const BASE_COLS =
+    'id,thread_id,mail_no,corr_type,title,package_code,package_full,cause,cost_impact,schedule_impact,from_org,from_user,raised_date,response_due,aconex_status,last_mail_date,days_silent,mail_count,attachment_count,court_who,court_people,court_side,overdue,closed,summary'
+  const fetchRows = (cols: string) =>
+    supabase.from('aconex_rfi').select(cols).order('last_mail_date', { ascending: false }).limit(2000)
+  // ppe_responsible arrives with migration 027 — fall back to the base set until applied.
+  let { data, error } = await fetchRows(`${BASE_COLS},ppe_responsible,ppe_responsible_manual`)
+  if (error) {
+    ;({ data, error } = await fetchRows(BASE_COLS))
+  }
   if (error) {
     tableMissing = true
   } else {

@@ -1,13 +1,17 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
+import CoreTable, { Chip, SearchBox, exportCsv, type CoreColumn } from '@/components/core-table'
 import RfiPopup from './rfi-popup'
+import { updateRfiResponsible } from './actions'
 
 // One row per Aconex RFI thread (aconex_rfi), synced daily. Read-only mirror —
 // Aconex remains the system of record; this board answers "what's open, whose
 // court, how long" without logging into Aconex. All columns are Aconex-sourced
-// (register + RFI form) — deliberately NO priority/triage column (that belongs
-// to the PDN register's commercial workflow, not RFIs).
+// (register + RFI form) except "PPE responsible", which is auto-suggested from
+// the thread's PPE participants and hand-editable (edits stick — the sync
+// never overwrites a manual name). Deliberately NO priority/triage column.
+// Table = the platform CoreTable standard (navy header / teal chips).
 export type Rfi = {
   id: string
   thread_id: number
@@ -34,6 +38,8 @@ export type Rfi = {
   overdue: boolean
   closed: boolean
   summary: string | null
+  ppe_responsible: string | null
+  ppe_responsible_manual: boolean
 }
 
 type Filter = 'OPEN_PPE' | 'OPEN_OTHER' | 'OVERDUE' | 'CLOSED' | 'ALL'
@@ -69,9 +75,51 @@ function courtChip(r: Rfi) {
   return <span className="inline-block rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-xs text-sky-800" title={r.court_people ?? ''}>⏳ {who}{days}</span>
 }
 
-const csvEscape = (v: unknown) => {
-  const s = String(v ?? '')
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+// Inline-editable "PPE responsible" cell: click to edit, Enter/blur saves.
+// Manual names show a teal dot; clearing the box returns the row to auto.
+function ResponsibleCell({ rfi }: { rfi: Rfi }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(rfi.ppe_responsible ?? '')
+  const [saved, setSaved] = useState(rfi.ppe_responsible ?? '')
+  const [manual, setManual] = useState(rfi.ppe_responsible_manual)
+  const [err, setErr] = useState(false)
+  const [, startTransition] = useTransition()
+
+  const persist = () => {
+    setEditing(false)
+    if (value.trim() === saved.trim()) return
+    startTransition(async () => {
+      const res = await updateRfiResponsible(rfi.id, value)
+      if (res.ok) { setSaved(value.trim()); setManual(value.trim().length > 0); setErr(false) }
+      else setErr(true)
+    })
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={persist}
+        onKeyDown={(e) => { if (e.key === 'Enter') persist(); if (e.key === 'Escape') { setValue(saved); setEditing(false) } }}
+        placeholder="name… (empty = auto)"
+        className="w-full rounded border border-teal-300 px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-teal-300"
+      />
+    )
+  }
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); setValue(saved); setEditing(true) }}
+      title={manual ? 'Set by hand — click to change (clear to return to auto)' : 'Auto-suggested from the Aconex thread — click to correct'}
+      className="group flex w-full items-center gap-1 text-left text-xs hover:text-teal-700"
+    >
+      <span className={saved ? '' : 'text-slate-300'}>{saved || '—'}</span>
+      {manual && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal-400" title="set manually" />}
+      <span className="ml-auto text-slate-300 opacity-0 group-hover:opacity-100">✎</span>
+      {err && <span className="text-red-500" title="save failed">!</span>}
+    </button>
+  )
 }
 
 export function RfiBoard({ rows, syncedAt }: { rows: Rfi[]; syncedAt: string | null }) {
@@ -103,32 +151,98 @@ export function RfiBoard({ rows, syncedAt }: { rows: Rfi[]; syncedAt: string | n
     const needle = q.trim().toLowerCase()
     if (needle) {
       out = out.filter((r) =>
-        [r.mail_no, r.title, r.cause, r.from_org, r.court_who, r.summary]
+        [r.mail_no, r.title, r.cause, r.from_org, r.court_who, r.ppe_responsible, r.summary]
           .some((v) => (v ?? '').toLowerCase().includes(needle))
       )
     }
-    // open first, then most-recently-active
-    return [...out].sort((a, b) =>
-      Number(a.closed) - Number(b.closed) || (b.last_mail_date ?? '').localeCompare(a.last_mail_date ?? ''))
+    return out
   }, [rows, filter, pkg, q])
 
-  const exportCsv = () => {
-    const header = ['RFI No', 'Type', 'Package', 'Title', 'Cause', 'Raised by', 'Raised', 'Response due',
-      'Aconex status', 'Cost impact', 'Schedule impact', 'Court', 'Days silent', 'Mails', 'Attachments', 'Summary']
-    const lines = filtered.map((r) => [
-      r.mail_no, r.corr_type, r.package_code, r.title, r.cause, `${r.from_user ?? ''} (${r.from_org ?? ''})`,
-      fmtDate(r.raised_date), fmtDate(r.response_due), r.closed ? 'Closed-Out' : r.aconex_status,
-      r.cost_impact == null ? '' : r.cost_impact ? 'Yes' : 'No',
-      r.schedule_impact == null ? '' : r.schedule_impact ? 'Yes' : 'No',
-      r.closed ? '' : r.court_who, r.days_silent, r.mail_count, r.attachment_count, r.summary,
-    ].map(csvEscape).join(','))
-    const blob = new Blob(['﻿' + [header.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = 'rfi-tracker.csv'
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
+  const columns: CoreColumn<Rfi>[] = [
+    {
+      key: 'mail_no', header: 'RFI No', sortValue: (r) => r.mail_no,
+      csv: (r) => r.mail_no,
+      render: (r) => (
+        <div>
+          <button onClick={() => setOpen(r)}
+            className="font-medium text-blue-800 underline underline-offset-2 hover:text-blue-600">
+            {r.mail_no}
+          </button>
+          {r.corr_type && r.corr_type !== 'Request For Information' && (
+            <div className="text-[10px] text-violet-600">{r.corr_type}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'pkg', header: 'Pkg', sortValue: (r) => r.package_code ?? '',
+      csv: (r) => r.package_code,
+      render: (r) => <span title={r.package_full ?? ''}>{r.package_code || '—'}</span>,
+    },
+    {
+      key: 'title', header: 'Title', sortValue: (r) => r.title ?? '',
+      csv: (r) => r.title,
+      render: (r) => <span className={r.closed ? 'text-slate-400' : ''}>{r.title}</span>,
+    },
+    {
+      key: 'cause', header: 'Cause', sortValue: (r) => r.cause ?? '',
+      csv: (r) => r.cause,
+      render: (r) => <span className="text-xs">{r.cause ?? '—'}</span>,
+    },
+    {
+      key: 'raised_by', header: 'Raised by', sortValue: (r) => r.from_org ?? '',
+      csv: (r) => `${r.from_user ?? ''} (${r.from_org ?? ''})`,
+      render: (r) => <span className="text-xs" title={r.from_user ?? ''}>{shortOrg(r.from_org ?? '—')}</span>,
+    },
+    {
+      key: 'raised', header: 'Raised', sortValue: (r) => r.raised_date ?? '',
+      csv: (r) => fmtDate(r.raised_date),
+      render: (r) => <span className="whitespace-nowrap text-xs">{fmtDate(r.raised_date)}</span>,
+    },
+    {
+      key: 'due', header: 'Resp. due', sortValue: (r) => r.response_due ?? '',
+      csv: (r) => fmtDate(r.response_due),
+      render: (r) => <span className="whitespace-nowrap text-xs">{fmtDate(r.response_due)}</span>,
+    },
+    {
+      key: 'status', header: 'Aconex status', sortValue: (r) => (r.closed ? 'Closed-Out' : r.aconex_status ?? ''),
+      csv: (r) => (r.closed ? 'Closed-Out' : r.aconex_status),
+      render: (r) => (
+        <span className={`inline-block rounded border px-1.5 py-0.5 text-xs ${statusChip(r.closed ? 'closed-out' : r.aconex_status)}`}>
+          {r.closed ? 'Closed-Out' : r.aconex_status ?? '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'cost', header: '$', align: 'center', headerTitle: 'Cost impact flagged on the RFI form',
+      sortValue: (r) => (r.cost_impact ? 1 : 0),
+      csv: (r) => (r.cost_impact == null ? '' : r.cost_impact ? 'Yes' : 'No'),
+      render: (r) => <span className="text-xs">{r.cost_impact ? '✓' : '—'}</span>,
+    },
+    {
+      key: 'sched', header: '🕒', align: 'center', headerTitle: 'Schedule impact flagged on the RFI form',
+      sortValue: (r) => (r.schedule_impact ? 1 : 0),
+      csv: (r) => (r.schedule_impact == null ? '' : r.schedule_impact ? 'Yes' : 'No'),
+      render: (r) => <span className="text-xs">{r.schedule_impact ? '✓' : '—'}</span>,
+    },
+    {
+      key: 'court', header: 'Court', sortValue: (r) => (r.closed ? 'zzz' : `${r.court_side}:${r.court_who ?? ''}`),
+      csv: (r) => (r.closed ? '' : r.court_who),
+      render: (r) => courtChip(r),
+    },
+    {
+      key: 'responsible', header: 'PPE responsible', headerTitle: 'Auto-suggested from the thread — click a name to correct it',
+      sortValue: (r) => r.ppe_responsible ?? '',
+      csv: (r) => r.ppe_responsible,
+      render: (r) => <ResponsibleCell key={`${r.id}:${r.ppe_responsible ?? ''}`} rfi={r} />,
+    },
+    {
+      key: 'mails', header: '✉ / 📎', align: 'center', headerTitle: 'Mails / attachments on the thread',
+      sortValue: (r) => r.mail_count,
+      csv: (r) => `${r.mail_count} / ${r.attachment_count}`,
+      render: (r) => <span className="text-xs text-slate-500">{r.mail_count} / {r.attachment_count}</span>,
+    },
+  ]
 
   const cards: { key: Filter; label: string; n: number; accent: string }[] = [
     { key: 'OPEN_PPE', label: 'Open — with PPE', n: counts.OPEN_PPE, accent: 'text-amber-600' },
@@ -154,81 +268,37 @@ export function RfiBoard({ rows, syncedAt }: { rows: Rfi[]; syncedAt: string | n
       {/* filters row */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className="text-xs text-slate-500">Package:</span>
-        {['all', ...packages].map((p) => (
-          <button key={p} onClick={() => setPkg(p)}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${pkg === p ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
-            {p}
-          </button>
+        <Chip active={pkg === 'all'} onClick={() => setPkg('all')}>all</Chip>
+        {packages.map((p) => (
+          <Chip key={p} active={pkg === p} onClick={() => setPkg(p)}>{p}</Chip>
         ))}
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search RFI no, title, cause, org…"
-          className="ml-auto w-72 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy-300"
-        />
-        <button onClick={exportCsv}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-          ↓ CSV
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <SearchBox value={q} onChange={setQ} placeholder="Search RFI no, title, cause, org…" />
+          <button
+            onClick={() => exportCsv(
+              'rfi-tracker.csv',
+              columns.filter((c) => c.csv).map((c) => (typeof c.header === 'string' ? c.header : c.key)),
+              filtered.map((r) => columns.filter((c) => c.csv).map((c) => c.csv!(r)))
+            )}
+            className="rounded-md border border-neutral-300 bg-white px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50">
+            ↓ CSV
+          </button>
+        </div>
       </div>
 
-      {/* register table */}
-      <div className="card mt-3 overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-navy-700 text-left text-white">
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">RFI No</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Pkg</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Title</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Cause</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Raised by</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Raised</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Resp. due</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Aconex status</th>
-              <th className="border-r border-navy-600 px-3 py-2 text-center font-semibold" title="Cost impact flagged on the RFI form">$</th>
-              <th className="border-r border-navy-600 px-3 py-2 text-center font-semibold" title="Schedule impact flagged on the RFI form">🕒</th>
-              <th className="border-r border-navy-600 px-3 py-2 font-semibold">Court</th>
-              <th className="px-3 py-2 text-center font-semibold" title="Mails / attachments on the thread">✉ / 📎</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className={`border-t border-slate-100 align-top hover:bg-slate-50 ${r.closed ? 'text-slate-400' : ''}`}>
-                <td className="whitespace-nowrap px-3 py-2">
-                  <button onClick={() => setOpen(r)}
-                    className="font-medium text-blue-800 underline underline-offset-2 hover:text-blue-600">
-                    {r.mail_no}
-                  </button>
-                  {r.corr_type && r.corr_type !== 'Request For Information' && (
-                    <div className="text-[10px] text-violet-600">{r.corr_type}</div>
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2" title={r.package_full ?? ''}>{r.package_code || '—'}</td>
-                <td className="min-w-[16rem] px-3 py-2">{r.title}</td>
-                <td className="px-3 py-2 text-xs">{r.cause ?? '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs" title={r.from_user ?? ''}>{shortOrg(r.from_org ?? '—')}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs">{fmtDate(r.raised_date)}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-xs">{fmtDate(r.response_due)}</td>
-                <td className="whitespace-nowrap px-3 py-2">
-                  <span className={`inline-block rounded border px-1.5 py-0.5 text-xs ${statusChip(r.closed ? 'closed-out' : r.aconex_status)}`}>
-                    {r.closed ? 'Closed-Out' : r.aconex_status ?? '—'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-center text-xs" title={r.cost_impact ? 'Cost impact flagged' : ''}>{r.cost_impact ? '✓' : '—'}</td>
-                <td className="px-3 py-2 text-center text-xs" title={r.schedule_impact ? 'Schedule impact flagged' : ''}>{r.schedule_impact ? '✓' : '—'}</td>
-                <td className="whitespace-nowrap px-3 py-2">{courtChip(r)}</td>
-                <td className="whitespace-nowrap px-3 py-2 text-center text-xs text-slate-500">{r.mail_count} / {r.attachment_count}</td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={12} className="px-3 py-8 text-center text-sm text-slate-400">No RFIs match the current filter.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <CoreTable<Rfi>
+        tableId="rfi-tracker"
+        columns={columns}
+        rows={filtered}
+        rowKey={(r) => r.id}
+        defaultSort={(a, b) =>
+          Number(a.closed) - Number(b.closed) || (b.last_mail_date ?? '').localeCompare(a.last_mail_date ?? '')}
+        emptyText="No RFIs match the current filter."
+      />
 
       <p className="mt-2 text-xs text-slate-400">
         Read-only mirror of Aconex RFI correspondence (Request For Information, Technical Query, Design Query threads).
+        &quot;PPE responsible&quot; is auto-suggested from the thread — click a name to correct it (a teal dot marks hand-set names; clear the box to return to auto).
         {syncedAt ? ` Last synced ${new Date(syncedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.` : ''}
         {' '}Refreshes daily at 06:00 with the Aconex scan.
       </p>
