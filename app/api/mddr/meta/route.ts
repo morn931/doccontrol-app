@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // Returns distinct packages and vendors (optionally filtered by package)
 export async function GET(req: NextRequest) {
@@ -18,7 +20,9 @@ export async function GET(req: NextRequest) {
     if (awarded === 'false') qy = qy.eq('is_awarded', false)
     if (excludeIndex)        qy = qy.neq('source_type', 'INDEX')
     if (pkg && withPackage)  qy = qy.eq('package_code', pkg)
-    const { data } = await qy.limit(20000)
+    // Scan the whole table (not a 20k sample) so low-frequency values — e.g. a new
+    // Sector like "Contractual" with only ~20 rows — still surface as filter chips.
+    const { data } = await qy.limit(200000)
     return [...new Set((data ?? []).map((r: any) => r[col]).filter(Boolean))].sort()
   }
 
