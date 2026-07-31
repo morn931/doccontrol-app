@@ -221,9 +221,17 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
         <h2 className="text-xl font-bold text-slate-900 mb-2">Review Submitted</h2>
         <p className="text-slate-500 mb-1">Outcome: <strong>{outcome || 'Escalated for more review'}</strong></p>
         <p className="text-slate-400 text-sm">
-          {isLastReviewer ? 'You were the final reviewer. The document controller has been notified.' : 'The next reviewer has been notified automatically.'}
+          {!outcome ? 'The document controller has been notified that the chain is on hold. You can add the reviewer you need yourself — they slot in ahead of you and the review returns to you afterwards.'
+            : isLastReviewer ? 'You were the final reviewer. The document controller has been notified.' : 'The next reviewer has been notified automatically.'}
         </p>
-        <Link href="/reviews" className="btn-primary mt-6 inline-flex">Back to My Reviews</Link>
+        <div className="mt-6 flex items-center justify-center gap-3">
+          <Link href="/reviews" className="btn-primary inline-flex">Back to My Reviews</Link>
+          {!outcome && (
+            <button onClick={() => { setSubmitted(false); loadContext() }} className="btn-secondary inline-flex">
+              Add the reviewer I need
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -407,8 +415,9 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
               })}
             </div>
 
-            {/* Add reviewer button */}
-            {canSubmit && (
+            {/* Add reviewer button — also available while escalated (needs_more_review):
+                the added expert slots in ahead and the flow returns to this reviewer. */}
+            {(canSubmit || (task.status === 'needs_more_review' && !submitted)) && (
               <div className="px-5 py-3 border-t border-slate-100">
                 {!showAddReviewer ? (
                   <button onClick={() => setShowAddReviewer(true)}

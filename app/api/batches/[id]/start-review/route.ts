@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getPermissions, can, FK } from '@/lib/permissions'
 import { sendEmail } from '@/lib/services/graph'
 import { batchReviewAssignedEmail } from '@/lib/services/email-templates'
 import { createApprovalListRow } from '@/lib/services/sharepoint-lists'
@@ -12,7 +13,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: profile } = await supabase.from('users').select('role, email, full_name')
     .eq('auth_user_id', user.id).single()
-  if (!['admin','document_controller','developer'].includes(profile?.role ?? ''))
+  // Role gate via the role_permissions matrix (Developer > Permissions) — was a
+  // hard-coded array, so flipping the matrix key had no effect (fixed 2026-07-31).
+  const __perms = await getPermissions(supabase)
+  if (!can(__perms, FK.ACTION_ASSIGN_REVIEWERS, (profile?.role ?? 'reviewer') as any))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id: batchId } = await params

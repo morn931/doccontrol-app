@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/redline-nudge",
       "schedule": "0 5 * * 1"
+    },
+    {
+      "path": "/api/cron/review-reminders",
+      "schedule": "30 4 * * *"
     }
   ],
   "git": {

@@ -305,6 +305,12 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                         ⚠ Overdue
                       </span>
                     )}
+                    {(batch.review_tasks ?? []).some((t: any) => t.status === 'needs_more_review') && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700"
+                        title="A reviewer flagged this batch as needing more review — the chain is on hold until a reviewer is added or the flag is resolved.">
+                        ⏸ Needs more review
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-slate-500">
                     <span>{originLabel}</span>

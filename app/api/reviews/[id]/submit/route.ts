@@ -122,6 +122,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       reason:              comment ?? 'Reviewer requested additional review',
       status:              'open',
     })
+    // Escalations used to vanish into a table nobody read — tell the controller
+    // immediately so the stalled chain is someone's problem (2026-07-31).
+    try {
+      const { data: dcSetting } = await db.from('system_settings')
+        .select('value').eq('key', 'doc_request_controller_email').maybeSingle()
+      const controller = (((dcSetting as any)?.value as string | undefined)?.trim() || 'mornec@ppetech.co.za')
+        .split(/[;,]/).map((e: string) => e.trim()).filter(Boolean)
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
+      await sendEmail({
+        to: controller,
+        subject: `[Needs more review] ${dv?.file_name ?? 'document'} — chain is on hold`,
+        htmlBody:
+          `<p><b>${profile?.email ?? task.reviewer_email}</b> flagged <span style="font-family:monospace">${dv?.file_name ?? ''}</span> as <b>needs more review</b> — the chain is on hold until it's resolved.</p>` +
+          `<p>Reason: <i>${comment ?? '—'}</i></p>` +
+          `<p>The reviewer can add another reviewer themselves (the flow detours and returns to them), or you can add one from the batch.</p>` +
+          `<p><a href="${appUrl}/batches/${batchId}">Open the batch →</a></p>`,
+      })
+    } catch (e) { console.warn('NMR controller notification failed', e) }
     return NextResponse.json({ success: true, escalated: true })
   }
 

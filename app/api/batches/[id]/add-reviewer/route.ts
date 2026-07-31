@@ -14,7 +14,10 @@ import { batchReviewAssignedEmail } from '@/lib/services/email-templates'
 //     afterwards — the flow detours and returns; drafts are preserved.
 //   • Only allowed while the batch is still in progress.
 const OPEN = ['pending', 'sent', 'opened', 'in_progress', 'overdue', 'needs_more_review']
-const ARMED = ['sent', 'opened', 'in_progress']
+// Statuses that re-arm (reset to 'pending') when shifted behind a detour —
+// includes needs_more_review so the escalating reviewer gets their turn back
+// after the added expert, instead of deadlocking the chain (2026-07-31).
+const ARMED = ['sent', 'opened', 'in_progress', 'overdue', 'needs_more_review']
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -55,9 +58,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const requesterSeq = Number(insertAfterSequence) || activeSeq
   const hasLaterSteps = tasks.some(t => t.sequence_number > requesterSeq)
 
-  // Detour insertion point (see header comment).
+  // Detour insertion point (see header comment). A requester whose own task is
+  // 'needs_more_review' gets the loop-back treatment too: the expert slots in
+  // BEFORE them and their task re-arms, so they conclude after the extra review.
+  const requesterStuck = tasks.some(t =>
+    (t.reviewer_email ?? '').toLowerCase() === (user.email ?? '').toLowerCase() &&
+    t.sequence_number === requesterSeq && t.status === 'needs_more_review')
   let insertAt: number
-  if (!hasLaterSteps) insertAt = requesterSeq              // requester is the last step → loop back in front of them
+  if (!hasLaterSteps || requesterStuck) insertAt = requesterSeq // last step OR escalated → loop back in front of them
   else if (requesterSeq < activeSeq) insertAt = activeSeq  // requester already done → detour before the current step
   else insertAt = requesterSeq + 1                         // normal mid-chain: right after the requester
   // Uniqueness edge: the reviewer's own COMPLETED task can already sit at insertAt
