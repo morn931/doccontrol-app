@@ -31,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     reporting:    can(perms, FK.NAV_REPORTING,    role),
     admin:        can(perms, FK.NAV_ADMIN,        role),
     docRequests:  can(perms, FK.NAV_DOC_REQUESTS, role),
+    aconexIssue:  can(perms, FK.NAV_ACONEX_ISSUE, role),
   }
 
   const firstName = name.split(' ')[0]

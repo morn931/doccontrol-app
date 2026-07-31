@@ -294,6 +294,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
 
+    // ── Aconex issue queue (2026-07-31) ──────────────────────────────────────
+    // Every internally-originated document (Rev 0 / IFC) and every As-Built
+    // that passes review must be routed to Aconex. Queue one row per document
+    // for Doc Control's tracked-manual issue (idempotent per batch).
+    if (batch?.source === 'internal' || batch?.source === 'asbuilt') {
+      try {
+        const { count: queued } = await db.from('aconex_issue')
+          .select('*', { count: 'exact', head: true }).eq('batch_id', batchId)
+        if (!queued) {
+          const { data: bdocs } = await db.from('document_versions')
+            .select('id, file_name, revision').eq('batch_id', batchId)
+          const { parseDocumentFileName } = await import('@/lib/utils/document-number-parser')
+          const rows = (bdocs ?? []).map((d: any) => {
+            const p = parseDocumentFileName(d.file_name ?? '')
+            return {
+              batch_id: batchId, document_version_id: d.id, source: batch.source,
+              rdmc_document_number: p.displayDocumentNumber || d.file_name,
+              revision: d.revision ?? p.revision, status: 'pending',
+            }
+          })
+          if (rows.length) await db.from('aconex_issue').insert(rows)
+        }
+      } catch (e) { console.warn('aconex_issue enqueue failed', e) }
+    }
+
     // As-Built batch concluded → the original redline closes.
     if (batch?.source === 'asbuilt') {
       const { data: rsub } = await db.from('redline_submission')

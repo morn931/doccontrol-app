@@ -11,6 +11,7 @@ export interface NavPerms {
   reporting:    boolean
   admin:        boolean
   docRequests:  boolean
+  aconexIssue:  boolean
 }
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms; inDrawer?: boolean }
@@ -25,7 +26,7 @@ const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-
 // path, so /documents/requests no longer also lights up /documents ("Document Search").
 const NAV_HREFS = [
   '/dashboard', '/documents/requests', '/redlines', '/batches', '/reviews', '/transmittals', '/documents',
-  '/mddr', '/reporting', '/aconex-review', '/rfi', '/cddl', '/sddr',
+  '/mddr', '/reporting', '/aconex-review', '/aconex-issue', '/rfi', '/cddl', '/sddr',
   '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
 ]
 
@@ -86,6 +87,9 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
             <NavLink href="/aconex-review" label="Aconex Review Tracker" icon={ICON_SURFACE('aconex-review-tracker')} />
             <NavLink href="/rfi" label="RFI Tracker" icon={ICON_SURFACE('engineering-tracker')} />
           </>
+        )}
+        {(dev || navPerms.aconexIssue) && (
+          <NavLink href="/aconex-issue" label="Aconex Issue Queue" icon={ICON_SURFACE('aconex-review-tracker')} />
         )}
 
         {/* CDDL section — the Phase-1 CDDL register, moved from Excel */}
