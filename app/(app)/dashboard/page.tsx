@@ -157,6 +157,13 @@ export default async function DashboardPage() {
     await getDashboardStats()
   const navPerms = await getNavPerms()
   const myReviewsCount = navPerms.reviews ? await getMyReviewsCount(navPerms.email) : 0
+  // Redlines this person accepted that still wait on their As-Built — the card
+  // must survive however long drafting takes (a day or a month).
+  const db = createServiceClient()
+  const { count: myAsbuilts } = await db.from('redline_submission')
+    .select('*', { count: 'exact', head: true })
+    .eq('review_state', 'awaiting_asbuilt')
+    .eq('asbuilt_engineer_email', navPerms.email)
 
   return (
     <div className="space-y-6">
@@ -164,6 +171,18 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="text-slate-500 text-sm mt-1">PPE Tech Document Control Overview</p>
       </div>
+
+      {(myAsbuilts ?? 0) > 0 && (
+        <Link href="/redlines/awaiting"
+          className="block rounded-xl border border-amber-300 bg-amber-50 px-5 py-3.5 hover:border-amber-400 hover:shadow-sm transition-all">
+          <p className="text-sm font-bold text-amber-900">
+            📐 Awaiting your As-Built ({myAsbuilts})
+          </p>
+          <p className="text-xs text-amber-800 mt-0.5">
+            Redlines you accepted are waiting for the corrected drawing — upload it here whenever the drawing office returns it.
+          </p>
+        </Link>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

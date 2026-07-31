@@ -63,8 +63,8 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
         {/* Document Requests — the origination step, kept right under Dashboard */}
         {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon={ICON('documents')} />}
 
-        {/* Upload Redline — driveway C front door; every internal person may submit */}
-        {role !== 'vendor' && <NavLink href="/redlines/new" label="Upload Redline" icon={ICON('documents')} />}
+        {/* Site Redlines — driveway C: register + upload + awaiting-As-Built list */}
+        {role !== 'vendor' && <NavLink href="/redlines" label="Site Redlines" icon={ICON('documents')} />}
 
         {/* Permission-gated nav */}
         {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}

@@ -256,6 +256,60 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       updated_at:   completedAt,
     }).eq('id', batchId)
 
+    // ── Redline close-out (ruled 2026-07-30) ─────────────────────────────────
+    // Redline batch concluded: Accept → the concluding engineer owns the
+    // As-Built and the redline waits (awaiting_asbuilt) however long drafting
+    // takes; Reject → the site submitter is told to re-mark and resubmit.
+    if (batch?.source === 'redline') {
+      const rejected = ['Q1', 'C1'].includes(worstCode)
+      const { data: rsub } = await db.from('redline_submission')
+        .select('id, created_by_email, submitter_name').eq('batch_id', batchId).maybeSingle()
+      if (rsub) {
+        await db.from('redline_submission').update(rejected
+          ? { review_state: 'rejected', rejected_at: completedAt }
+          : { review_state: 'awaiting_asbuilt', asbuilt_engineer_email: profile?.email ?? task.reviewer_email, accepted_at: completedAt })
+          .eq('id', rsub.id)
+        try {
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
+          if (rejected) {
+            await sendEmail({
+              to: rsub.created_by_email,
+              subject: `[Redline rejected] Please re-mark and resubmit`,
+              htmlBody: `<p>Your site redline was <b>rejected</b> by ${profile?.email ?? 'the reviewing engineer'}.</p>` +
+                        `<p>Reviewer comment: <i>${comment ?? '—'}</i></p>` +
+                        `<p><a href="${appUrl}/redlines/new">Re-mark the drawing and submit a new redline →</a></p>`,
+            })
+          } else {
+            const eng = profile?.email ?? task.reviewer_email
+            await sendEmail({
+              to: eng,
+              subject: `[Redline accepted] Upload the As-Built when drafting returns it`,
+              htmlBody: `<p>You accepted the site redline — it is now <b>awaiting the As-Built</b> under your name.</p>` +
+                        `<p>Whenever the drawing office returns the corrected drawing (a day or a month from now), upload it here:</p>` +
+                        `<p><a href="${appUrl}/redlines/awaiting">Awaiting your As-Built →</a></p>` +
+                        `<p style="color:#6b7280;font-size:13px">This link also sits on your CoreDocs dashboard, and you'll get a weekly reminder while it's open.</p>`,
+            })
+          }
+        } catch (e) { console.warn('redline close-out email failed', e) }
+      }
+    }
+
+    // As-Built batch concluded → the original redline closes.
+    if (batch?.source === 'asbuilt') {
+      const { data: rsub } = await db.from('redline_submission')
+        .select('id, created_by_email').eq('asbuilt_batch_id', batchId).maybeSingle()
+      if (rsub) {
+        await db.from('redline_submission').update({ review_state: 'closed', closed_at: completedAt }).eq('id', rsub.id)
+        try {
+          await sendEmail({
+            to: rsub.created_by_email,
+            subject: `[Redline closed] The As-Built has been reviewed and issued`,
+            htmlBody: `<p>The redline you submitted has been fully closed out — the corrected As-Built drawing passed review.</p>`,
+          })
+        } catch (e) { console.warn('redline closed email failed', e) }
+      }
+    }
+
     // Notify controller — fall back to the configured Document Controller email
     // (system_settings 'doc_request_controller_email', default mornec@ppetech.co.za)
     // when the batch has none, so she's always told a batch is ready for transmittal.

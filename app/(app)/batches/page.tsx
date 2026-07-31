@@ -254,18 +254,21 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             // metadata (from the linked Document Request line) instead of "Unknown …".
             const isInternal = batch.source === 'internal'
             const isRedline  = batch.source === 'redline'
+            const isAsbuilt  = batch.source === 'asbuilt'
             const dv = (batch.document_versions ?? [])[0]
             // The internal filename is "<RDMC-number>_<rev>.pdf" — strip the extension
             // and the trailing "_<rev>" to recover the document number.
             const docNo = dv?.file_name
               ? dv.file_name.replace(/\.[^.]+$/, '').replace(/_[A-Za-z0-9]{1,4}$/, '')
               : null
-            const primaryTitle = isRedline
-              ? (docNo ?? 'Site redline')
+            const primaryTitle = (isRedline || isAsbuilt)
+              ? (docNo ?? (isAsbuilt ? 'As-Built' : 'Site redline'))
               : isInternal
               ? (docNo ?? 'Internal document')
               : (batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package')
-            const originLabel = isRedline
+            const originLabel = isAsbuilt
+              ? `As-Built — uploaded by ${batch.vendor_email ?? 'engineering'}`
+              : isRedline
               ? `Site redline — submitted by ${batch.vendor_email ?? 'site'}`
               : isInternal ? 'PPE Internal Engineering' : (batch.vendors?.name ?? 'Unknown Vendor')
             const internalTitle = isInternal ? (dv?.doc_name ?? null) : null
@@ -287,6 +290,11 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     {isRedline && (
                       <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
                         ✏ SITE REDLINE
+                      </span>
+                    )}
+                    {isAsbuilt && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                        📐 AS-BUILT
                       </span>
                     )}
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${BATCH_STATUS_COLORS[batch.status as BatchStatus] ?? 'bg-slate-100 text-slate-600'}`}>

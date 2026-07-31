@@ -26,6 +26,15 @@ const INTERNAL_OUTCOME_CODES = [
   { code: 'Q1', label: 'Quality is below Standard — Revise and Resubmit',   color: 'border-red-700     bg-red-100  text-red-900'     },
 ]
 
+// Site-redline outcomes (ruled 2026-07-30): the reviewing engineer simply
+// accepts (owns the As-Built from here) or rejects (back to site to re-mark).
+const REDLINE_OUTCOME_CODES = [
+  { code: 'A1', label: 'Accept — changes are valid; I take it for drafting and will upload the As-Built',
+    color: 'border-emerald-500 bg-green-50 text-emerald-800' },
+  { code: 'Q1', label: 'Reject — back to site to re-mark and resubmit (comment required)',
+    color: 'border-red-700 bg-red-100 text-red-900' },
+]
+
 const OUTCOME_COLORS: Record<string, string> = {
   A1:'bg-green-100 text-emerald-700', D1:'bg-blue-100 text-teal-700',
   B1:'bg-amber-100 text-amber-700', B2:'bg-amber-100 text-amber-700',
@@ -89,6 +98,10 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
 
   async function handleSubmit() {
     if (!outcome) { setError('Please select an outcome code'); return }
+    // Rejecting a redline sends the submitter back to re-mark — they need to know why.
+    if (ctx?.task?.document_versions?.batches?.source === 'redline' && outcome === 'Q1' && !comment.trim()) {
+      setError('Please add a comment explaining why the redline is rejected — the site submitter is told to re-mark.'); return
+    }
     setError(''); setSubmitting(true)
     const res = await fetch(`/api/reviews/${id}/submit`, {
       method: 'POST',
@@ -158,9 +171,11 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   // hide "Open & Markup" — such files can only be opened in SharePoint.
   const isPdf = /\.pdf$/i.test((dv as any).file_name || (dv as any).central_file_url || '')
   const batch = dv.batches ?? {}
-  // Internal-review outcomes are a reduced set (A1/B1/Q1); client/vendor reviews keep the full list.
-  const isInternal = batch.source === 'internal'
-  const outcomeOptions = isInternal ? INTERNAL_OUTCOME_CODES : OUTCOME_CODES
+  // Internal/As-Built reviews use the reduced A1/B1/Q1 set; redlines are a plain
+  // Accept/Reject pair; client/vendor reviews keep the full list.
+  const isInternal = batch.source === 'internal' || batch.source === 'asbuilt'
+  const isRedline  = batch.source === 'redline'
+  const outcomeOptions = isRedline ? REDLINE_OUTCOME_CODES : isInternal ? INTERNAL_OUTCOME_CODES : OUTCOME_CODES
   const isCompleted = task.status === 'completed' || submitted
   // Turn-order: an open step BEFORE mine (e.g. a re-review I sent back) blocks my
   // submission — otherwise the last reviewer can consume their "final look" slot
@@ -537,8 +552,14 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
         <>
           <div className="card p-5">
             <h2 className="font-semibold text-slate-900 mb-3">
-              Select Review Outcome <span className="text-red-500">*</span>
+              {isRedline ? 'Your decision on this redline' : 'Select Review Outcome'} <span className="text-red-500">*</span>
             </h2>
+            {isRedline && (
+              <p className="text-xs text-slate-500 -mt-2 mb-3">
+                Accepting makes you responsible for the As-Built — the redline waits under your name
+                (however long drafting takes) and you upload the corrected drawing from your dashboard when it returns.
+              </p>
+            )}
             <div className="space-y-2">
               {outcomeOptions.map(oc => (
                 <label key={oc.code}
