@@ -314,6 +314,43 @@ export async function uploadBytesToLibrary(
  *  uploads (driveway C front door). No new site/library needed. */
 export const REDLINE_FOLDER = process.env.REDLINE_FOLDER || 'Site Redlines'
 
+// ── Rev 0 intake helpers (2026-07-31): browse/write any site's library ───────
+const encPath = (p: string) => p.split('/').filter(Boolean).map(encodeURIComponent).join('/')
+
+/** List a folder inside a named library on any SharePoint site. */
+export async function listLibraryFolder(
+  siteUrl: string, libraryName: string, relPath: string
+): Promise<{ name: string; isFolder: boolean; size: number; webUrl: string }[]> {
+  const siteId  = await getSiteId(siteUrl)
+  const driveId = await getLibraryDriveId(siteId, libraryName)
+  const base = relPath ? `/sites/${siteId}/drives/${driveId}/root:/${encPath(relPath)}:/children`
+                       : `/sites/${siteId}/drives/${driveId}/root/children`
+  const res = await graphFetch(`${base}?$select=name,size,folder,file,webUrl&$top=500`)
+  if (!res.ok) throw new Error(`List "${libraryName}/${relPath}" failed (${res.status}): ${await res.text()}`)
+  const data = await res.json()
+  return (data.value ?? []).map((i: any) => ({
+    name: i.name, isFolder: !!i.folder, size: i.size ?? 0, webUrl: i.webUrl,
+  }))
+}
+
+/** Chunked upload session for a path in a named library on any site —
+ *  conflictBehavior 'replace' overwrites in place (the stamped Rev 0 replaces
+ *  the vendor's unstamped copy). */
+export async function createSessionForSitePath(
+  siteUrl: string, libraryName: string, relPath: string
+): Promise<{ uploadUrl: string }> {
+  const siteId  = await getSiteId(siteUrl)
+  const driveId = await getLibraryDriveId(siteId, libraryName)
+  const res = await graphFetch(
+    `/sites/${siteId}/drives/${driveId}/root:/${encPath(relPath)}:/createUploadSession`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }) }
+  )
+  if (!res.ok) throw new Error(`createUploadSession "${libraryName}/${relPath}" failed (${res.status}): ${await res.text()}`)
+  const data = await res.json()
+  return { uploadUrl: data.uploadUrl }
+}
+
 /** Create a Graph upload session for a nested path in the DocumentControl
  *  library — the browser PUTs the chunks straight to the returned uploadUrl,
  *  dodging Vercel's request-body cap for big scans. Per-segment encoding so
