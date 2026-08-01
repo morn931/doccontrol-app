@@ -134,7 +134,9 @@ export function ReviewBoard({ rows, validOwners }: { rows: ReviewRow[]; validOwn
         // Owner: only offer names actually staffed on K124A/K124B in CoreTime as
         // selectable filter values (raw doc_owner text — e.g. combined names,
         // other-project people — stays visible in the table, just not filterable-by).
-        .filter(v => !(menuCol === 'doc_owner' && ownerRoster) || v === BLANKS || ownerRoster!.has(v))
+        // Strip a trailing "(IS)"-style initials suffix before matching against the
+        // roster — doc_owner stores "Ian Steynberg (IS)", CoreTime just "Ian Steynberg".
+        .filter(v => !(menuCol === 'doc_owner' && ownerRoster) || v === BLANKS || ownerRoster!.has(v.replace(/\s*\([^)]*\)\s*$/, '').trim()))
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     : []
 

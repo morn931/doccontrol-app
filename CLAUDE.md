@@ -340,6 +340,12 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Fix: Owner filter dropdown showed NO names at all (only Select all/Blanks).**
+  The roster cross-check (previous entry) compared `doc_owner` cell text against CoreTime full
+  names with an EXACT match — but `doc_owner` stores trailing initials ("Ian Steynberg (IS)")
+  while CoreTime's roster has the plain name ("Ian Steynberg"), so every single value failed the
+  match and the whole dropdown emptied out. Fixed by stripping a trailing `(XX)`-style suffix off
+  the cell text before checking it against the roster (`review-board.tsx` `menuValues`).
 - **2026-08-01 — Owner filter on Aconex Review Tracker cross-checked live against CoreTime's K124 roster.**
   The CDDL-sourced `doc_owner` field is free text from an external workbook — it can contain
   combined names ("Jaco Cornelius or Jorge Cordeiro (JC)") or people from unrelated projects
