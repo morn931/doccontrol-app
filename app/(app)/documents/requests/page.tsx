@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
+import { getGoLiveCutover } from '@/lib/golive'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,8 @@ const STATUS: Record<string, string> = {
 
 type Req = { id: string; request_no: string | null; requestor_email: string | null; package_code: string | null; response_required_by: string | null; status: string; created_at: string }
 
-export default async function RequestsPage() {
+export default async function RequestsPage({ searchParams }: { searchParams: Promise<{ history?: string }> }) {
+  const { history } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -25,9 +27,13 @@ export default async function RequestsPage() {
   const perms = await getPermissions(supabase)
   const canRequest = can(perms, FK.ACTION_REQUEST_DOC_NUMBER, role)
 
-  const { data: reqs } = await supabase.from('document_number_request')
+  // Go-live cutover: pre-cutover requests were tests / old-tool work.
+  const cutover = history === '1' ? null : await getGoLiveCutover(createServiceClient())
+  let reqQuery = supabase.from('document_number_request')
     .select('id, request_no, requestor_email, package_code, response_required_by, status, created_at')
     .order('created_at', { ascending: false })
+  if (cutover) reqQuery = reqQuery.gte('created_at', cutover)
+  const { data: reqs } = await reqQuery
   const { data: lines } = await supabase.from('document_number_request_line').select('request_id, line_status')
   const counts = new Map<string, { total: number; assigned: number }>()
   for (const l of (lines ?? []) as { request_id: string; line_status: string }[]) {
@@ -44,6 +50,18 @@ export default async function RequestsPage() {
         </div>
         {canRequest && <Link href="/documents/request" className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800">+ New request</Link>}
       </div>
+
+      {cutover ? (
+        <p className="text-xs text-slate-500">
+          Showing requests since go-live — earlier entries were tests.{' '}
+          <Link href="/documents/requests?history=1" className="text-teal-700 hover:underline font-medium">Show older</Link>
+        </p>
+      ) : history === '1' ? (
+        <p className="text-xs text-slate-500">
+          Showing all requests including pre-go-live tests.{' '}
+          <Link href="/documents/requests" className="text-teal-700 hover:underline font-medium">Back to new only</Link>
+        </p>
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <table className="min-w-full text-sm">

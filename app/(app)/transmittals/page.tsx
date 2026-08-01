@@ -1,23 +1,40 @@
 import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getGoLiveCutover } from '@/lib/golive'
 import { Send, ExternalLink, Eye } from 'lucide-react'
 import { format } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
 import type { ReviewOutcomeCode } from '@/lib/types/database'
 
-export default async function TransmittalsPage() {
+export default async function TransmittalsPage({ searchParams }: { searchParams: Promise<{ history?: string }> }) {
+  const { history } = await searchParams
   const db = createServiceClient()
-  const { data: transmittals } = await db
+  // Go-live cutover: pre-cutover transmittals were tests / old-tool work.
+  const cutover = history === '1' ? null : await getGoLiveCutover(db)
+  let query = db
     .from('transmittals')
     .select('*, vendors(name), packages(package_name), batches(batch_guid)')
     .order('generated_at', { ascending: false })
     .limit(100)
+  if (cutover) query = query.gte('generated_at', cutover)
+  const { data: transmittals } = await query
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Transmittal Register</h1>
         <p className="text-slate-500 text-sm mt-1">All generated transmittal packs</p>
+        {cutover ? (
+          <p className="text-xs text-slate-400 mt-1">
+            Showing transmittals since go-live — earlier entries were tests.{' '}
+            <Link href="/transmittals?history=1" className="text-teal-700 hover:underline font-medium">Show older</Link>
+          </p>
+        ) : history === '1' ? (
+          <p className="text-xs text-slate-400 mt-1">
+            Showing all including pre-go-live tests.{' '}
+            <Link href="/transmittals" className="text-teal-700 hover:underline font-medium">Back to new only</Link>
+          </p>
+        ) : null}
       </div>
 
       <div className="card divide-y divide-slate-50">
