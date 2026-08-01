@@ -9,18 +9,19 @@ export interface PermRow {
   label:      string
   note?:      string
   featureKey: string | null  // null = hardcoded, not toggleable
-  adm: Access; dc: Access; rev: Access; em: Access; pm: Access; ven: Access; dev: Access
+  adm: Access; dc: Access; rev: Access; em: Access; mgr: Access; pm: Access; ven: Access; dev: Access
 }
 
 export interface Section { title: string; rows: PermRow[] }
 
-type ColKey = 'adm' | 'dc' | 'rev' | 'em' | 'pm' | 'ven' | 'dev'
+type ColKey = 'adm' | 'dc' | 'rev' | 'em' | 'mgr' | 'pm' | 'ven' | 'dev'
 
 const COLS: { key: ColKey; dbRole: string; label: string }[] = [
   { key: 'adm', dbRole: 'admin',               label: 'Admin' },
   { key: 'dc',  dbRole: 'document_controller',  label: 'Doc Controller' },
   { key: 'rev', dbRole: 'reviewer',             label: 'Reviewer' },
   { key: 'em',  dbRole: 'engineering_manager',  label: 'Eng Manager' },
+  { key: 'mgr', dbRole: 'manager',              label: 'Manager' },
   { key: 'pm',  dbRole: 'project_manager',      label: 'Project Manager' },
   { key: 'ven', dbRole: 'vendor',               label: 'Vendor' },
   { key: 'dev', dbRole: 'developer',            label: 'Developer' },

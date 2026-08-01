@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Users, Plus, Edit3, Save, X, CheckCircle } from 'lucide-react'
 
-const ROLES = ['admin','document_controller','engineering_manager','reviewer','project_manager','vendor']
+const ROLES = ['admin','document_controller','engineering_manager','manager','reviewer','project_manager','vendor']
 
 export default function UsersPage() {
   const [users, setUsers]       = useState<any[]>([])
@@ -55,6 +55,7 @@ export default function UsersPage() {
     admin: 'bg-teal-100 text-teal-700',
     document_controller: 'bg-navy-100 text-navy-700',
     engineering_manager: 'bg-blue-100 text-teal-700',
+    manager: 'bg-indigo-100 text-indigo-700',
     reviewer: 'bg-slate-100 text-slate-600',
     project_manager: 'bg-teal-100 text-teal-700',
     vendor: 'bg-amber-100 text-amber-700',

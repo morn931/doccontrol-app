@@ -7,12 +7,12 @@ import type { Access, PermRow, Section } from './permissions-table'
 
 export const dynamic = 'force-dynamic'
 
-const ROLES = ['admin', 'document_controller', 'reviewer', 'engineering_manager', 'project_manager', 'vendor'] as const
+const ROLES = ['admin', 'document_controller', 'reviewer', 'engineering_manager', 'manager', 'project_manager', 'vendor'] as const
 type Role = typeof ROLES[number]
-type ColKey = 'adm' | 'dc' | 'rev' | 'em' | 'pm' | 'ven'
+type ColKey = 'adm' | 'dc' | 'rev' | 'em' | 'mgr' | 'pm' | 'ven'
 const ROLE_COL: Record<Role, ColKey> = {
   admin: 'adm', document_controller: 'dc', reviewer: 'rev',
-  engineering_manager: 'em', project_manager: 'pm', vendor: 'ven',
+  engineering_manager: 'em', manager: 'mgr', project_manager: 'pm', vendor: 'ven',
 }
 
 function makeRow(
@@ -36,6 +36,7 @@ function makeRow(
     dc:  cell('document_controller'),
     rev: cell('reviewer'),
     em:  cell('engineering_manager'),
+    mgr: cell('manager'),
     pm:  cell('project_manager'),
     ven: cell('vendor'),
     dev: 'locked-on',
@@ -58,15 +59,18 @@ export default async function PermissionsPage() {
     {
       title: 'Navigation',
       rows: [
-        r('Dashboard',        null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
+        r('Dashboard',        null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', mgr: 'on', pm: 'on', ven: 'on' }),
         r('Incoming Batches', FK.NAV_BATCHES),
         r('My Reviews',       FK.NAV_REVIEWS),
         r('Transmittals',     FK.NAV_TRANSMITTALS),
-        r('Document Search',  null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
+        r('Document Search',  null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', mgr: 'on', pm: 'on', ven: 'on' }),
         r('MDDR',             FK.NAV_MDDR),
         r('Reporting',        FK.NAV_REPORTING),
-        r('User Guide',       null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
-        r('Developer Tools',  null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', pm: 'off', ven: 'off' }),
+        r('User Guide',       null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', mgr: 'on', pm: 'on', ven: 'on' }),
+        r('Document Requests', FK.NAV_DOC_REQUESTS),
+        r('Aconex Issue',      FK.NAV_ACONEX_ISSUE),
+        r('Rev 0 Intake',      FK.NAV_REV0_INTAKE),
+        r('Developer Tools',  null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', mgr: 'off', pm: 'off', ven: 'off' }),
       ],
     },
     {
@@ -102,7 +106,7 @@ export default async function PermissionsPage() {
     {
       title: 'Document Search',
       rows: [
-        r('Search & view documents', null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', pm: 'on', ven: 'on' }),
+        r('Search & view documents', null, { adm: 'on', dc: 'on', rev: 'on', em: 'on', mgr: 'on', pm: 'on', ven: 'on' }),
       ],
     },
     {
@@ -120,9 +124,32 @@ export default async function PermissionsPage() {
       ],
     },
     {
+      title: 'Document Requests',
+      rows: [
+        r('View document requests',               FK.NAV_DOC_REQUESTS),
+        r('Request a document number',             FK.ACTION_REQUEST_DOC_NUMBER),
+        r('Assign / allocate a document number',   FK.ACTION_ASSIGN_DOC_NUMBER),
+        r('Submit internal engineering drawing',   FK.ACTION_SUBMIT_INTERNAL_DRAWING),
+      ],
+    },
+    {
+      title: 'Aconex Issue',
+      rows: [
+        r('View Aconex Issue',         FK.NAV_ACONEX_ISSUE),
+        r('Issue documents to Aconex', FK.ACTION_ISSUE_TO_ACONEX),
+      ],
+    },
+    {
+      title: 'Rev 0 Intake',
+      rows: [
+        r('View Rev 0 Intake',   FK.NAV_REV0_INTAKE),
+        r('Stamp / apply Rev 0', FK.ACTION_REV0_STAMP),
+      ],
+    },
+    {
       title: 'Developer Tools',
       rows: [
-        r('Role Permissions matrix', null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', pm: 'off', ven: 'off' }),
+        r('Role Permissions matrix', null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', mgr: 'off', pm: 'off', ven: 'off' }),
       ],
     },
   ]

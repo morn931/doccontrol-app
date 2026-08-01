@@ -340,6 +340,18 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — New "Manager" role + full FK coverage in Role Permissions matrix.**
+  Added a `manager` role (sits between Engineering Manager and Project Manager everywhere —
+  `users_role_check`, `/developer/permissions` matrix column, Admin → Manage Users role dropdown,
+  `lib/types/database.ts` `UserRole`). Seeded blank (`allowed=false`) for every existing
+  `role_permissions` feature key (migration `029_manager_role.sql`) — no behaviour change until
+  Liezl grants specific access from the matrix. Also back-filled `role_permissions` rows for
+  feature keys that existed in `lib/permissions.ts` `FK` but were never seeded or shown on the
+  matrix page: **Document Requests** (`nav.doc_requests`, request/assign document number, submit
+  internal drawing), **Aconex Issue** (nav + issue action), **Rev 0 Intake** (nav + stamp action).
+  These previously defaulted to blocked-for-everyone-but-developer since `can()` returns `false`
+  for any role/feature pair with no row; now they're visible and toggleable per role from
+  `/developer/permissions` like every other feature.
 - **2026-07-12 — Dashboard layout rework + PPE logo in header.** Sidebar + content now span full
   browser width (removed the shared `max-w-400` cap and its `mx-auto` centering on the `(app)`
   layout) so the sidebar sits flush left instead of floating centered on wide screens. Dashboard
