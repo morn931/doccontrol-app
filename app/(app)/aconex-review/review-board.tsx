@@ -60,9 +60,32 @@ function cellText(row: ReviewRow, key: string): string {
   }
 }
 
-export function ReviewBoard({ rows, validOwners }: { rows: ReviewRow[]; validOwners?: string[] | null }) {
+export interface OwnerRosters { phase1: string[]; allStaff: string[] }
+
+// Should a raw Owner value be offered as a selectable filter option?
+// - Combined entries ("A or B", "A, B") and bare initials ("AP", "BR/SD") are
+//   never resolvable to one person, so they're always excluded.
+// - A clean single name: shown if it's on the K124 (X146/X153) roster, hidden
+//   if CoreTime knows them as staff on a DIFFERENT project (provably not
+//   K124), and shown if CoreTime has no record of them at all — that's the
+//   RDMC/unknown case, which we can't disprove, so it stays selectable rather
+//   than getting silently hidden (agreed with Liezl 2026-08-01).
+function isSelectableOwner(raw: string, rosters: { phase1: Set<string>; allStaff: Set<string> } | null): boolean {
+  const cleaned = raw.replace(/\s*\([^)]*\)\s*$/, '').trim()
+  if (/\bor\b|[,/]/i.test(cleaned)) return false   // combined names
+  if (!/\s/.test(cleaned)) return false            // no space ⇒ initials/code, not a full name
+  if (!rosters) return true                        // CoreTime unreachable — don't filter
+  if (rosters.phase1.has(cleaned)) return true      // confirmed K124A/K124B staff
+  if (rosters.allStaff.has(cleaned)) return false   // known PPE staff — but on a different project
+  return true                                       // unknown to CoreTime — can't disprove, allow
+}
+
+export function ReviewBoard({ rows, ownerRosters }: { rows: ReviewRow[]; ownerRosters?: OwnerRosters | null }) {
   // null/undefined = couldn't reach CoreTime — don't filter, never hide everyone.
-  const ownerRoster = useMemo(() => (validOwners ? new Set(validOwners) : null), [validOwners])
+  const ownerRoster = useMemo(
+    () => (ownerRosters ? { phase1: new Set(ownerRosters.phase1), allStaff: new Set(ownerRosters.allStaff) } : null),
+    [ownerRosters],
+  )
   const [filter, setFilter] = useState<'ALL' | CourtKey | 'REV0PLUS'>('ALL')
   const [q, setQ] = useState('')
   const [excludeCancelled, setExcludeCancelled] = useState(true)
@@ -131,12 +154,11 @@ export function ReviewBoard({ rows, validOwners }: { rows: ReviewRow[]; validOwn
   }, [base, filter, q])
   const menuValues = menuCol
     ? [...new Set(quickFiltered.filter(r => rowPasses(r, menuCol)).map(r => { const t = cellText(r, menuCol); return t === '' ? BLANKS : t }))]
-        // Owner: only offer names actually staffed on K124A/K124B in CoreTime as
-        // selectable filter values (raw doc_owner text — e.g. combined names,
-        // other-project people — stays visible in the table, just not filterable-by).
-        // Strip a trailing "(IS)"-style initials suffix before matching against the
-        // roster — doc_owner stores "Ian Steynberg (IS)", CoreTime just "Ian Steynberg".
-        .filter(v => !(menuCol === 'doc_owner' && ownerRoster) || v === BLANKS || ownerRoster!.has(v.replace(/\s*\([^)]*\)\s*$/, '').trim()))
+        // Owner: combined names / bare initials never offered; a clean single
+        // name is offered unless CoreTime proves them staffed elsewhere (see
+        // isSelectableOwner). Raw doc_owner text still shows as-is in the
+        // table regardless — this only shapes the filter's selectable options.
+        .filter(v => menuCol !== 'doc_owner' || v === BLANKS || isSelectableOwner(v, ownerRoster))
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     : []
 

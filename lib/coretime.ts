@@ -18,13 +18,24 @@ function createCoreTimeClient() {
 // board (e.g. Jaco Cornelius is PRDW/X147 staff, not K124).
 const PHASE1_PROJECT_CODES = ['X146', 'X153']
 
+export interface OwnerRosters {
+  /** Actively staffed on X146/X153 (K124A/K124B) — a genuinely valid K124 owner. */
+  phase1: Set<string>
+  /**
+   * Everyone active anywhere in the company (any project). Used to distinguish
+   * "known PPE staff, just not on K124" (exclude — e.g. Jaco Cornelius on
+   * PRDW/X147) from "not a PPE staff member at all" (can't disprove — e.g. an
+   * RDMC reviewer — so don't exclude on roster grounds alone).
+   */
+  allStaff: Set<string>
+}
+
 /**
- * Full names of everyone actively staffed on the Phase 1 projects (X146 +
- * X153) in CoreTime. Returns null (not an empty set) if CoreTime isn't
- * reachable — callers must treat null as "don't filter" so a CoreTime hiccup
- * never hides legitimate owners from the CoreDocs UI.
+ * Cross-check data for the K124 Owner filter. Returns null (not empty sets)
+ * if CoreTime isn't reachable — callers must treat null as "don't filter" so
+ * a CoreTime hiccup never hides legitimate owners from the CoreDocs UI.
  */
-export async function getPhase1OwnerRoster(): Promise<Set<string> | null> {
+export async function getOwnerRosters(): Promise<OwnerRosters | null> {
   const db = createCoreTimeClient()
   if (!db) return null
   try {
@@ -36,20 +47,22 @@ export async function getPhase1OwnerRoster(): Promise<Set<string> | null> {
     const { data: links, error: lErr } = await db
       .from('member_projects').select('member_id').in('project_id', projectIds)
     if (lErr) return null
-
-    const memberIds = [...new Set((links ?? []).map((l) => l.member_id as string))]
-    if (!memberIds.length) return null
+    const phase1MemberIds = new Set((links ?? []).map((l) => l.member_id as string))
 
     const { data: members, error: mErr } = await db
-      .from('company_members').select('full_name, is_active').in('id', memberIds)
-    if (mErr) return null
+      .from('company_members').select('id, full_name, is_active')
+    if (mErr || !members) return null
 
-    return new Set(
-      (members ?? [])
-        .filter((m) => m.is_active)
-        .map((m) => (m.full_name as string).trim())
-        .filter(Boolean),
-    )
+    const activeMembers = members.filter((m) => m.is_active)
+    return {
+      phase1: new Set(
+        activeMembers.filter((m) => phase1MemberIds.has(m.id as string))
+          .map((m) => (m.full_name as string).trim()).filter(Boolean),
+      ),
+      allStaff: new Set(
+        activeMembers.map((m) => (m.full_name as string).trim()).filter(Boolean),
+      ),
+    }
   } catch {
     return null
   }

@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { Link2, AlertTriangle } from 'lucide-react'
 import { ReviewBoard, type ReviewRow } from './review-board'
 import { AconexSearch } from './aconex-search'
-import { getPhase1OwnerRoster } from '@/lib/coretime'
+import { getOwnerRosters } from '@/lib/coretime'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,10 +53,9 @@ export default async function AconexReviewPage() {
     sync = s as SyncMeta
   }
 
-  // Restricts the Owner filter's selectable values to people actually staffed
-  // on the Phase 1 projects in CoreTime (X146/X153) — null (CoreTime
+  // Cross-check data for the Owner filter's selectable values — null (CoreTime
   // unreachable / env not configured) means "don't filter", never "show none".
-  const phase1Roster = await getPhase1OwnerRoster()
+  const ownerRosters = await getOwnerRosters()
 
   return (
     <div className="space-y-6">
@@ -110,7 +109,10 @@ export default async function AconexReviewPage() {
           No documents synced yet. Run the Aconex sync to populate the review board.
         </div>
       ) : (
-        <ReviewBoard rows={rows} validOwners={phase1Roster ? [...phase1Roster] : null} />
+        <ReviewBoard
+          rows={rows}
+          ownerRosters={ownerRosters ? { phase1: [...ownerRosters.phase1], allStaff: [...ownerRosters.allStaff] } : null}
+        />
       )}
 
       <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">

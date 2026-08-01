@@ -340,6 +340,18 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Owner filter refined: don't hide names CoreTime simply doesn't know about.**
+  The strict "must be on the K124 roster" rule (previous two entries) had a gap: `doc_owner` can
+  legitimately be someone CoreTime has no record of at all (e.g. an RDMC reviewer — CoreTime only
+  tracks PPE staff), and those would've been wrongly hidden from the filter dropdown. Rebuilt as a
+  3-tier check (`lib/coretime.ts` `getOwnerRosters()` now returns both `phase1` AND `allStaff`
+  rosters; `review-board.tsx` `isSelectableOwner()`): **show** if on the K124A/K124B (X146/X153)
+  roster: **hide** if CoreTime knows them as staff on a DIFFERENT project (provably not K124 — the
+  original Jaco Cornelius/PRDW case); **show** if CoreTime has no record of them at all (can't
+  disprove — covers RDMC and similar). Combined names ("A or B") and bare initials ("AP", "BR/SD")
+  are always hidden regardless, since neither resolves to one person. Verified against all 42 real
+  `doc_owner` values in production: every clean single name shows, every combined/initials-only
+  value hides.
 - **2026-08-01 — Fix: Owner filter dropdown showed NO names at all (only Select all/Blanks).**
   The roster cross-check (previous entry) compared `doc_owner` cell text against CoreTime full
   names with an EXACT match — but `doc_owner` stores trailing initials ("Ian Steynberg (IS)")
