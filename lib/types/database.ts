@@ -12,6 +12,9 @@ export type ReviewTaskStatus =
 
 export type ReviewOutcomeCode = 'A1' | 'B1' | 'B2' | 'C1' | 'D1' | 'Q1' | 'V1' | 'S1'
 
+// Canonical role list now lives in the `role_definitions` table (migration
+// 031) — users.role is FK-constrained against it. This union is a compile-time
+// mirror; keep it in sync when a role is added/removed there.
 export type UserRole =
   | 'admin' | 'document_controller' | 'reviewer'
   | 'engineering_manager' | 'manager' | 'project_manager' | 'vendor'

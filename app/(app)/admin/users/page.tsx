@@ -2,10 +2,9 @@
 import { useState, useEffect } from 'react'
 import { Users, Plus, Edit3, Save, X, CheckCircle } from 'lucide-react'
 
-const ROLES = ['admin','document_controller','engineering_manager','manager','reviewer','project_manager','vendor']
-
 export default function UsersPage() {
   const [users, setUsers]       = useState<any[]>([])
+  const [roles, setRoles]       = useState<{ role: string; label: string }[]>([])
   const [loading, setLoading]   = useState(true)
   const [showAdd, setShowAdd]   = useState(false)
   const [editId, setEditId]     = useState<string | null>(null)
@@ -14,13 +13,18 @@ export default function UsersPage() {
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
 
-  useEffect(() => { loadUsers() }, [])
+  useEffect(() => { loadUsers(); loadRoles() }, [])
 
   async function loadUsers() {
     setLoading(true)
     const res = await fetch('/api/admin/users')
     if (res.ok) setUsers(await res.json())
     setLoading(false)
+  }
+
+  async function loadRoles() {
+    const res = await fetch('/api/admin/roles')
+    if (res.ok) setRoles(await res.json())
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -91,7 +95,7 @@ export default function UsersPage() {
             <div>
               <label className="label">Role</label>
               <select value={form.role} onChange={e => setForm({...form, role: e.target.value})} className="input">
-                {ROLES.map(r => <option key={r} value={r}>{r.replace(/_/g,' ')}</option>)}
+                {roles.map(r => <option key={r.role} value={r.role}>{r.label}</option>)}
               </select>
             </div>
             <div>
@@ -130,7 +134,7 @@ export default function UsersPage() {
                     <input value={editForm.full_name ?? ''} onChange={e => setEditForm({...editForm, full_name: e.target.value})}
                       className="input text-sm" placeholder="Full name" />
                     <select value={editForm.role ?? 'reviewer'} onChange={e => setEditForm({...editForm, role: e.target.value})} className="input text-sm">
-                      {ROLES.map(r => <option key={r} value={r}>{r.replace(/_/g,' ')}</option>)}
+                      {roles.map(r => <option key={r.role} value={r.role}>{r.label}</option>)}
                     </select>
                     <input value={editForm.discipline ?? ''} onChange={e => setEditForm({...editForm, discipline: e.target.value})}
                       className="input text-sm" placeholder="Discipline" />

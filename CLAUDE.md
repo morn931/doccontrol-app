@@ -340,6 +340,21 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Canonical `role_definitions` table (real cross-repo role sync).**
+  `users.role` was a CHECK constraint duplicated by hand in `lib/types/database.ts`,
+  `app/(app)/developer/permissions/page.tsx`, `app/(app)/admin/users/page.tsx`, AND — the actual
+  problem — **coreflow-shell's separate repo** (`DOCS_ROLES`/`DOCS_MODULE_ROLES` in its
+  `admin/actions.ts` + `admin-tool.tsx`), which writes into this app's `users.role` by email but
+  had no way to know the current role list short of a human keeping two repos in sync by hand.
+  Migration `031_role_definitions.sql` adds a `role_definitions` table (role, label, sort_order)
+  seeded with all 8 current roles, and swaps `users_role_check` for a real FK
+  (`users.role → role_definitions.role`) — adding a role from now on is one INSERT, enforced at
+  the DB level, not a constraint rewrite. New `GET /api/admin/roles` (developer-gated) serves it
+  to this app's own `/admin/users` page (replaced its hardcoded `ROLES` array). **coreflow-shell
+  now queries `role_definitions` directly via its existing `createDocsAdminClient()` service-role
+  client** instead of hardcoding a copy — see coreflow-shell's own CLAUDE.md for that half. The
+  Role Permissions matrix (`/developer/permissions`) still hardcodes its `ROLES` tuple (needed at
+  compile time for the fixed table columns) — add a role in both places, noted inline.
 - **2026-08-01 — CDDL Register wired to the permissions system (view + edit split).**
   The standalone `/cddl` page (Excel↔Coreflow-managed mode switch, field edits, add/retire doc)
   previously hardcoded its edit gate as `EDIT_ROLES = ['admin','document_controller','developer']`

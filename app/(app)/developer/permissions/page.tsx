@@ -7,6 +7,8 @@ import type { Access, PermRow, Section } from './permissions-table'
 
 export const dynamic = 'force-dynamic'
 
+// Mirrors role_definitions (migration 031) — the matrix's fixed columns need a
+// compile-time list; add a role there AND here (+ ROLE_COL/ColKey below).
 const ROLES = ['admin', 'document_controller', 'reviewer', 'engineering_manager', 'manager', 'project_manager', 'vendor'] as const
 type Role = typeof ROLES[number]
 type ColKey = 'adm' | 'dc' | 'rev' | 'em' | 'mgr' | 'pm' | 'ven'
