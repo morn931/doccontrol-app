@@ -340,6 +340,18 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — CDDL Register wired to the permissions system (view + edit split).**
+  The standalone `/cddl` page (Excel↔Coreflow-managed mode switch, field edits, add/retire doc)
+  previously hardcoded its edit gate as `EDIT_ROLES = ['admin','document_controller','developer']`
+  in `app/(app)/cddl/actions.ts`, and its sidebar visibility piggybacked on `nav.reporting`. Both
+  are now real toggleable permissions: `FK.NAV_CDDL` (view — seeded to match `nav.reporting`'s
+  existing role set) and `FK.ACTION_EDIT_CDDL` (edit — seeded to admin + document_controller only,
+  developer always bypasses), migration `030_cddl_permissions.sql`. New "CDDL Register" section
+  on `/developer/permissions`. `lib/permissions.ts` FK map, `app/(app)/layout.tsx` navPerms,
+  `components/layout/sidebar.tsx` NavPerms type + CDDL section gate, `app/(app)/cddl/page.tsx` +
+  `actions.ts` all updated. MDDR/SDDR upload+sync gating was left untouched — already matches the
+  desired admin+document_controller (+developer) state via the existing `action.upload_register` /
+  `action.mddr_sync` keys.
 - **2026-08-01 — New "Manager" role + full FK coverage in Role Permissions matrix.**
   Added a `manager` role (sits between Engineering Manager and Project Manager everywhere —
   `users_role_check`, `/developer/permissions` matrix column, Admin → Manage Users role dropdown,

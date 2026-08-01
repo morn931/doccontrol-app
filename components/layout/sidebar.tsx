@@ -13,6 +13,7 @@ export interface NavPerms {
   docRequests:  boolean
   aconexIssue:  boolean
   rev0:         boolean
+  cddl:         boolean
 }
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms; inDrawer?: boolean }
@@ -97,7 +98,7 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
         )}
 
         {/* CDDL section — the Phase-1 CDDL register, moved from Excel */}
-        {(dev || navPerms.reporting) && (
+        {(dev || navPerms.cddl) && (
           <>
             <div className="px-3 pt-4 pb-1">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">CDDL</p>

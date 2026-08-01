@@ -8,8 +8,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-
-const EDIT_ROLES = new Set(['admin', 'document_controller', 'developer'])
+import { getPermissions, can, FK } from '@/lib/permissions'
 
 // The fields Document Control manages by hand (the Aconex-owned columns —
 // doc/review status, revision, % ladder — are refreshed by the daily sync).
@@ -25,7 +24,9 @@ async function ctx() {
   if (!user) return null
   const { data: profile } = await supabase
     .from('users').select('id, role, email').eq('auth_user_id', user.id).single()
-  return { role: (profile?.role ?? 'reviewer') as string, email: profile?.email ?? user.email ?? '' }
+  const role = (profile?.role ?? 'reviewer') as string
+  const perms = await getPermissions(supabase)
+  return { role, email: profile?.email ?? user.email ?? '', canEdit: can(perms, FK.ACTION_EDIT_CDDL, role) }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,7 +43,7 @@ type Result = { ok: true } | { ok: false; error: string }
 
 export async function updateCddlDoc(docno: string, changes: Record<string, string | null>): Promise<Result> {
   const c = await ctx()
-  if (!c || !EDIT_ROLES.has(c.role)) return { ok: false, error: 'Only Document Control can edit the CDDL.' }
+  if (!c || !c.canEdit) return { ok: false, error: 'Only Document Control can edit the CDDL.' }
   const svc = createServiceClient()
   if ((await getMode(svc)) !== 'coreflow_master')
     return { ok: false, error: 'The Excel workbook is still master — switch the register to Coreflow-managed first.' }
@@ -69,7 +70,7 @@ export async function updateCddlDoc(docno: string, changes: Record<string, strin
 
 export async function addCddlDoc(row: Record<string, string | null>): Promise<Result> {
   const c = await ctx()
-  if (!c || !EDIT_ROLES.has(c.role)) return { ok: false, error: 'Only Document Control can edit the CDDL.' }
+  if (!c || !c.canEdit) return { ok: false, error: 'Only Document Control can edit the CDDL.' }
   const svc = createServiceClient()
   if ((await getMode(svc)) !== 'coreflow_master')
     return { ok: false, error: 'The Excel workbook is still master — switch the register to Coreflow-managed first.' }
@@ -90,7 +91,7 @@ export async function addCddlDoc(row: Record<string, string | null>): Promise<Re
 
 export async function retireCddlDoc(docno: string, retired: boolean): Promise<Result> {
   const c = await ctx()
-  if (!c || !EDIT_ROLES.has(c.role)) return { ok: false, error: 'Only Document Control can edit the CDDL.' }
+  if (!c || !c.canEdit) return { ok: false, error: 'Only Document Control can edit the CDDL.' }
   const svc = createServiceClient()
   if ((await getMode(svc)) !== 'coreflow_master')
     return { ok: false, error: 'The Excel workbook is still master — switch the register to Coreflow-managed first.' }
@@ -104,7 +105,7 @@ export async function retireCddlDoc(docno: string, retired: boolean): Promise<Re
 // The cut-over switch (both directions, admin/doc-control only, audit-logged).
 export async function setCddlMode(mode: 'excel_master' | 'coreflow_master'): Promise<Result> {
   const c = await ctx()
-  if (!c || !EDIT_ROLES.has(c.role)) return { ok: false, error: 'Only Document Control can switch the CDDL mode.' }
+  if (!c || !c.canEdit) return { ok: false, error: 'Only Document Control can switch the CDDL mode.' }
   const svc = createServiceClient()
   const prev = await getMode(svc)
   const { error } = await svc.from('cddl_settings')

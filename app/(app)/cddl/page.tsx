@@ -4,6 +4,7 @@ import { CddlRegister, type CddlRow } from './cddl-register'
 import { getCddlMode } from './actions'
 import { createClient } from '@/lib/supabase/server'
 import { estimateHours } from '@/lib/cddl/hour-estimator'
+import { getPermissions, can, FK } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,8 @@ export default async function CddlPage() {
   let canEdit = false
   if (user) {
     const { data: profile } = await auth.from('users').select('role').eq('auth_user_id', user.id).single()
-    canEdit = ['admin', 'document_controller', 'developer'].includes((profile?.role ?? '') as string)
+    const perms = await getPermissions(auth)
+    canEdit = can(perms, FK.ACTION_EDIT_CDDL, (profile?.role ?? 'reviewer') as string)
   }
   const mode = await getCddlMode().catch(() => 'excel_master')
 

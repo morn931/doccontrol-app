@@ -21,6 +21,8 @@ export const FK = {
   ACTION_ISSUE_TO_ACONEX:   'action.issue_to_aconex',
   NAV_REV0_INTAKE:          'nav.rev0_intake',
   ACTION_REV0_STAMP:        'action.rev0_stamp',
+  NAV_CDDL:                 'nav.cddl',
+  ACTION_EDIT_CDDL:         'action.edit_cddl',
 } as const
 
 export type PermMap = Map<string, boolean>

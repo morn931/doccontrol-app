@@ -147,6 +147,13 @@ export default async function PermissionsPage() {
       ],
     },
     {
+      title: 'CDDL Register',
+      rows: [
+        r('View CDDL Register',                          FK.NAV_CDDL),
+        r('Edit CDDL fields / add / retire / switch to Coreflow-managed', FK.ACTION_EDIT_CDDL),
+      ],
+    },
+    {
       title: 'Developer Tools',
       rows: [
         r('Role Permissions matrix', null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', mgr: 'off', pm: 'off', ven: 'off' }),
