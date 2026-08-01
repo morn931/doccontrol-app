@@ -340,6 +340,15 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Excel-style column filters on the Aconex Review Tracker; extracted as a shared component.**
+  Extracted the MDDR page's `ColumnMenu` (click a header → sort A→Z/Z→A, type-ahead search, tick
+  distinct values, funnel icon marking active columns) into `components/table/column-menu.tsx`
+  (`ColumnMenu`, `BLANKS`, `ColFilter`, `SortDir`, `sortRows`) — `mddr/page.tsx` now imports it
+  instead of defining it inline, so the two pages can't drift apart. Applied it to the Aconex
+  Review Tracker (`aconex-review/review-board.tsx`) on the 5 categorical columns — Disc., Rev,
+  Review status, Whose court, Owner — leaving Document No/Title on the existing search box and
+  Days as a plain number. Column-filter distinct values respect the search box + court/rev0 card
+  filter + other columns' filters, matching MDDR's pattern.
 - **2026-08-01 — Fix: Progress S-Curve's Actual line stopped a full month short of "today".**
   `app/api/reporting/dashboard/route.ts` built the S-curve one calendar month at a time and only
   computed an `actual` value once a month's END date had passed (`me <= today`) — so the

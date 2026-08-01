@@ -1,5 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
+import { Filter } from 'lucide-react'
+import { ColumnMenu, BLANKS, sortRows, type ColFilter, type SortDir } from '@/components/table/column-menu'
 
 export type ReviewRow = {
   doc_id: string
@@ -36,11 +38,38 @@ const isRev0Plus = (r: ReviewRow) => /^\d+$/.test((r.revision ?? '').trim())
 
 const PKG_LABELS: Record<string, string> = { K124: 'Phase 1 (K124)', K038: 'Early Works (K038)' }
 
+// Columns with a small, repeating set of values — good candidates for the
+// Excel-style tick-list filter. Document No/Title stay covered by the search
+// box above; Days stays a plain sortable number.
+const FILTERABLE_COLS: { key: string; label: string }[] = [
+  { key: 'discipline',    label: 'Disc.' },
+  { key: 'revision',      label: 'Rev' },
+  { key: 'review_status', label: 'Review status' },
+  { key: 'court',         label: 'Whose court' },
+  { key: 'doc_owner',     label: 'Owner' },
+]
+
+function cellText(row: ReviewRow, key: string): string {
+  switch (key) {
+    case 'discipline':    return (row.discipline ?? '').split(' ')[0]
+    case 'revision':      return row.revision ?? ''
+    case 'review_status': return row.review_status ?? ''
+    case 'court':         return row.court_label ?? COURT[(row.court as CourtKey)]?.label ?? row.court
+    case 'doc_owner':     return row.doc_owner ?? ''
+    default:               return ''
+  }
+}
+
 export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
   const [filter, setFilter] = useState<'ALL' | CourtKey | 'REV0PLUS'>('ALL')
   const [q, setQ] = useState('')
   const [excludeCancelled, setExcludeCancelled] = useState(true)
   const [pkgSel, setPkgSel] = useState('K124')
+  const [colFilters, setColFilters] = useState<Record<string, ColFilter>>({})
+  const [menuCol, setMenuCol] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null)
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const pkgs = useMemo(() => Array.from(new Set(rows.map(r => r.package_code))).sort(), [rows])
   const pkg = pkgs.includes(pkgSel) ? pkgSel : (pkgs[0] ?? 'K124')
@@ -63,7 +92,32 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
 
   const overdue = useMemo(() => base.filter(r => r.overdue).length, [base])
 
-  const shown = useMemo(() => {
+  // ── Column filters (Excel-style header menus) ──────────────
+  const activeFilterCols = Object.keys(colFilters).filter(k => {
+    const f = colFilters[k]
+    return f && ((f.search && f.search.length) || Array.isArray(f.selected))   // [] is an active filter (show none)
+  })
+  function rowPasses(row: ReviewRow, exceptKey?: string) {
+    for (const key of activeFilterCols) {
+      if (key === exceptKey) continue
+      const f = colFilters[key]
+      const t = cellText(row, key)
+      if (f.search && !t.toLowerCase().includes(f.search.toLowerCase())) return false
+      if (f.selected && !f.selected.includes(t === '' ? BLANKS : t)) return false  // [] ⇒ excludes everything
+    }
+    return true
+  }
+  function setColFilter(key: string, f: ColFilter) {
+    setColFilters(prev => {
+      const next = { ...prev }
+      if ((!f.search || !f.search.length) && f.selected === undefined) delete next[key]
+      else next[key] = f
+      return next
+    })
+  }
+  // Distinct values for the open column — respects the search box, court/rev0
+  // card filter, and OTHER columns' filters, but not this column's own.
+  const quickFiltered = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return base.filter(r => {
       if (filter === 'REV0PLUS' && !isRev0Plus(r)) return false
@@ -73,6 +127,15 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
       return true
     })
   }, [base, filter, q])
+  const menuValues = menuCol
+    ? [...new Set(quickFiltered.filter(r => rowPasses(r, menuCol)).map(r => { const t = cellText(r, menuCol); return t === '' ? BLANKS : t }))]
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    : []
+
+  const shown = useMemo(() => {
+    const filtered = quickFiltered.filter(r => rowPasses(r))
+    return sortCol ? sortRows(filtered, sortCol, sortDir) : filtered
+  }, [quickFiltered, colFilters, sortCol, sortDir])
 
   const cards: Array<{ key: 'ALL' | CourtKey | 'REV0PLUS'; label: string; n: number; accent: string }> = [
     { key: 'ALL',             label: 'All documents',            n: counts.ALL ?? 0,             accent: 'text-navy-700' },
@@ -144,6 +207,12 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
           />
           Exclude cancelled documents ({cancelledCount})
         </label>
+        {activeFilterCols.length > 0 && (
+          <button onClick={() => setColFilters({})}
+            className="text-xs font-semibold text-navy-700 border border-navy-200 bg-navy-50 rounded-full px-3 py-1 hover:bg-navy-100 inline-flex items-center gap-1">
+            <Filter className="h-3 w-3" /> {activeFilterCols.length} column filter{activeFilterCols.length === 1 ? '' : 's'} · Clear
+          </button>
+        )}
         <span className="text-xs text-slate-400 ml-auto">{shown.length} shown</span>
       </div>
 
@@ -153,11 +222,21 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
             <tr className="bg-navy-700 text-white text-left">
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Document No</th>
               <th className="px-3 py-2 font-semibold border-r border-navy-600">Title</th>
-              <th className="px-3 py-2 font-semibold border-r border-navy-600">Disc.</th>
-              <th className="px-3 py-2 font-semibold border-r border-navy-600">Rev</th>
-              <th className="px-3 py-2 font-semibold border-r border-navy-600">Review status</th>
-              <th className="px-3 py-2 font-semibold border-r border-navy-600">Whose court</th>
-              <th className="px-3 py-2 font-semibold border-r border-navy-600">Owner</th>
+              {FILTERABLE_COLS.map(col => {
+                const hasFilter = !!colFilters[col.key]
+                return (
+                  <th key={col.key}
+                    onClick={e => { setMenuCol(col.key); setMenuAnchor((e.currentTarget as HTMLElement).getBoundingClientRect()) }}
+                    className="px-3 py-2 font-semibold border-r border-navy-600 cursor-pointer hover:bg-navy-800 select-none whitespace-nowrap"
+                  >
+                    <span className="flex items-center gap-1 w-full">
+                      {col.label}
+                      {sortCol === col.key && (sortDir === 'asc' ? '▲' : '▼')}
+                      <Filter className={`h-3 w-3 ml-auto shrink-0 ${hasFilter ? 'text-brand fill-white/30' : 'text-white/40'}`} />
+                    </span>
+                  </th>
+                )
+              })}
               <th className="px-3 py-2 font-semibold text-right">Days</th>
             </tr>
           </thead>
@@ -198,6 +277,20 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
           </tbody>
         </table>
       </div>
+
+      {menuCol && menuAnchor && (
+        <ColumnMenu
+          label={FILTERABLE_COLS.find(c => c.key === menuCol)?.label ?? menuCol}
+          anchor={menuAnchor}
+          values={menuValues}
+          filter={colFilters[menuCol] ?? {}}
+          sortDir={sortCol === menuCol ? sortDir : null}
+          onSort={d => { setSortCol(menuCol); setSortDir(d) }}
+          onApply={f => setColFilter(menuCol, f)}
+          onClear={() => setColFilter(menuCol, {})}
+          onClose={() => { setMenuCol(null); setMenuAnchor(null) }}
+        />
+      )}
     </div>
   )
 }
