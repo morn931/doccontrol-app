@@ -1,11 +1,12 @@
 import { createServiceClient } from '@/lib/supabase/server'
+import { getGoLiveCutover } from '@/lib/golive'
 import { Inbox } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow, format } from 'date-fns'
 import { BATCH_STATUS_LABELS, BATCH_STATUS_COLORS } from '@/lib/utils/batch-status'
 import type { BatchStatus } from '@/lib/types/database'
 
-interface SearchParams { status?: string; q?: string }
+interface SearchParams { status?: string; q?: string; history?: string }
 
 // ─── Reviewer chain helpers ────────────────────────────────────────────────
 
@@ -117,6 +118,9 @@ function getBatchContextLine(batch: any): string | null {
 async function getBatches(params: SearchParams) {
   const db = createServiceClient()
   const q = (params.q ?? '').trim().toLowerCase()
+  // Go-live cutover: pre-cutover batches are worked in the old system during
+  // the parallel run — hidden here unless ?history=1 (nothing is deleted).
+  const cutover = params.history === '1' ? null : await getGoLiveCutover(db)
   let query = db
     .from('batches')
     .select(`id, batch_guid, status, source, file_count, received_at, rejected_at,
@@ -126,6 +130,7 @@ async function getBatches(params: SearchParams) {
              review_tasks(reviewer_email, sequence_number, status, due_date)`)
     .order('received_at', { ascending: false })
     .limit(q ? 500 : 100)
+  if (cutover) query = query.gte('received_at', cutover)
 
   if (params.status && params.status !== 'all') {
     const statusMap: Record<string, BatchStatus[]> = {
@@ -169,6 +174,8 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
   const params = await searchParams
   const activeTab = params.status ?? 'all'
   const { batches, error } = await getBatches(params)
+  const cutoverDate = await getGoLiveCutover(createServiceClient())
+  const showingHistory = params.history === '1'
   const now = new Date()
   const OPEN_TASK = ['pending', 'sent', 'opened', 'in_progress', 'overdue']
 
@@ -196,6 +203,19 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
           <p className="text-slate-500 text-sm mt-1">Document batches received from vendors</p>
         </div>
       </div>
+
+      {/* Go-live cutover note: pre-cutover work lives in the old system during the parallel run */}
+      {cutoverDate && (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          {showingHistory ? (
+            <>Showing <b>all batches including pre-go-live history</b> (worked in the old system).
+              <Link href="/batches" className="text-teal-700 hover:underline font-medium">Back to new work only</Link></>
+          ) : (
+            <>Showing work received since <b>{format(new Date(cutoverDate), 'd MMM yyyy')}</b> (CoreDocs go-live) — older items are completed in the old system.
+              <Link href="/batches?history=1" className="text-teal-700 hover:underline font-medium">Show older</Link></>
+          )}
+        </div>
+      )}
 
       {/* Status filter tabs */}
       <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit flex-wrap">

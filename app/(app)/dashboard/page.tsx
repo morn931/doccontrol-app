@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
+import { getGoLiveCutover } from '@/lib/golive'
 import { redirect } from 'next/navigation'
 import { Inbox, Clock, CheckCircle, Send, AlertTriangle, XCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -40,17 +41,25 @@ async function getNavPerms() {
 async function getMyReviewsCount(email: string): Promise<number> {
   if (!email) return 0
   const db = createServiceClient()
-  const { count } = await db
+  const cutover = await getGoLiveCutover(db)
+  let q = db
     .from('review_tasks')
-    .select('id', { count: 'exact', head: true })
+    .select('id, batches!inner(received_at)', { count: 'exact', head: true })
     .eq('reviewer_email', email)
     .in('status', ACTIONABLE_REVIEW_STATUSES)
+  if (cutover) q = q.gte('batches.received_at', cutover)
+  const { count } = await q
   return count ?? 0
 }
 
 async function getDashboardStats() {
   const db = createServiceClient()
 
+  // Go-live cutover: the operational tiles count only post-cutover work — the
+  // old system owns pre-cutover items during the parallel run.
+  const cutover = await getGoLiveCutover(db)
+  const scoped = (q: any) => (cutover ? q.gte('received_at', cutover) : q)
+  const scopedTask = (q: any) => (cutover ? q.gte('batches.received_at', cutover) : q)
   const [
     { count: awaitingAction },
     { count: inReview },
@@ -60,23 +69,23 @@ async function getDashboardStats() {
     { data: recentBatches },
     { count: overdueReviews },
   ] = await Promise.all([
-    db.from('batches').select('*', { count: 'exact', head: true })
-      .in('status', ['intake_received','metadata_pending','ready_for_reviewer_assignment']),
-    db.from('batches').select('*', { count: 'exact', head: true })
-      .in('status', ['review_in_progress','review_ready_to_start']),
-    db.from('batches').select('*', { count: 'exact', head: true })
-      .in('status', ['review_complete','transmittal_generated']),
-    db.from('batches').select('*', { count: 'exact', head: true })
-      .eq('status', 'returned_to_vendor'),
-    db.from('batches').select('*', { count: 'exact', head: true })
-      .eq('status', 'rejected_before_review'),
-    db.from('batches')
+    scoped(db.from('batches').select('*', { count: 'exact', head: true })
+      .in('status', ['intake_received','metadata_pending','ready_for_reviewer_assignment'])),
+    scoped(db.from('batches').select('*', { count: 'exact', head: true })
+      .in('status', ['review_in_progress','review_ready_to_start'])),
+    scoped(db.from('batches').select('*', { count: 'exact', head: true })
+      .in('status', ['review_complete','transmittal_generated'])),
+    scoped(db.from('batches').select('*', { count: 'exact', head: true })
+      .eq('status', 'returned_to_vendor')),
+    scoped(db.from('batches').select('*', { count: 'exact', head: true })
+      .eq('status', 'rejected_before_review')),
+    scoped(db.from('batches')
       .select(`id, batch_guid, status, received_at, file_count, vendor_id,
-               vendors(name, code), packages(package_code, package_name)`)
+               vendors(name, code), packages(package_code, package_name)`))
       .order('received_at', { ascending: false })
       .limit(8),
-    db.from('review_tasks').select('*', { count: 'exact', head: true })
-      .eq('status', 'overdue'),
+    scopedTask(db.from('review_tasks').select('*, batches!inner(received_at)', { count: 'exact', head: true })
+      .eq('status', 'overdue')),
   ])
 
   return { awaitingAction, inReview, reviewComplete, returned, rejected, recentBatches, overdueReviews }

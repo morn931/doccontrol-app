@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
+import { getGoLiveCutover } from '@/lib/golive'
 import { ClipboardCheck, Clock, CheckCircle, AlertTriangle, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
@@ -20,6 +21,9 @@ export default async function ReviewsPage() {
     .single()
 
   const email = profile?.email ?? ''
+  // Go-live cutover: reviews on pre-cutover batches are completed in the old
+  // system during the parallel run (batches!inner join makes the filter bite).
+  const cutover = await getGoLiveCutover(db)
 
   const TASK_SELECT = `
       id, status, sequence_number, date_sent, date_completed, due_date,
@@ -28,7 +32,7 @@ export default async function ReviewsPage() {
         id, file_name, doc_name, revision, discipline,
         documents!document_versions_document_id_fkey(id, normalized_document_number)
       ),
-      batches(id, batch_guid, packages(package_code, package_name), vendors(name))
+      batches!inner(id, batch_guid, received_at, packages(package_code, package_name), vendors(name))
     `
 
   // My Reviews shows only work that is actually the reviewer's to action now.
@@ -42,21 +46,22 @@ export default async function ReviewsPage() {
   // Postgres sorts NULLs FIRST on DESC, which would fill the capped window with old
   // undated rows and push a heavy reviewer's freshly-activated/completed items out.
   const ACTIONABLE = ACTIONABLE_REVIEW_STATUSES
+  const withCutover = (q: any) => (cutover ? q.gte('batches.received_at', cutover) : q)
   const [{ data: activeTasks }, { data: completedTasks }, { count: queuedCount }] = await Promise.all([
-    db.from('review_tasks').select(TASK_SELECT)
+    withCutover(db.from('review_tasks').select(TASK_SELECT)
       .eq('reviewer_email', email)
-      .in('status', ACTIONABLE)
+      .in('status', ACTIONABLE))
       .order('date_sent', { ascending: false, nullsFirst: false })
       .limit(500),
-    db.from('review_tasks').select(TASK_SELECT)
+    withCutover(db.from('review_tasks').select(TASK_SELECT)
       .eq('reviewer_email', email)
-      .eq('status', 'completed')
+      .eq('status', 'completed'))
       .order('date_completed', { ascending: false, nullsFirst: false })
       .limit(300),
-    db.from('review_tasks')
-      .select('*', { count: 'exact', head: true })
+    withCutover(db.from('review_tasks')
+      .select('*, batches!inner(received_at)', { count: 'exact', head: true })
       .eq('reviewer_email', email)
-      .eq('status', 'pending'),
+      .eq('status', 'pending')),
   ])
   const tasks = [...(activeTasks ?? []), ...(completedTasks ?? [])]
 

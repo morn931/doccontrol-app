@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/services/graph'
+import { getGoLiveCutover } from '@/lib/golive'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,17 +22,26 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
   const today = new Date().toISOString().slice(0, 10)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
+  // Go-live cutover: never flip/chase pre-cutover work — the old system owns
+  // it during the parallel run (would otherwise nag people about old-tool items).
+  const cutover = await getGoLiveCutover(db)
+  const scoped = (q: any) => (cutover ? q.gte('batches.received_at', cutover) : q)
 
-  // 1) Flip newly-overdue tasks.
-  const { data: flipped } = await db.from('review_tasks')
-    .update({ status: 'overdue', updated_at: new Date().toISOString() })
-    .in('status', ARMED).lt('due_date', today)
-    .select('id')
+  // 1) Flip newly-overdue tasks (fetch ids with the batch join, then update).
+  const { data: toFlip } = await scoped(db.from('review_tasks')
+    .select('id, batches!inner(received_at)')
+    .in('status', ARMED).lt('due_date', today)).limit(500)
+  const flipped = toFlip ?? []
+  if (flipped.length) {
+    await db.from('review_tasks')
+      .update({ status: 'overdue', updated_at: new Date().toISOString() })
+      .in('id', flipped.map((t: any) => t.id))
+  }
 
   // 2) Everything currently overdue → chase each reviewer once.
-  const { data: overdue } = await db.from('review_tasks')
-    .select('id, reviewer_email, due_date, batch_id, document_versions(file_name)')
-    .eq('status', 'overdue')
+  const { data: overdue } = await scoped(db.from('review_tasks')
+    .select('id, reviewer_email, due_date, batch_id, document_versions(file_name), batches!inner(received_at)')
+    .eq('status', 'overdue'))
     .order('due_date', { ascending: true })
     .limit(500)
 
@@ -60,14 +70,16 @@ export async function GET(req: NextRequest) {
   }
 
   // 3) Controller digest.
-  const { data: nmr } = await db.from('review_tasks')
-    .select('reviewer_email, batch_id, updated_at, document_versions(file_name)')
-    .eq('status', 'needs_more_review').limit(100)
+  const { data: nmr } = await scoped(db.from('review_tasks')
+    .select('reviewer_email, batch_id, updated_at, document_versions(file_name), batches!inner(received_at)')
+    .eq('status', 'needs_more_review')).limit(100)
   const staleCutoff = new Date(Date.now() - 3 * 86400000).toISOString()
-  const { data: staleReturns } = await db.from('batches')
+  let staleQ = db.from('batches')
     .select('id, batch_guid, updated_at, packages(package_name)')
     .eq('source', 'vendor').eq('status', 'transmittal_generated')
-    .lt('updated_at', staleCutoff).limit(100)
+    .lt('updated_at', staleCutoff)
+  if (cutover) staleQ = staleQ.gte('received_at', cutover)
+  const { data: staleReturns } = await staleQ.limit(100)
 
   const hasAnything = (overdue?.length ?? 0) + (nmr?.length ?? 0) + (staleReturns?.length ?? 0) > 0
   if (hasAnything) {
@@ -94,7 +106,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    flippedOverdue: flipped?.length ?? 0, chasedReviewers: chased,
+    flippedOverdue: flipped.length, chasedReviewers: chased,
     overdueTasks: overdue?.length ?? 0, onHold: nmr?.length ?? 0, staleReturns: staleReturns?.length ?? 0,
   })
 }
