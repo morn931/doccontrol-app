@@ -333,6 +333,27 @@ export async function listLibraryFolder(
   }))
 }
 
+/** Resolve a library's DISPLAY name from a derived/URL-ish name. The bucket
+ *  names recovered from the old flows are URL path segments ("K108  Battery
+ *  Energy Storage System") while Graph matches display names ("K108 - Battery
+ *  Energy Storage System") — compare with punctuation/whitespace stripped. */
+export async function resolveLibraryName(siteUrl: string, wanted: string): Promise<string> {
+  const siteId = await getSiteId(siteUrl)
+  const res = await graphFetch(`/sites/${siteId}/drives?$select=name`)
+  if (!res.ok) throw new Error(`Failed to list libraries (${res.status}): ${await res.text()}`)
+  const names: string[] = ((await res.json()).value ?? []).map((d: any) => d.name).filter(Boolean)
+  if (names.includes(wanted)) return wanted
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const w = norm(wanted)
+  const exact = names.find(n => norm(n) === w)
+  if (exact) return exact
+  // URL segments can carry a recreation suffix ("…Overhead Lines 2" vs the
+  // display "…Overhead Lines") — accept a containment match only if UNIQUE.
+  const contains = names.filter(n => { const x = norm(n); return x.startsWith(w) || w.startsWith(x) })
+  if (contains.length === 1) return contains[0]
+  throw new Error(`Library "${wanted}" not found. Available: ${names.join(', ')}`)
+}
+
 /** Chunked upload session for a path in a named library on any site —
  *  conflictBehavior 'replace' overwrites in place (the stamped Rev 0 replaces
  *  the vendor's unstamped copy). */

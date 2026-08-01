@@ -1,7 +1,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
-import { createSessionForSitePath } from '@/lib/services/graph'
+import { createSessionForSitePath, resolveLibraryName } from '@/lib/services/graph'
 
 const LIBRARY = process.env.REV0_VENDOR_LIBRARY || 'Live Documents'
 const DEFAULT_FOLDER = process.env.REV0_VENDOR_FOLDER || 'Rev 0 and up Documents'
@@ -34,8 +34,11 @@ export async function POST(req: Request) {
 
   const vendorRel = `${DEFAULT_FOLDER}${subPath ? `/${String(subPath).replace(/\.\./g, '')}` : ''}/${fileName}`
   try {
+    // The derived bucket name is a URL path segment; Graph wants the display
+    // name — resolve fuzzily against the site's real libraries.
+    const realBucket = await resolveLibraryName(DOCCONTROL_SITE_URL, String(bucketLibrary).trim())
     const vendor = await createSessionForSitePath(site.site_url, LIBRARY, vendorRel)
-    const bucket = await createSessionForSitePath(DOCCONTROL_SITE_URL, String(bucketLibrary).trim(), `${BUCKET_SUBFOLDER}/${fileName}`)
+    const bucket = await createSessionForSitePath(DOCCONTROL_SITE_URL, realBucket, `${BUCKET_SUBFOLDER}/${fileName}`)
     return NextResponse.json({ vendorUploadUrl: vendor.uploadUrl, bucketUploadUrl: bucket.uploadUrl })
   } catch (e: any) {
     return NextResponse.json({ error: `Upload sessions failed: ${e?.message ?? e}` }, { status: 502 })
