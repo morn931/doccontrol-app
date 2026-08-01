@@ -340,6 +340,25 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Owner filter on Aconex Review Tracker cross-checked live against CoreTime's K124 roster.**
+  The CDDL-sourced `doc_owner` field is free text from an external workbook — it can contain
+  combined names ("Jaco Cornelius or Jorge Cordeiro (JC)") or people from unrelated projects
+  entirely. New `lib/coretime.ts` `getPhase1OwnerRoster()` reads CoreTime's shared Supabase
+  project LIVE (new read-only env vars `CORETIME_SUPABASE_URL` /
+  `CORETIME_SUPABASE_SERVICE_ROLE_KEY` — same cross-project pattern coreflow-shell uses to read
+  CoreDocs, just the reverse direction) and returns everyone actively staffed on **X146 (=K124A,
+  Phase 1 - EP) + X153 (=K124B, Phase 1 - CM)** — confirmed with Liezl 2026-08-01 that these two
+  CoreTime projects together ARE the K124 A/B package. The Owner column's Excel-style filter
+  dropdown (`aconex-review/review-board.tsx`) now only offers names in that roster as selectable
+  values — e.g. Jaco Cornelius (PRDW/X147 staff) no longer appears as a filter option on the K124
+  board. Deliberately filters the DROPDOWN OPTIONS only, not the underlying `doc_owner` data or
+  the table's displayed text — combined/garbage names still show as-is in the table, just aren't
+  filterable-by. Fails open: if CoreTime is unreachable or the env vars aren't set,
+  `getPhase1OwnerRoster()` returns `null` and the dropdown shows everything unfiltered (never
+  silently hides legitimate owners). **Added to local `.env.local` already; still needs adding to
+  Vercel production env** (`CORETIME_SUPABASE_URL`, `CORETIME_SUPABASE_SERVICE_ROLE_KEY` — same
+  values as coretime's own `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`) before this
+  works in prod.
 - **2026-08-01 — Excel-style column filters on the Aconex Review Tracker; extracted as a shared component.**
   Extracted the MDDR page's `ColumnMenu` (click a header → sort A→Z/Z→A, type-ahead search, tick
   distinct values, funnel icon marking active columns) into `components/table/column-menu.tsx`

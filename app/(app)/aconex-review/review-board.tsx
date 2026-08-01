@@ -60,7 +60,9 @@ function cellText(row: ReviewRow, key: string): string {
   }
 }
 
-export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
+export function ReviewBoard({ rows, validOwners }: { rows: ReviewRow[]; validOwners?: string[] | null }) {
+  // null/undefined = couldn't reach CoreTime — don't filter, never hide everyone.
+  const ownerRoster = useMemo(() => (validOwners ? new Set(validOwners) : null), [validOwners])
   const [filter, setFilter] = useState<'ALL' | CourtKey | 'REV0PLUS'>('ALL')
   const [q, setQ] = useState('')
   const [excludeCancelled, setExcludeCancelled] = useState(true)
@@ -129,6 +131,10 @@ export function ReviewBoard({ rows }: { rows: ReviewRow[] }) {
   }, [base, filter, q])
   const menuValues = menuCol
     ? [...new Set(quickFiltered.filter(r => rowPasses(r, menuCol)).map(r => { const t = cellText(r, menuCol); return t === '' ? BLANKS : t }))]
+        // Owner: only offer names actually staffed on K124A/K124B in CoreTime as
+        // selectable filter values (raw doc_owner text — e.g. combined names,
+        // other-project people — stays visible in the table, just not filterable-by).
+        .filter(v => !(menuCol === 'doc_owner' && ownerRoster) || v === BLANKS || ownerRoster!.has(v))
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     : []
 
