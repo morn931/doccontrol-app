@@ -340,6 +340,16 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Fix: Progress S-Curve's Actual line stopped a full month short of "today".**
+  `app/api/reporting/dashboard/route.ts` built the S-curve one calendar month at a time and only
+  computed an `actual` value once a month's END date had passed (`me <= today`) — so the
+  in-progress current month (started but not yet over) always got `actual: null`, even though the
+  KPI tile above the chart (`actualNow`, computed straight off `today`) showed a real number. Net
+  effect: the Actual area/line visually stopped a whole month before the "Today" marker, looking
+  like the chart hadn't updated even though the underlying MDDR sync (daily cron) was current.
+  Fixed by cutting the in-progress month off at `today` instead of its month-end (`monthStart <=
+  today` gates whether to compute at all; `cutoff = min(me, today)` for the earned-date compare) —
+  future, not-yet-started months are unaffected and still correctly render `null`.
 - **2026-08-01 — Reporting page tiles match the Dashboard's Quick Access style.**
   Reporting (`/reporting`) previously used its own left-aligned card style (small icon, long
   description, "Open report" arrow link). Extracted the Dashboard's tile component into

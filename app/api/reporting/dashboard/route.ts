@@ -89,9 +89,15 @@ export async function GET(req: NextRequest) {
   for (let y = start.getUTCFullYear(), m = start.getUTCMonth(); ; m++) {
     if (m > 11) { m = 0; y++ }
     const me = monthEnd(y, m)
+    const monthStart = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10)
     const planned = scope.filter(d => d.planned && d.planned <= me).length / total * 100
-    const actual = me <= today
-      ? scope.reduce((s, d) => s + (d.earned && d.earned <= me ? d.prog / 100 : 0), 0) / total * 100
+    // For the in-progress month (started but not yet ended), cut actual off at
+    // `today` rather than the month-end — otherwise the current month reports
+    // null (month hasn't ended) and the actual line/area stops a full month
+    // short of "today" even though there IS real progress to show up to now.
+    const cutoff = me <= today ? me : today
+    const actual = monthStart <= today
+      ? scope.reduce((s, d) => s + (d.earned && d.earned <= cutoff ? d.prog / 100 : 0), 0) / total * 100
       : null
     scurve.push({ month: me.slice(0, 7), planned: +planned.toFixed(1), actual: actual == null ? null : +actual.toFixed(1) })
     if (me >= endStr) break
