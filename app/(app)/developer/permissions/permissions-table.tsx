@@ -106,10 +106,10 @@ export function PermissionsTable({ sections: initial }: { sections: Section[] })
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden text-sm">
       <table className="w-full border-collapse">
         <thead>
-          <tr className="bg-slate-50 border-b border-slate-200">
-            <th className="px-4 py-3 text-left font-semibold text-slate-700 text-xs">Feature / Action</th>
+          <tr className="bg-slate-50">
+            <th className="sticky top-16 z-10 bg-slate-50 border-b border-slate-200 px-4 py-3 text-left font-semibold text-slate-700 text-xs">Feature / Action</th>
             {COLS.map(c => (
-              <th key={c.key} className="px-2 py-3 text-center font-semibold text-slate-700 text-xs w-24">{c.label}</th>
+              <th key={c.key} className="sticky top-16 z-10 bg-slate-50 border-b border-slate-200 px-2 py-3 text-center font-semibold text-slate-700 text-xs w-24">{c.label}</th>
             ))}
           </tr>
         </thead>

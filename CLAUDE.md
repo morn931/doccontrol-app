@@ -340,6 +340,10 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Sticky header on the Role Permissions matrix.** `/developer/permissions`'s table
+  header row (`permissions-table.tsx`) now stays visible while scrolling down the (now much longer)
+  matrix — `sticky top-16 z-10` on each `<th>`, offset by `top-16` (4rem) to sit just below the
+  app shell's own `sticky top-0 z-50` header instead of underneath it.
 - **2026-08-01 — Canonical `role_definitions` table (real cross-repo role sync).**
   `users.role` was a CHECK constraint duplicated by hand in `lib/types/database.ts`,
   `app/(app)/developer/permissions/page.tsx`, `app/(app)/admin/users/page.tsx`, AND — the actual
