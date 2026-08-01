@@ -1,11 +1,14 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { readFile } from 'fs/promises'
+import path from 'path'
 
 // Signature for the Rev 0 stamp (ruled 2026-08-01): the stamp must never go
 // out unsigned. The operator's own saved Coreflow signature is used when they
-// have one; otherwise the DEFAULT SIGNATORY's signature applies (system
-// setting 'rev0_default_signatory_email', default Morné). Scoped to Rev 0
-// only — review sign-offs keep using strictly the reviewer's own signature.
+// have one; otherwise the FROZEN default applies — the bundled asset
+// public/rev0-default-signature.png (Morné's authorised signature), which only
+// changes when that file is deliberately replaced. Scoped to Rev 0 only —
+// review sign-offs keep using strictly the reviewer's own signature.
 const SHELL_URL = process.env.COREFLOW_SHELL_URL || 'https://coreflow.build'
 
 async function fetchSig(email: string, secret: string): Promise<string | null> {
@@ -24,15 +27,13 @@ export async function GET() {
   if (!user?.email) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
   const secret = process.env.SIGNATURE_LOOKUP_SECRET
-  if (!secret) return NextResponse.json({ signature: null, source: 'none' })
-
-  const own = await fetchSig(user.email, secret)
+  const own = secret ? await fetchSig(user.email, secret) : null
   if (own) return NextResponse.json({ signature: own, source: 'own' })
 
-  const db = createServiceClient()
-  const { data: setting } = await db.from('system_settings')
-    .select('value').eq('key', 'rev0_default_signatory_email').maybeSingle()
-  const fallbackEmail = ((setting as any)?.value as string | undefined)?.trim() || 'mornec@ppetech.co.za'
-  const fallback = await fetchSig(fallbackEmail, secret)
-  return NextResponse.json({ signature: fallback, source: fallback ? 'default' : 'none', signatory: fallbackEmail })
+  try {
+    const bytes = await readFile(path.join(process.cwd(), 'public', 'rev0-default-signature.png'))
+    return NextResponse.json({ signature: `data:image/png;base64,${bytes.toString('base64')}`, source: 'frozen-default' })
+  } catch {
+    return NextResponse.json({ signature: null, source: 'none' })
+  }
 }
