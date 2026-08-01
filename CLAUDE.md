@@ -340,6 +340,16 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-01 — Reporting page tiles match the Dashboard's Quick Access style.**
+  Reporting (`/reporting`) previously used its own left-aligned card style (small icon, long
+  description, "Open report" arrow link). Extracted the Dashboard's tile component into
+  `components/quick-access-card.tsx` (`QuickAccessCard` — 128px branded icon, centered `w-56`
+  rounded-xl card, bold label + one-line blurb; supports an optional count badge, used by
+  Dashboard's My Reviews tile) so both pages render identical tiles instead of two styles
+  drifting apart. `dashboard/page.tsx` now imports it instead of defining it inline. Reporting's
+  5 report cards got shortened one-line blurbs (was 2–3 sentence descriptions) to fit the compact
+  format, and switched from 48px to 128px icons (same icon set, just the larger size that was
+  already exported).
 - **2026-08-01 — Sticky header on the Role Permissions matrix.** `/developer/permissions`'s table
   header row (`permissions-table.tsx`) now stays visible while scrolling down the (now much longer)
   matrix — `sticky top-16 z-10` on each `<th>`, offset by `top-16` (4rem) to sit just below the
