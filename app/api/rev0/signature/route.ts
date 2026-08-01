@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
-import path from 'path'
+import { REV0_DEFAULT_SIGNATURE } from '@/lib/rev0-default-signature'
 
 // Signature for the Rev 0 stamp (ruled 2026-08-01): the stamp must never go
 // out unsigned. The operator's own saved Coreflow signature is used when they
@@ -30,10 +29,5 @@ export async function GET() {
   const own = secret ? await fetchSig(user.email, secret) : null
   if (own) return NextResponse.json({ signature: own, source: 'own' })
 
-  try {
-    const bytes = await readFile(path.join(process.cwd(), 'public', 'rev0-default-signature.png'))
-    return NextResponse.json({ signature: `data:image/png;base64,${bytes.toString('base64')}`, source: 'frozen-default' })
-  } catch {
-    return NextResponse.json({ signature: null, source: 'none' })
-  }
+  return NextResponse.json({ signature: REV0_DEFAULT_SIGNATURE, source: 'frozen-default' })
 }
