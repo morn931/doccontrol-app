@@ -118,7 +118,9 @@ export default function Rev0IntakePage() {
       const [fabricMod, res, sigRes] = await Promise.all([
         import('fabric'),
         fetch(`/api/rev0/file?url=${encodeURIComponent(target.webUrl)}`),
-        fetch('/api/signature/mine').then(r => r.ok ? r.json() : null).catch(() => null),
+        // own signature if saved, else the company default signatory's — the
+        // stamp never goes out unsigned
+        fetch('/api/rev0/signature').then(r => r.ok ? r.json() : null).catch(() => null),
       ])
       if (!res.ok) throw new Error('Could not load the document from the vendor site')
       fabricRef.current = fabricMod
@@ -339,7 +341,10 @@ export default function Rev0IntakePage() {
             <div><label className="label">Date</label>
               <input value={dateStr} onChange={e => setDateStr(e.target.value)} className="input" /></div>
           </div>
-          <p className="text-xs text-slate-400">Your name isn't printed — the stamp carries your saved Coreflow signature (set it up at coreflow.build → ✍ Signature).</p>
+          <p className="text-xs text-slate-400">
+            The stamp carries your saved Coreflow signature if you have one (coreflow.build → ✍ Signature);
+            otherwise the company default signatory's signature is applied automatically.
+          </p>
           <div className="flex gap-2">
             <button onClick={openPlacement} disabled={!!busy || !num.trim()} className="btn-primary text-sm disabled:opacity-50">
               <Stamp className="h-4 w-4" /> {busy || 'Open & place stamp'}
