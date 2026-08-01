@@ -35,10 +35,12 @@ export async function POST(req: Request) {
   const vendorRel = `${DEFAULT_FOLDER}${subPath ? `/${String(subPath).replace(/\.\./g, '')}` : ''}/${fileName}`
   try {
     // The derived bucket name is a URL path segment; Graph wants the display
-    // name — resolve fuzzily against the site's real libraries.
+    // name — resolve fuzzily against the site's real libraries. Bucket session
+    // FIRST: it's the likelier one to fail, and failing before the vendor
+    // session exists avoids orphaning a lock on the vendor's file.
     const realBucket = await resolveLibraryName(DOCCONTROL_SITE_URL, String(bucketLibrary).trim())
-    const vendor = await createSessionForSitePath(site.site_url, LIBRARY, vendorRel)
     const bucket = await createSessionForSitePath(DOCCONTROL_SITE_URL, realBucket, `${BUCKET_SUBFOLDER}/${fileName}`)
+    const vendor = await createSessionForSitePath(site.site_url, LIBRARY, vendorRel)
     return NextResponse.json({ vendorUploadUrl: vendor.uploadUrl, bucketUploadUrl: bucket.uploadUrl })
   } catch (e: any) {
     return NextResponse.json({ error: `Upload sessions failed: ${e?.message ?? e}` }, { status: 502 })

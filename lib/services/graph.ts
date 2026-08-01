@@ -367,7 +367,17 @@ export async function createSessionForSitePath(
     { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }) }
   )
-  if (!res.ok) throw new Error(`createUploadSession "${libraryName}/${relPath}" failed (${res.status}): ${await res.text()}`)
+  if (!res.ok) {
+    const text = await res.text()
+    // A failed earlier attempt can leave a pending upload session that locks
+    // the filename; SharePoint expires it by itself within ~15 minutes.
+    if (res.status === 409 && /being uploaded/i.test(text)) {
+      throw new Error(
+        `SharePoint still holds a temporary upload lock on "${relPath.split('/').pop()}" from an earlier attempt — ` +
+        `it clears automatically within ~15 minutes. Please try again shortly.`)
+    }
+    throw new Error(`createUploadSession "${libraryName}/${relPath}" failed (${res.status}): ${text}`)
+  }
   const data = await res.json()
   return { uploadUrl: data.uploadUrl }
 }
