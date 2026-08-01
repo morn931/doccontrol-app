@@ -103,7 +103,7 @@ export function PermissionsTable({ sections: initial }: { sections: Section[] })
   }, [initial])
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden text-sm">
+    <div className="bg-white rounded-xl border border-slate-200 overflow-clip text-sm">
       <table className="w-full border-collapse">
         <thead>
           <tr className="bg-slate-50">

@@ -343,7 +343,11 @@ This file should be updated at the end of each work session with new progress.
 - **2026-08-01 — Sticky header on the Role Permissions matrix.** `/developer/permissions`'s table
   header row (`permissions-table.tsx`) now stays visible while scrolling down the (now much longer)
   matrix — `sticky top-16 z-10` on each `<th>`, offset by `top-16` (4rem) to sit just below the
-  app shell's own `sticky top-0 z-50` header instead of underneath it.
+  app shell's own `sticky top-0 z-50` header instead of underneath it. First attempt didn't stick:
+  the table's wrapper div had `overflow-hidden` (for rounded corners), which — per the CSS Overflow
+  spec — makes any ancestor with `overflow` other than `visible` register as the sticky positioning
+  context, so the `<th>`s never detached from the table while scrolling. Fixed by swapping to
+  `overflow-clip` (Tailwind 3.4+), which clips the same way visually but isn't a scroll container.
 - **2026-08-01 — Canonical `role_definitions` table (real cross-repo role sync).**
   `users.role` was a CHECK constraint duplicated by hand in `lib/types/database.ts`,
   `app/(app)/developer/permissions/page.tsx`, `app/(app)/admin/users/page.tsx`, AND — the actual
