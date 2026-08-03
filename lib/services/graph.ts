@@ -133,6 +133,46 @@ export async function resolveDriveItemByUrl(fileUrl: string): Promise<{ id: stri
   return { id: j.id, name: j.name, mimeType: j.file?.mimeType, driveId: j.parentReference?.driveId }
 }
 
+/** Result of a delete attempt. Idempotent by design: a file that is already gone is a
+ *  SUCCESS ('already_gone'), never an error — so reject cleanup can be retried safely. */
+export type DeleteResult = { ok: boolean; status: 'deleted' | 'already_gone' | 'error'; detail?: string }
+
+/** Hard-delete a SharePoint file by its full URL (resolves to the real Graph driveItem
+ *  first, so viewer / sharing URLs work too). Idempotent: unresolvable or 404 → treated
+ *  as already-gone. Used to remove the rejected copy from the DocumentControl
+ *  "Documents for Approval" bucket. */
+export async function deleteDriveItemByUrl(fileUrl: string): Promise<DeleteResult> {
+  try {
+    const item = await resolveDriveItemByUrl(fileUrl)
+    if (!item || !item.driveId) return { ok: true, status: 'already_gone', detail: 'unresolvable' }
+    const res = await graphFetch(`/drives/${item.driveId}/items/${item.id}`, { method: 'DELETE' })
+    if (res.ok || res.status === 204) return { ok: true, status: 'deleted' }
+    if (res.status === 404) return { ok: true, status: 'already_gone' }
+    return { ok: false, status: 'error', detail: `${res.status} ${await res.text()}` }
+  } catch (e: any) {
+    return { ok: false, status: 'error', detail: e?.message ?? String(e) }
+  }
+}
+
+/** Hard-delete a SharePoint file by its site + server-relative path. Mirrors the
+ *  source-read addressing used by copyFileToDocControl (default-drive `root:`), so it
+ *  targets the very item intake originally read. Idempotent (404 → already-gone). Used
+ *  to clear the vendor's FROM VENDOR copy on reject so a corrected re-upload lands as a
+ *  fresh CREATE and re-triggers the intake watcher. */
+export async function deleteFileBySiteAndPath(siteUrl: string, serverRelativeUrl: string): Promise<DeleteResult> {
+  try {
+    const siteId = await getSiteId(siteUrl)
+    const normalizedPath = serverRelativeUrl.startsWith('/') ? serverRelativeUrl : `/${serverRelativeUrl}`
+    const encodedPath = normalizedPath.split('/').map(s => encodeURIComponent(s)).join('/')
+    const res = await graphFetch(`/sites/${siteId}/drive/root:${encodedPath}`, { method: 'DELETE' })
+    if (res.ok || res.status === 204) return { ok: true, status: 'deleted' }
+    if (res.status === 404) return { ok: true, status: 'already_gone' }
+    return { ok: false, status: 'error', detail: `${res.status} ${await res.text()}` }
+  } catch (e: any) {
+    return { ok: false, status: 'error', detail: e?.message ?? String(e) }
+  }
+}
+
 /** Download a driveItem's content bytes — optionally converted (format='pdf' renders
  *  Office docs to PDF so they display inline in a browser). */
 export async function getDriveItemContentBytes(driveId: string, itemId: string, format?: string): Promise<ArrayBuffer> {
