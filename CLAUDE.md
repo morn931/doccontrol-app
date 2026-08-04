@@ -340,6 +340,32 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-04 — Edit-in-window (Word/Excel) via Microsoft SSO — BUILT, awaiting admin consent + first live test.**
+  Extends the read-only Office viewer so staff can **edit/mark up the real Word/Excel in-window**
+  (Word's own comments/track-changes/ink/pictures — saved into the actual doc). Read-only works
+  app-only; **editing needs a per-user delegated Microsoft identity**, so we added Microsoft sign-in.
+  - **Entra app registration "CoreDocs Editor"** (PPE tenant): client id `b486e8cd-40fc-418e-aaf3-bad409bca41a`,
+    tenant `4c5b02da-9e6a-40bf-8360-6fd95fe56b26`, **SPA** redirects `https://docs.coreflow.build` +
+    `https://docs.coreflow.build/microsoft-check`. Delegated scopes **Files.ReadWrite.All +
+    Sites.ReadWrite.All** (⚠️ **admin-restricted — awaiting the tenant Global-Admin/IT one-click
+    "Grant admin consent"**; until then edit silently falls back to read-only) + User.Read.
+  - **`lib/msal.ts`** (`@azure/msal-browser`, public client/tenant IDs, env-overridable
+    `NEXT_PUBLIC_AZURE_CLIENT_ID`/`_TENANT_ID`; **localStorage** cache so the connection persists
+    app-wide). **Redirect flow, not popup** — popups gave `popup_window_error`/`timed_out` (popup
+    redirect landed on the heavy authed page); `signInRedirect` + `handleMsRedirect`. `getEditEmbedUrl()`
+    = delegated token → Graph **`/preview {allowEdit:true}`** → editable `embed.aspx` URL.
+  - **Read-only viewer proof** (already live from the prior entry): Graph `preview` app-only →
+    `embed.aspx` iframe. **Edit path**: `GET /api/documents/[id]/drive-item` (driveId+itemId) → browser
+    mints the edit embed with the user token. `reviews/[id]/page.tsx` viewer **tries edit, falls back to
+    read-only**; modal shows an "Editing — saves to the document" vs "Read-only" badge + "Connect
+    Microsoft to edit".
+  - **`/microsoft-check`** diagnostic page: step 1 (sign-in, User.Read) **PROVEN** (Morné's name
+    returns); step 2 (edit scopes) shows amber "awaiting admin consent" (`invalid_grant` pre-consent).
+  - **Status / next session:** sign-in + registration proven; **deployed and safe (read-only until
+    consent)**. When IT grants consent → `/microsoft-check` "Check edit permissions" turns green → run
+    the edit+save spike (open a Word doc in a review → "Editing" badge → change → confirm it persists).
+    Editing auto-activates for connected staff on consent — no further deploy. Edit-in-window currently
+    wired into the **review workspace only** (extend to batch/sign-off after it's proven).
 - **2026-08-04 — Internal Review stream + sign-off + in-app Office viewer (Roelien/Jarrod thread).**
   Sparked by Roelien's email (Jarrod couldn't complete a review; and internal docs had no home).
   - **Overdue-review fix** (`reviews/[id]/page.tsx`): `canSubmit` omitted `'overdue'`, so once a
