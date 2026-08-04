@@ -1,42 +1,58 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { acquireGraphToken, signOutMs, initMsal, EDIT_SCOPES, BASIC_SCOPES } from '@/lib/msal'
+import { initMsal, handleMsRedirect, signInRedirect, acquireSilent, signOutMs, EDIT_SCOPES, BASIC_SCOPES } from '@/lib/msal'
 import { CheckCircle2, XCircle, Loader2, LogIn, LogOut } from 'lucide-react'
 
 export default function MicrosoftCheckPage() {
-  // Pre-initialise MSAL so the sign-in click opens the popup synchronously (avoids
-  // popup_window_error from the browser blocking a non-user-initiated window.open).
-  useEffect(() => { initMsal().catch(() => {}) }, [])
   const [busy, setBusy] = useState(false)
   const [me, setMe] = useState<any>(null)
   const [signInMsg, setSignInMsg] = useState('')
   const [editState, setEditState] = useState<'idle' | 'ok' | 'consent' | 'err'>('idle')
   const [editMsg, setEditMsg] = useState('')
 
+  // On load: finish a returning redirect sign-in (if we just came back from Microsoft).
+  useEffect(() => {
+    (async () => {
+      try {
+        await initMsal()
+        const res = await handleMsRedirect()
+        if (res) await showMe(res.token)
+      } catch (e: any) {
+        setSignInMsg('Sign-in failed: ' + (e?.errorCode || e?.message || String(e)))
+      }
+    })()
+  }, [])
+
+  async function showMe(token: string) {
+    const r = await fetch('https://graph.microsoft.com/v1.0/me', { headers: { Authorization: `Bearer ${token}` } })
+    const data = await r.json()
+    setMe({ name: data.displayName, upn: data.userPrincipalName })
+    setSignInMsg('Signed in — the app registration and sign-in flow work.')
+  }
+
   async function connect() {
-    setBusy(true); setSignInMsg(''); setMe(null)
+    setBusy(true); setSignInMsg('')
     try {
-      const { token, account } = await acquireGraphToken(BASIC_SCOPES)
-      const r = await fetch('https://graph.microsoft.com/v1.0/me', { headers: { Authorization: `Bearer ${token}` } })
-      const data = await r.json()
-      setMe({ name: data.displayName, upn: data.userPrincipalName, account: account.username })
-      setSignInMsg('Signed in — the app registration and sign-in flow work.')
+      // Reuse an existing Microsoft session silently if we can; otherwise full-page redirect.
+      try {
+        const res = await acquireSilent(BASIC_SCOPES)
+        await showMe(res.token)
+      } catch {
+        await signInRedirect(BASIC_SCOPES)   // navigates away; returns to this page
+      }
     } catch (e: any) {
-      const code = e?.errorCode || e?.message || String(e)
-      setSignInMsg(/popup/i.test(code)
-        ? 'Sign-in popup was blocked — please allow pop-ups for docs.coreflow.build and click Connect again.'
-        : 'Sign-in failed: ' + code)
+      setSignInMsg('Sign-in failed: ' + (e?.errorCode || e?.message || String(e)))
     } finally { setBusy(false) }
   }
 
   async function testEdit() {
     setBusy(true); setEditState('idle'); setEditMsg('')
     try {
-      await acquireGraphToken(EDIT_SCOPES)
+      await acquireSilent(EDIT_SCOPES)
       setEditState('ok'); setEditMsg('Admin consent is in place — editing can be turned on.')
     } catch (e: any) {
       const code = e?.errorCode || e?.message || String(e)
-      if (/consent|AADSTS65001|interaction_required|approval/i.test(code)) {
+      if (/consent|AADSTS65001|interaction_required|approval|no_account/i.test(code)) {
         setEditState('consent'); setEditMsg('Awaiting admin consent for Files.ReadWrite.All / Sites.ReadWrite.All (expected until IT grants it).')
       } else { setEditState('err'); setEditMsg('Error: ' + code) }
     } finally { setBusy(false) }

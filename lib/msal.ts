@@ -5,24 +5,24 @@ import { PublicClientApplication, type AccountInfo } from '@azure/msal-browser'
 const CLIENT_ID = process.env.NEXT_PUBLIC_AZURE_CLIENT_ID || 'b486e8cd-40fc-418e-aaf3-bad409bca41a'
 const TENANT_ID = process.env.NEXT_PUBLIC_AZURE_TENANT_ID || '4c5b02da-9e6a-40bf-8360-6fd95fe56b26'
 
-// Delegated Graph scopes we need for editing Office docs in-window. Files/Sites .ReadWrite.All
-// are admin-restricted (need the tenant admin-consent grant) — until that's in place, requesting
+// Delegated Graph scopes for editing Office docs in-window. Files/Sites.ReadWrite.All are
+// admin-restricted (need the tenant admin-consent grant) — until that's in place, requesting
 // them fails with a consent error and the app falls back to read-only.
 export const EDIT_SCOPES = ['Files.ReadWrite.All', 'Sites.ReadWrite.All']
 export const BASIC_SCOPES = ['User.Read']
 
+// Full-page redirect sign-in returns here (must be a registered SPA redirect URI on the app).
+const REDIRECT_PATH = '/microsoft-check'
+
 let _msal: PublicClientApplication | null = null
 
-// Pre-initialise on page load (call initMsal() in a useEffect) so the sign-in click opens
-// the popup SYNCHRONOUSLY — MSAL's async initialize() otherwise runs between the click and
-// window.open, which the browser treats as non-user-initiated and blocks (popup_window_error).
 export async function initMsal(): Promise<PublicClientApplication> {
   if (_msal) return _msal
   const app = new PublicClientApplication({
     auth: {
       clientId: CLIENT_ID,
       authority: `https://login.microsoftonline.com/${TENANT_ID}`,
-      redirectUri: typeof window !== 'undefined' ? window.location.origin : undefined,
+      redirectUri: typeof window !== 'undefined' ? window.location.origin + REDIRECT_PATH : undefined,
     },
     cache: { cacheLocation: 'sessionStorage' },
   })
@@ -37,23 +37,31 @@ async function getMsal(): Promise<PublicClientApplication> {
 
 export type MsToken = { token: string; account: AccountInfo }
 
-/** Acquire a delegated Microsoft Graph token for the given scopes: silent if the user already
- *  has a Microsoft session, otherwise an interactive popup. Throws on consent-required / cancel. */
-export async function acquireGraphToken(scopes: string[], interactive = true): Promise<MsToken> {
+/** Call on page load: completes a returning redirect sign-in (returns the token/account if we
+ *  just came back from Microsoft), else null. */
+export async function handleMsRedirect(): Promise<MsToken | null> {
   const msal = await getMsal()
-  const account = msal.getActiveAccount() ?? msal.getAllAccounts()[0] ?? null
-
-  if (account) {
-    try {
-      const res = await msal.acquireTokenSilent({ scopes, account })
-      return { token: res.accessToken, account: res.account }
-    } catch {
-      // fall through to interactive
-    }
+  const res = await msal.handleRedirectPromise()
+  if (res?.account) {
+    msal.setActiveAccount(res.account)
+    return { token: res.accessToken, account: res.account }
   }
-  if (!interactive) throw new Error('interaction_required')
-  const res = await msal.acquireTokenPopup({ scopes })
-  msal.setActiveAccount(res.account)
+  return null
+}
+
+/** Start a full-page redirect sign-in for the given scopes (navigates away to Microsoft). */
+export async function signInRedirect(scopes: string[]): Promise<void> {
+  const msal = await getMsal()
+  await msal.acquireTokenRedirect({ scopes })
+}
+
+/** Silent token for an already-signed-in account (no popup/redirect). Throws if no account
+ *  or if consent is required (e.g. edit scopes before admin consent). */
+export async function acquireSilent(scopes: string[]): Promise<MsToken> {
+  const msal = await getMsal()
+  const account = msal.getActiveAccount() ?? msal.getAllAccounts()[0]
+  if (!account) throw new Error('no_account')
+  const res = await msal.acquireTokenSilent({ scopes, account })
   return { token: res.accessToken, account: res.account }
 }
 
