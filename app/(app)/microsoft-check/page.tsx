@@ -1,9 +1,12 @@
 'use client'
-import { useState } from 'react'
-import { acquireGraphToken, signOutMs, EDIT_SCOPES, BASIC_SCOPES } from '@/lib/msal'
+import { useState, useEffect } from 'react'
+import { acquireGraphToken, signOutMs, initMsal, EDIT_SCOPES, BASIC_SCOPES } from '@/lib/msal'
 import { CheckCircle2, XCircle, Loader2, LogIn, LogOut } from 'lucide-react'
 
 export default function MicrosoftCheckPage() {
+  // Pre-initialise MSAL so the sign-in click opens the popup synchronously (avoids
+  // popup_window_error from the browser blocking a non-user-initiated window.open).
+  useEffect(() => { initMsal().catch(() => {}) }, [])
   const [busy, setBusy] = useState(false)
   const [me, setMe] = useState<any>(null)
   const [signInMsg, setSignInMsg] = useState('')
@@ -19,7 +22,10 @@ export default function MicrosoftCheckPage() {
       setMe({ name: data.displayName, upn: data.userPrincipalName, account: account.username })
       setSignInMsg('Signed in — the app registration and sign-in flow work.')
     } catch (e: any) {
-      setSignInMsg('Sign-in failed: ' + (e?.errorCode || e?.message || String(e)))
+      const code = e?.errorCode || e?.message || String(e)
+      setSignInMsg(/popup/i.test(code)
+        ? 'Sign-in popup was blocked — please allow pop-ups for docs.coreflow.build and click Connect again.'
+        : 'Sign-in failed: ' + code)
     } finally { setBusy(false) }
   }
 

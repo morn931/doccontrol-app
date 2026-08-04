@@ -13,9 +13,12 @@ export const BASIC_SCOPES = ['User.Read']
 
 let _msal: PublicClientApplication | null = null
 
-async function getMsal(): Promise<PublicClientApplication> {
+// Pre-initialise on page load (call initMsal() in a useEffect) so the sign-in click opens
+// the popup SYNCHRONOUSLY — MSAL's async initialize() otherwise runs between the click and
+// window.open, which the browser treats as non-user-initiated and blocks (popup_window_error).
+export async function initMsal(): Promise<PublicClientApplication> {
   if (_msal) return _msal
-  _msal = new PublicClientApplication({
+  const app = new PublicClientApplication({
     auth: {
       clientId: CLIENT_ID,
       authority: `https://login.microsoftonline.com/${TENANT_ID}`,
@@ -23,8 +26,13 @@ async function getMsal(): Promise<PublicClientApplication> {
     },
     cache: { cacheLocation: 'sessionStorage' },
   })
-  await _msal.initialize()
+  await app.initialize()
+  _msal = app
   return _msal
+}
+
+async function getMsal(): Promise<PublicClientApplication> {
+  return _msal ?? initMsal()
 }
 
 export type MsToken = { token: string; account: AccountInfo }
