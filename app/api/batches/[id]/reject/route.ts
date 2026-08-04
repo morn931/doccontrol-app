@@ -50,6 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       id, batch_guid, status, vendor_email, controller_email, sp_approver_picks_id,
       reject_reason, reject_bucket_deleted, reject_source_deleted, reject_picks_closed, reject_vendor_notified,
       packages(package_name, package_code),
+      vendors(primary_contact_email),
       document_versions(file_name, central_file_url, source_site_url, source_file_url, doc_unique_id)
     `).eq('id', id).single()
 
@@ -72,8 +73,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .map(d => ({ fileName: d.file_name, siteUrl: d.source_site_url as string, path: d.source_file_url as string }))
   const pkgName = b.packages?.package_name ?? b.packages?.package_code ?? 'Unknown'
 
+  // Resolve who gets the rejection notice: the batch's own vendor_email if set,
+  // else fall back to the package's awarded-vendor contact. Intake often leaves
+  // batches.vendor_email blank, so without this the email step would silently skip.
+  const batchVendorEmail = (b.vendor_email ?? '').trim()
+  const fallbackVendorEmail = (b.vendors?.primary_contact_email ?? '').trim()
+  const vendorEmail = batchVendorEmail || fallbackVendorEmail || ''
+  const vendorEmailFromFallback = !batchVendorEmail && !!fallbackVendorEmail
+
   const warnings: string[] = []
-  if (!b.vendor_email) warnings.push('No vendor email recorded — the rejection notice cannot be emailed automatically.')
+  if (!vendorEmail) warnings.push('No vendor email on the batch or the package vendor — the rejection notice cannot be emailed automatically.')
+  else if (vendorEmailFromFallback) warnings.push(`Batch has no vendor email — using the package vendor contact (${vendorEmail}).`)
   if (bucketFiles.length === 0) warnings.push('No PPE bucket file URLs recorded — nothing to delete from the approval library.')
   if (vendorFiles.length === 0) warnings.push('No vendor source-file references recorded — the FROM VENDOR copy cannot be auto-removed; the vendor must delete it before re-uploading.')
   if (!b.sp_approver_picks_id) warnings.push('No stored Approver Picks row id — it will be located by batch GUID, or skipped if this was a new-app-only batch.')
@@ -83,7 +93,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     bucketFiles,
     vendorFiles,
     approverPicksRow: b.sp_approver_picks_id ? `item ${b.sp_approver_picks_id}` : 'locate by batch GUID',
-    vendorEmail: b.vendor_email ?? null,
+    vendorEmail: vendorEmail || null,
+    vendorEmailFromFallback,
     reason: alreadyRejected ? b.reject_reason : (rejectReason || null),
   }
 
@@ -145,10 +156,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     else { steps.picks = 'error'; errs.push(`Approver Picks: ${r.error}`) }
   }
 
-  // 4 ── Email the vendor
+  // 4 ── Email the vendor (batch email, else package-vendor contact)
   let emailDone = !!b.reject_vendor_notified
   if (emailDone) steps.email = 'already'
-  else if (!b.vendor_email) steps.email = 'skipped'   // no address — leave un-notified so a later fix + retry can send
+  else if (!vendorEmail) steps.email = 'skipped'   // no address anywhere — leave un-notified so a later fix + retry can send
   else {
     try {
       const html = batchRejectedEmail({
@@ -160,7 +171,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         sourceRemoved: sourceDone,
       })
       await sendEmail({
-        to: String(b.vendor_email).split(/[;,]/).map((e: string) => e.trim()).filter(Boolean),
+        to: vendorEmail.split(/[;,]/).map((e: string) => e.trim()).filter(Boolean),
         cc: profile?.email ? [profile.email] : [],
         subject: `[Doc Control] Document batch rejected — ${pkgName}`,
         htmlBody: html,
@@ -181,6 +192,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     updated_at: now,
   }).eq('id', id)
 
-  const complete = bucketDone && sourceDone && picksDone && (emailDone || !b.vendor_email)
+  const complete = bucketDone && sourceDone && picksDone && (emailDone || !vendorEmail)
   return NextResponse.json({ success: true, complete, steps, error: cleanupError, warnings })
 }

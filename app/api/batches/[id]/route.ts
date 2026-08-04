@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       reject_bucket_deleted, reject_source_deleted, reject_picks_closed,
       reject_vendor_notified, reject_cleanup_error, sp_approver_picks_id,
       recommended_reviewers,
-      vendors(id, name, code),
+      vendors(id, name, code, primary_contact_email),
       packages(id, package_code, package_name),
       document_versions(
         id, file_name, revision, doc_name, discipline, document_type, topic,

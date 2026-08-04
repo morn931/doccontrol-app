@@ -357,12 +357,13 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* Reject cleanup status — what the unwind removed / still needs retrying */}
         {batch.status === 'rejected_before_review' && (() => {
-          const notifyDone = batch.reject_vendor_notified || !batch.vendor_email
+          const vendorEmailResolved = batch.vendor_email || batch.vendors?.primary_contact_email || ''
+          const notifyDone = batch.reject_vendor_notified || !vendorEmailResolved
           const steps = [
             { label: 'PPE approval-bucket copies deleted', done: batch.reject_bucket_deleted },
             { label: 'Vendor drop-off copy removed',       done: batch.reject_source_deleted },
             { label: 'Approver Picks row closed',          done: batch.reject_picks_closed },
-            { label: batch.vendor_email ? 'Vendor notified by email' : 'Vendor notified (no email on file — skipped)', done: notifyDone },
+            { label: vendorEmailResolved ? 'Vendor notified by email' : 'Vendor notified (no email on file — skipped)', done: notifyDone },
           ]
           const allDone = steps.every(s => s.done) && !batch.reject_cleanup_error
           return (
