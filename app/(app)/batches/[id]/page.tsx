@@ -391,7 +391,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           const notifyDone = batch.reject_vendor_notified || !vendorEmailResolved
           const steps = [
             { label: 'PPE approval-bucket copies deleted', done: batch.reject_bucket_deleted },
-            { label: 'Vendor drop-off copy removed',       done: batch.reject_source_deleted },
+            { label: 'Vendor copy moved to Rejected Files', done: batch.reject_source_deleted },
             { label: 'Approver Picks row closed',          done: batch.reject_picks_closed },
             { label: vendorEmailResolved ? 'Vendor notified by email' : 'Vendor notified (no email on file — skipped)', done: notifyDone },
           ]
@@ -485,7 +485,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               // ── Stage 2: manifest preview + confirm ──────────────────────────
               <>
                 <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
-                  <p className="font-medium flex items-center gap-1.5"><Trash2 className="h-4 w-4" /> This will permanently delete the files below and cannot be undone.</p>
+                  <p className="font-medium flex items-center gap-1.5"><Trash2 className="h-4 w-4" /> PPE's approval-bucket copies are permanently deleted; the vendor's copies are moved to a "Rejected Files" folder (not deleted).</p>
                   <p className="mt-1 text-xs">
                     Scope: <b>{rejectPreview.manifest.scope}</b>
                     {!rejectPreview.wholeBatch && ' — the remaining documents keep moving through review.'}
@@ -500,10 +500,10 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                       : <p className="text-slate-400 text-xs">Nothing recorded.</p>}
                   </div>
                   <div>
-                    <p className="font-medium text-slate-700 mb-1">Delete from vendor FROM VENDOR drop-off ({rejectPreview.manifest.vendorFiles.length})</p>
+                    <p className="font-medium text-slate-700 mb-1">Move to the vendor's "Rejected Files" folder ({rejectPreview.manifest.vendorFiles.length})</p>
                     {rejectPreview.manifest.vendorFiles.length
                       ? <ul className="list-disc pl-5 text-slate-600 space-y-0.5">{rejectPreview.manifest.vendorFiles.map((f: any, i: number) => <li key={i} className="font-mono text-xs break-all">{f.fileName}</li>)}</ul>
-                      : <p className="text-slate-400 text-xs">Nothing recorded — vendor must delete their copy manually.</p>}
+                      : <p className="text-slate-400 text-xs">Nothing recorded — vendor must move their copy manually.</p>}
                   </div>
                   <div className="flex flex-wrap gap-x-6 gap-y-1 text-slate-600">
                     <span><span className="font-medium text-slate-700">Approver Picks:</span> {rejectPreview.manifest.approverPicksRow}</span>
@@ -643,7 +643,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                   <div className="flex gap-2 shrink-0 items-center">
                     {dv.is_rejected ? (
                       (dv.reject_bucket_deleted && dv.reject_source_deleted) ? (
-                        <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Removed</span>
+                        <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Cleared</span>
                       ) : (
                         <button onClick={() => handleRetryDoc(dv.id)} disabled={retryingDoc === dv.id} className="btn-secondary text-xs py-1.5 px-3">
                           {retryingDoc === dv.id ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Retrying…</> : <><RotateCw className="h-3.5 w-3.5" /> Retry cleanup</>}

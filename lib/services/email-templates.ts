@@ -56,8 +56,8 @@ export function batchRejectedEmail(params: {
 }): string {
   const fileList = `<ul style="margin:0;padding-left:16px;">${params.fileNames.map(f => `<li style="margin:4px 0;word-break:break-all;">${f}</li>`).join('')}</ul>`
   const nextStep = params.sourceRemoved
-    ? 'The rejected file(s) have been removed from your drop-off folder. Once corrected, please upload the documents again as a <strong>new upload</strong> — a fresh upload automatically re-triggers the review.'
-    : 'Please delete the current versions from your SharePoint drop-off folder and upload corrected documents as a <strong>new upload</strong> (a fresh upload is what re-triggers the review — do not overwrite the existing file).'
+    ? 'The rejected file(s) have been moved into a <strong>"Rejected Files"</strong> folder in your drop-off site (they are not deleted — you can still access them there). Once corrected, please upload the documents again into the drop-off library as a <strong>new upload</strong> — a fresh upload automatically re-triggers the review.'
+    : 'Please move the current versions out of your SharePoint drop-off library and upload corrected documents as a <strong>new upload</strong> (a fresh upload is what re-triggers the review — do not overwrite the existing file).'
 
   return layout('Document Batch Rejected — Action Required', `
     <p style="margin:0 0 16px 0;">Your document batch submitted to <strong>${params.packageName}</strong> has been rejected by PPE Tech Document Control before formal review.</p>

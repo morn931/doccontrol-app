@@ -173,6 +173,103 @@ export async function deleteFileBySiteAndPath(siteUrl: string, serverRelativeUrl
   }
 }
 
+export type MoveResult = { ok: boolean; status: 'moved' | 'already_moved' | 'already_gone' | 'error'; detail?: string }
+
+/** Move a vendor's rejected file OUT of the active FROM VENDOR drop-off into a
+ *  "Rejected Files" folder in the SAME library (same drive → clean atomic move). The
+ *  file is preserved, not deleted — the vendor can still see it, so there's no "you
+ *  deleted our document" dispute — but it leaves the drop-off root, forcing a fresh
+ *  re-upload after corrections. Because the move keeps the item's id (and the intake
+ *  watcher only fires on the library root anyway), this does NOT re-trigger intake.
+ *  The "Rejected Files" folder is auto-created on first use. Idempotent: already-moved
+ *  / already-gone == success.
+ *
+ *  `siteRelativePath` is the path as stored in document_versions.source_file_url —
+ *  "<DropOffLibrary>/<…>/file.pdf" (the FIRST segment is the drop-off library's name,
+ *  which varies per vendor: "FROM VENDOR", "From ABB", "FROM SIEMENS", …). The library
+ *  is derived from that path, so no per-site config is needed; if that library was
+ *  renamed since intake, it falls back to searching the site's drop-off libraries. */
+export async function moveFileToRejectedFolder(
+  siteUrl: string,
+  siteRelativePath: string,
+  rejectedFolder = 'Rejected Files'
+): Promise<MoveResult> {
+  try {
+    const clean = siteRelativePath.replace(/^\/+/, '')
+    const segs = clean.split('/').filter(Boolean)
+    if (segs.length < 2) return { ok: false, status: 'error', detail: `cannot derive library from path "${siteRelativePath}"` }
+    const libraryName = segs[0]
+    const inLibPath = segs.slice(1).join('/')
+
+    const siteId = await getSiteId(siteUrl)
+    const encPath = inLibPath.split('/').map(encodeURIComponent).join('/')
+
+    // 1 — locate the file. Primary: the library recorded in the path. Fallback (handles
+    //     drop-off libraries RENAMED since intake — e.g. "FROM VENDOR" → "FROM SIEMENS"):
+    //     probe the site's other drop-off-style libraries for the same in-library path,
+    //     which survives a rename, so the moved file still resolves.
+    let driveId: string | null = null
+    let src: any = null
+    const tryResolve = async (dId: string) => {
+      const r = await graphFetch(`/drives/${dId}/root:/${encPath}?$select=id,name,parentReference`)
+      return r.ok ? await r.json() : null
+    }
+    try {
+      const primary = await getLibraryDriveId(siteId, libraryName)
+      const hit = await tryResolve(primary)
+      if (hit) { driveId = primary; src = hit }
+    } catch { /* recorded library no longer exists — fall through to search */ }
+
+    if (!src) {
+      const drRes = await graphFetch(`/sites/${siteId}/drives`)
+      const drives: any[] = drRes.ok ? ((await drRes.json()).value ?? []) : []
+      const isDropOff = (n: string) => /^from\b/i.test(n) || /drop/i.test(n)
+      for (const d of drives) {
+        if (!isDropOff(d.name ?? '')) continue
+        const hit = await tryResolve(d.id)
+        if (hit) { driveId = d.id; src = hit; break }
+      }
+    }
+
+    if (!src || !driveId) return { ok: true, status: 'already_gone' }   // not in any drop-off library
+    if (String(src.parentReference?.path ?? '').endsWith('/' + rejectedFolder)) return { ok: true, status: 'already_moved' }
+
+    // 2 — ensure the Rejected Files folder exists in this drive's root (get-or-create)
+    let folderId: string | null = null
+    const g = await graphFetch(`/drives/${driveId}/root:/${encodeURIComponent(rejectedFolder)}?$select=id`)
+    if (g.ok) folderId = (await g.json()).id
+    else {
+      const mk = await graphFetch(`/drives/${driveId}/root/children`, {
+        method: 'POST',
+        body: JSON.stringify({ name: rejectedFolder, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+      })
+      if (mk.ok) folderId = (await mk.json()).id
+      else {
+        const g2 = await graphFetch(`/drives/${driveId}/root:/${encodeURIComponent(rejectedFolder)}?$select=id`)
+        if (g2.ok) folderId = (await g2.json()).id
+      }
+    }
+    if (!folderId) return { ok: false, status: 'error', detail: 'could not create/find the Rejected Files folder' }
+
+    // 3 — same-drive move; on a name clash in the folder, suffix the name
+    const move = (name?: string) => graphFetch(`/drives/${driveId}/items/${src.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ parentReference: { id: folderId }, ...(name ? { name } : {}) }),
+    })
+    let mv = await move()
+    if (mv.status === 409) {
+      const dot = String(src.name).lastIndexOf('.')
+      const base = dot > 0 ? src.name.slice(0, dot) : src.name
+      const ext = dot > 0 ? src.name.slice(dot) : ''
+      mv = await move(`${base} (rejected ${Date.now()})${ext}`)
+    }
+    if (mv.ok) return { ok: true, status: 'moved' }
+    return { ok: false, status: 'error', detail: `move: ${mv.status} ${(await mv.text()).slice(0, 200)}` }
+  } catch (e: any) {
+    return { ok: false, status: 'error', detail: e?.message ?? String(e) }
+  }
+}
+
 /** Download a driveItem's content bytes — optionally converted (format='pdf' renders
  *  Office docs to PDF so they display inline in a browser). */
 export async function getDriveItemContentBytes(driveId: string, itemId: string, format?: string): Promise<ArrayBuffer> {

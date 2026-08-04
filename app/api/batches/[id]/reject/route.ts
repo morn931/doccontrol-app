@@ -28,7 +28,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
-import { sendEmail, deleteDriveItemByUrl, deleteFileBySiteAndPath } from '@/lib/services/graph'
+import { sendEmail, deleteDriveItemByUrl, moveFileToRejectedFolder } from '@/lib/services/graph'
 import { closeApproverPicksRow } from '@/lib/services/sharepoint-lists'
 import { batchRejectedEmail } from '@/lib/services/email-templates'
 import { logActivity } from '@/lib/activity'
@@ -111,7 +111,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!vendorEmail) warnings.push('No vendor email entered, on the batch, or on the package vendor — enter one to notify the vendor.')
   else if (vendorEmailFromFallback) warnings.push(`Batch has no vendor email — using the package vendor contact (${vendorEmail}).`)
   if (bucketFiles.length === 0) warnings.push('No PPE bucket file URLs recorded for the selected documents — nothing to delete from the approval library.')
-  if (vendorFiles.length === 0) warnings.push('No vendor source-file references recorded — the FROM VENDOR copy cannot be auto-removed; the vendor must delete it before re-uploading.')
+  if (vendorFiles.length === 0) warnings.push('No vendor source-file references recorded — the FROM VENDOR copy cannot be auto-moved to Rejected Files; the vendor must move/remove it before re-uploading.')
   if (wholeBatch && !b.sp_approver_picks_id) warnings.push('No stored Approver Picks row id — it will be located by batch GUID, or skipped if this was a new-app-only batch.')
 
   const manifest = {
@@ -179,7 +179,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!sDone) {
       if (!(d.source_site_url && d.source_file_url)) sDone = true
       else {
-        const r = await deleteFileBySiteAndPath(d.source_site_url, d.source_file_url)
+        const r = await moveFileToRejectedFolder(d.source_site_url, d.source_file_url)
         if (r.ok) sDone = true; else dErrs.push(`vendor: ${r.detail}`)
       }
     }
