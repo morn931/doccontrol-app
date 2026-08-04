@@ -52,6 +52,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [rejecting, setRejecting]   = useState(false)
   const [rejectError, setRejectError] = useState('')
   const [rejectPreview, setRejectPreview] = useState<any>(null)   // dry-run manifest before confirm
+  const [rejectVendorEmail, setRejectVendorEmail] = useState('')  // controller-confirmed reject recipient
   const [retrying, setRetrying]     = useState(false)
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
@@ -109,7 +110,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   function closeRejectModal() {
-    setShowReject(false); setRejectReason(''); setRejectError(''); setRejectPreview(null)
+    setShowReject(false); setRejectReason(''); setRejectError(''); setRejectPreview(null); setRejectVendorEmail('')
   }
 
   // Stage 1 — dry run: fetch the manifest of exactly what reject WOULD remove/close/email.
@@ -119,7 +120,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const res = await fetch(`/api/batches/${id}/reject`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rejectReason, commit: false }),
+        body: JSON.stringify({ rejectReason, vendorEmail: rejectVendorEmail.trim(), commit: false }),
       })
       const data = await res.json()
       if (!res.ok) { setRejectError(data.error ?? 'Failed to build preview'); return }
@@ -137,7 +138,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const res = await fetch(`/api/batches/${id}/reject`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rejectReason, commit: true }),
+        body: JSON.stringify({ rejectReason, vendorEmail: rejectVendorEmail.trim(), commit: true }),
       })
       const data = await res.json()
       if (!res.ok) { setRejectError(data.error ?? 'Failed'); return }
@@ -316,7 +317,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           {/* Actions */}
           <div className="flex flex-col gap-2 shrink-0">
             {canReject && (
-              <button onClick={() => setShowReject(true)} className="btn-danger text-sm">
+              <button
+                onClick={() => { setRejectVendorEmail(batch.vendor_email || batch.vendors?.primary_contact_email || ''); setShowReject(true) }}
+                className="btn-danger text-sm">
                 <XCircle className="h-4 w-4" /> Reject Batch
               </button>
             )}
@@ -431,6 +434,17 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                   className="input resize-none"
                   placeholder="e.g. Wrong document type on cover page. Title block does not match SDDR. Please correct and resubmit."
                 />
+                <label className="label mt-3">Notify vendor at</label>
+                <input
+                  type="email"
+                  value={rejectVendorEmail}
+                  onChange={e => setRejectVendorEmail(e.target.value)}
+                  className="input"
+                  placeholder="vendor@company.com — no address on file; enter one to notify"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  {rejectVendorEmail ? 'Saved to the batch so it sticks for retries.' : 'Leave blank to reject without emailing the vendor.'}
+                </p>
                 {rejectError && <p className="text-sm text-red-600 mt-2">{rejectError}</p>}
                 <div className="flex gap-3 mt-4">
                   <button onClick={handlePreviewReject} disabled={rejecting} className="btn-danger flex-1 justify-center">

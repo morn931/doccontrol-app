@@ -43,6 +43,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = await req.json().catch(() => ({} as any))
   const commit = body.commit === true
   const rejectReason = (body.rejectReason ?? '').trim()
+  const vendorEmailOverride = (body.vendorEmail ?? '').trim()   // controller-entered recipient
 
   const db = createServiceClient()
   const { data: batch } = await db.from('batches')
@@ -73,16 +74,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .map(d => ({ fileName: d.file_name, siteUrl: d.source_site_url as string, path: d.source_file_url as string }))
   const pkgName = b.packages?.package_name ?? b.packages?.package_code ?? 'Unknown'
 
-  // Resolve who gets the rejection notice: the batch's own vendor_email if set,
-  // else fall back to the package's awarded-vendor contact. Intake often leaves
-  // batches.vendor_email blank, so without this the email step would silently skip.
+  // Resolve who gets the rejection notice, in priority order:
+  //   1. an email the controller entered in the reject modal (vendorEmailOverride)
+  //   2. the batch's own vendor_email
+  //   3. the package's awarded-vendor contact
+  // Intake often leaves both stored fields blank, so the modal entry is the reliable
+  // path; when provided on commit it's persisted back to the batch (below).
   const batchVendorEmail = (b.vendor_email ?? '').trim()
   const fallbackVendorEmail = (b.vendors?.primary_contact_email ?? '').trim()
-  const vendorEmail = batchVendorEmail || fallbackVendorEmail || ''
-  const vendorEmailFromFallback = !batchVendorEmail && !!fallbackVendorEmail
+  const vendorEmail = vendorEmailOverride || batchVendorEmail || fallbackVendorEmail || ''
+  const vendorEmailSource = vendorEmailOverride ? 'entered' : batchVendorEmail ? 'batch' : fallbackVendorEmail ? 'vendor-fallback' : 'none'
+  const vendorEmailFromFallback = vendorEmailSource === 'vendor-fallback'
 
   const warnings: string[] = []
-  if (!vendorEmail) warnings.push('No vendor email on the batch or the package vendor — the rejection notice cannot be emailed automatically.')
+  if (!vendorEmail) warnings.push('No vendor email entered, on the batch, or on the package vendor — enter one to notify the vendor.')
   else if (vendorEmailFromFallback) warnings.push(`Batch has no vendor email — using the package vendor contact (${vendorEmail}).`)
   if (bucketFiles.length === 0) warnings.push('No PPE bucket file URLs recorded — nothing to delete from the approval library.')
   if (vendorFiles.length === 0) warnings.push('No vendor source-file references recorded — the FROM VENDOR copy cannot be auto-removed; the vendor must delete it before re-uploading.')
@@ -183,14 +188,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const cleanupError = errs.length ? errs.join(' | ') : null
-  await db.from('batches').update({
+  const finalUpdate: Record<string, any> = {
     reject_bucket_deleted: bucketDone,
     reject_source_deleted: sourceDone,
     reject_picks_closed: picksDone,
     reject_vendor_notified: emailDone,
     reject_cleanup_error: cleanupError,
     updated_at: now,
-  }).eq('id', id)
+  }
+  // Persist a controller-entered recipient onto the batch so it sticks for retries/audit.
+  if (vendorEmailOverride && vendorEmailOverride !== batchVendorEmail) finalUpdate.vendor_email = vendorEmailOverride
+  await db.from('batches').update(finalUpdate).eq('id', id)
 
   const complete = bucketDone && sourceDone && picksDone && (emailDone || !vendorEmail)
   return NextResponse.json({ success: true, complete, steps, error: cleanupError, warnings })
