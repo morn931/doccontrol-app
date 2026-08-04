@@ -173,7 +173,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const batch = dv.batches ?? {}
   // Internal/As-Built reviews use the reduced A1/B1/Q1 set; redlines are a plain
   // Accept/Reject pair; client/vendor reviews keep the full list.
-  const isInternal = batch.source === 'internal' || batch.source === 'asbuilt'
+  const isInternal = batch.source === 'internal' || batch.source === 'asbuilt' || batch.source === 'internal_review'
   const isRedline  = batch.source === 'redline'
   const outcomeOptions = isRedline ? REDLINE_OUTCOME_CODES : isInternal ? INTERNAL_OUTCOME_CODES : OUTCOME_CODES
   const isCompleted = task.status === 'completed' || submitted

@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const db = createServiceClient()
   const { data, error } = await db.from('batches')
     .select(`
-      id, batch_guid, status, source, request_line_id,
+      id, batch_guid, status, source, request_line_id, internal_ref,
       file_count, received_at, started_at, completed_at,
       returned_at, rejected_at, comments, reject_reason, vendor_email,
       reject_bucket_deleted, reject_source_deleted, reject_picks_closed,

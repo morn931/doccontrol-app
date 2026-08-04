@@ -14,6 +14,7 @@ export interface NavPerms {
   aconexIssue:  boolean
   rev0:         boolean
   cddl:         boolean
+  internalReview: boolean
 }
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms; inDrawer?: boolean }
@@ -27,7 +28,7 @@ const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-
 // Every nav destination — the ACTIVE item is the LONGEST href that matches the current
 // path, so /documents/requests no longer also lights up /documents ("Document Search").
 const NAV_HREFS = [
-  '/dashboard', '/documents/requests', '/redlines', '/rev0', '/batches', '/reviews', '/transmittals', '/documents',
+  '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/batches', '/reviews', '/transmittals', '/documents',
   '/mddr', '/reporting', '/aconex-review', '/aconex-issue', '/rfi', '/cddl', '/sddr',
   '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
 ]
@@ -65,6 +66,7 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
 
         {/* Document Requests — the origination step, kept right under Dashboard */}
         {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon={ICON('documents')} />}
+        {(dev || navPerms.internalReview) && <NavLink href="/internal-review/new" label="Internal Review" icon={ICON('documents')} />}
 
         {/* Site Redlines — driveway C: register + upload + awaiting-As-Built list */}
         {role !== 'vendor' && <NavLink href="/redlines" label="Site Redlines" icon={ICON('documents')} />}

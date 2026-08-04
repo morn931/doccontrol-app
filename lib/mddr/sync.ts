@@ -51,13 +51,15 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
   const byDocNumber = new Map<string, VersionInfo>()
   for (let from = 0; ; from += 1000) {
     const { data, error } = await db.from('document_versions')
-      .select('id, document_id, file_name, revision, is_latest, ai_text')
+      .select('id, document_id, file_name, revision, is_latest, ai_text, batches(source)')
       // Rejected-before-review documents are deleted from SharePoint and carry no valid
       // outcome — exclude them so they never match a master doc as "submitted".
       .eq('is_rejected', false)
       .range(from, from + 999)
     if (error) throw new Error(`document_versions: ${error.message}`)
     for (const v of data ?? []) {
+      // Internal-review working documents aren't deliverables — never match them to the master.
+      if ((v as any).batches?.source === 'internal_review') continue
       const parsed = parseDocumentFileName(v.file_name ?? '')
       const key = normalizeDocNumber(parsed.normalizedDocumentNumber)
       if (!key) continue

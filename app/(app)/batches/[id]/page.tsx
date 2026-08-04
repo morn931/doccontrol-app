@@ -321,6 +321,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               <span><span className="font-medium text-slate-700">Package:</span> {batch.packages?.package_code ?? '—'}</span>
               <span><span className="font-medium text-slate-700">Received:</span> {format(new Date(batch.received_at), 'd MMM yyyy')}</span>
               <span><span className="font-medium text-slate-700">Documents:</span> {docVersions.length}</span>
+              {batch.source === 'internal_review' && <span><span className="font-medium text-slate-700">Internal ref:</span> {batch.internal_ref ?? '—'}</span>}
               {batch.vendor_email && <span><span className="font-medium text-slate-700">Vendor email:</span> {batch.vendor_email}</span>}
             </div>
 
@@ -355,7 +356,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 <Users className="h-4 w-4" /> Assign Reviewers
               </Link>
             )}
-            {['review_complete','transmittal_generated'].includes(batch.status) && (
+            {['review_complete','transmittal_generated'].includes(batch.status) && batch.source !== 'internal_review' && (
               <button
                 onClick={handleGeneratePreview}
                 disabled={generatingPreview}
