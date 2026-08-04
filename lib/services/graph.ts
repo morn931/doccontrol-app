@@ -126,11 +126,11 @@ const shareId = (fileUrl: string) => 'u!' + Buffer.from(fileUrl).toString('base6
 /** Resolve any SharePoint file / sharing / "…Doc.aspx?sourcedoc=" URL to its real
  *  Graph driveItem (id, actual name, mime type, driveId). Handles the viewer-URL
  *  case where the path extension (.aspx) doesn't reflect the real file. */
-export async function resolveDriveItemByUrl(fileUrl: string): Promise<{ id: string; name: string; mimeType?: string; driveId?: string } | null> {
-  const res = await graphFetch(`/shares/${shareId(fileUrl)}/driveItem?$select=id,name,file,parentReference`)
+export async function resolveDriveItemByUrl(fileUrl: string): Promise<{ id: string; name: string; mimeType?: string; driveId?: string; webUrl?: string } | null> {
+  const res = await graphFetch(`/shares/${shareId(fileUrl)}/driveItem?$select=id,name,file,parentReference,webUrl`)
   if (!res.ok) return null
   const j = await res.json()
-  return { id: j.id, name: j.name, mimeType: j.file?.mimeType, driveId: j.parentReference?.driveId }
+  return { id: j.id, name: j.name, mimeType: j.file?.mimeType, driveId: j.parentReference?.driveId, webUrl: j.webUrl }
 }
 
 /** Result of a delete attempt. Idempotent by design: a file that is already gone is a
