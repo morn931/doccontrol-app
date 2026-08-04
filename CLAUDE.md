@@ -340,6 +340,41 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-04 — Batch reject fully reworked: server-orchestrated, per-document, move-not-delete.**
+  The old reject (SharePoint Power App + the `va-intake-reject-batch` poller) left the copied
+  file in the PPE bucket, the vendor's copy in place, and the Approver Picks row live — and it
+  relied on the vendor to delete + re-upload (which broke because overwriting the same filename
+  never re-fires the intake "new file" trigger). Rebuilt as one synchronous, idempotent unwind
+  inside CoreDocs (`app/api/batches/[id]/reject/route.ts`), **dry-run by default** (returns a
+  manifest; only `{commit:true}` acts) with a two-stage preview→confirm UI and a per-step
+  cleanup panel + Retry.
+  - **Per document, not just whole batch.** `documentVersionIds` = reject a subset (batch stays
+    OPEN for the rest); omit = whole batch. Rejecting the last active doc auto-escalates to a
+    full-batch reject (closes Approver Picks + marks the batch rejected). Per-doc reject state on
+    `document_versions` (migration **033**: `is_rejected`, `reject_reason`, `rejected_at`,
+    `reject_bucket_deleted`, `reject_source_deleted`); batch-level cleanup flags in migration
+    **032**. `start-review` + `add-reviewer` skip `is_rejected` docs; MDDR sync excludes them;
+    return-to-vendor is DAL-driven so rejected docs are never returned (verified against
+    `la-return-batch-to-vendor`).
+  - **PPE bucket copy → hard-deleted** (`graph.ts deleteDriveItemByUrl`, idempotent).
+  - **Vendor copy → MOVED, not deleted** (`graph.ts moveFileToRejectedFolder`): same-drive move
+    into an auto-created **"Rejected Files"** folder in the vendor's drop-off library. Keeps the
+    item id + the watcher only fires on the library root, so it does NOT re-trigger intake; the
+    vendor keeps their file (no "you deleted it" dispute) but must re-upload to the root.
+    ⚠️ **Drop-off libraries were RENAMED per vendor since intake** (FROM VENDOR → FROM SIEMENS /
+    FROM PSI / FROM ORIENT / FROM CRESTCHIC; From ABB ↔ From Vendor), so the recorded path's
+    library name is stale on ~5 sites. The helper derives the library from the file's own path
+    and **falls back to searching the site's drop-off libraries by the in-library path** (which
+    survives a rename) — validated: all 9 sites with vendor files resolve. `scripts/create-rejected-folders.mjs`
+    pre-created the folder in each site's resolved library (9 created; E103/K110/ICTS have no
+    vendor files yet, auto-create on first use). `scripts/refresh-dropoff-library.mjs` refreshed
+    the stale `vendor_sites.dropoff_library` values (5 updated).
+  - **Vendor notification:** `batches.vendor_email` is usually blank AND all 11 `vendors` rows had
+    no `primary_contact_email`, so the reject modal has a **controller-confirmed "Notify vendor at"
+    field** (prefilled from batch → package-vendor contact; entered value is persisted to the
+    batch). Email wording adapts to move-not-delete.
+  - **Migrations 032 + 033 applied.** **Open:** step-3 live test-run (dry-run-safe) still to be
+    done by Morné.
 - **2026-08-01 — Owner filter refined: don't hide names CoreTime simply doesn't know about.**
   The strict "must be on the K124 roster" rule (previous two entries) had a gap: `doc_owner` can
   legitimately be someone CoreTime has no record of at all (e.g. an RDMC reviewer — CoreTime only
