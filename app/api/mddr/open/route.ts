@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (!id) return new NextResponse('Missing id', { status: 400 })
 
   const { data: row } = await db.from('mddr_entries')
-    .select('file_link, normalized_document_number, document_number')
+    .select('file_link, linked_version_id, normalized_document_number, document_number')
     .eq('id', id).maybeSingle()
   if (!row) return new NextResponse('Not found', { status: 404 })
 
@@ -20,5 +20,10 @@ export async function GET(req: NextRequest) {
   const live = await resolveOpenUrl(row.file_link, core)
   if (live) return NextResponse.redirect(live)
   if (row.file_link) return NextResponse.redirect(row.file_link)   // last resort
+  // No register link — but the nightly sync may have linked the reviewed
+  // version; stream it through the app (fix 2026-08-04).
+  if (row.linked_version_id) {
+    return NextResponse.redirect(new URL(`/api/documents/${row.linked_version_id}/file`, req.url))
+  }
   return new NextResponse('No file link for this document', { status: 404 })
 }

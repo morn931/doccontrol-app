@@ -82,7 +82,10 @@ export async function GET(req: NextRequest) {
     if (revision)     query = query.eq('revision', revision)
     if (sector)       query = query.eq('sector', sector)
     if (excludeIndex) query = query.neq('source_type', 'INDEX')
-    if (hasFile)      query = query.not('file_link', 'is', null)
+    // "Has a file" = a register file link OR a linked reviewed version from the
+    // nightly sync — a review-linked file IS a produced file (fix 2026-08-04:
+    // review-only documents were invisible under the default 'Produced files').
+    if (hasFile)      query = query.or('file_link.not.is.null,linked_version_id.not.is.null')
     if (docnum) {
       const t = `%${docnum}%`
       query = query.or(`document_number.ilike.${t},normalized_document_number.ilike.${t},ppe_doc_number.ilike.${t},vendor_doc_id.ilike.${t}`)
