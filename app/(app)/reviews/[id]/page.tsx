@@ -71,20 +71,47 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const [officeUrl, setOfficeUrl] = useState('')
   const [officeLoading, setOfficeLoading] = useState(false)
   const [officeError, setOfficeError] = useState('')
+  const [officeMode, setOfficeMode] = useState<'edit' | 'read'>('read')
+  const [officeCanConnect, setOfficeCanConnect] = useState(false)
+  const [officeDvId, setOfficeDvId] = useState('')
+
+  // Pre-init MSAL so the edit token can be acquired silently for a connected user.
+  useEffect(() => { import('@/lib/msal').then(m => m.initMsal()).catch(() => {}) }, [])
 
   async function openOfficeViewer(dvId: string) {
-    setShowOffice(true); setOfficeError(''); setOfficeUrl('')
+    setShowOffice(true); setOfficeError(''); setOfficeUrl(''); setOfficeCanConnect(false); setOfficeDvId(dvId)
     setOfficeLoading(true)
     try {
+      // Try EDIT first (signed-in Microsoft user + consented edit scopes); else read-only.
+      try {
+        const msal = await import('@/lib/msal')
+        const di = await (await fetch(`/api/documents/${dvId}/drive-item`)).json()
+        if (di?.driveId && di?.itemId) {
+          const editUrl = await msal.getEditEmbedUrl(di.driveId, di.itemId)
+          setOfficeUrl(editUrl); setOfficeMode('edit'); return
+        }
+      } catch {
+        setOfficeCanConnect(true)   // couldn't get an edit session — offer to connect Microsoft
+      }
+      // Read-only fallback (app token; works for everyone, no sign-in).
       const res = await fetch(`/api/documents/${dvId}/office-embed`)
       const data = await res.json()
       if (!res.ok) { setOfficeError(data.error ?? 'Could not open the viewer'); return }
-      setOfficeUrl(data.url)
+      setOfficeUrl(data.url); setOfficeMode('read')
     } catch (e: any) {
       setOfficeError(e.message ?? 'Unexpected error')
     } finally {
       setOfficeLoading(false)
     }
+  }
+
+  async function connectAndEdit() {
+    try {
+      const msal = await import('@/lib/msal')
+      // silent first; if the user has no Microsoft session this throws and we redirect.
+      await msal.acquireSilent(msal.EDIT_SCOPES).catch(() => msal.signInRedirect(msal.EDIT_SCOPES))
+      if (officeDvId) await openOfficeViewer(officeDvId)   // retry now-connected
+    } catch { /* redirect flow will bring them back */ }
   }
 
   useEffect(() => { loadContext() }, [id])
@@ -265,11 +292,25 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
           Closing this returns to the review; the user never lands in the SharePoint library. */}
       {showOffice && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 flex flex-col p-3 sm:p-6">
-          <div className="flex items-center justify-between text-white mb-2 shrink-0">
-            <span className="text-sm font-medium flex items-center gap-2"><FileText className="h-4 w-4" /> {dv.file_name}</span>
-            <button onClick={() => { setShowOffice(false); setOfficeUrl('') }} className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
-              <X className="h-4 w-4" /> Close
-            </button>
+          <div className="flex items-center justify-between text-white mb-2 shrink-0 gap-3">
+            <span className="text-sm font-medium flex items-center gap-2 min-w-0">
+              <FileText className="h-4 w-4 shrink-0" /> <span className="truncate">{dv.file_name}</span>
+              {officeUrl && (
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${officeMode === 'edit' ? 'bg-emerald-500/90' : 'bg-white/20'}`}>
+                  {officeMode === 'edit' ? 'Editing — changes save to the document' : 'Read-only'}
+                </span>
+              )}
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {officeMode === 'read' && officeCanConnect && (
+                <button onClick={connectAndEdit} className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
+                  <FileText className="h-4 w-4" /> Connect Microsoft to edit
+                </button>
+              )}
+              <button onClick={() => { setShowOffice(false); setOfficeUrl('') }} className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
+                <X className="h-4 w-4" /> Close
+              </button>
+            </div>
           </div>
           <div className="flex-1 min-h-0 rounded-lg overflow-hidden bg-white">
             {officeLoading ? (

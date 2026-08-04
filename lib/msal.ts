@@ -24,7 +24,7 @@ export async function initMsal(): Promise<PublicClientApplication> {
       authority: `https://login.microsoftonline.com/${TENANT_ID}`,
       redirectUri: typeof window !== 'undefined' ? window.location.origin + REDIRECT_PATH : undefined,
     },
-    cache: { cacheLocation: 'sessionStorage' },
+    cache: { cacheLocation: 'localStorage' },   // persist the connection across the app (so edit works silently on any page)
   })
   await app.initialize()
   _msal = app
@@ -63,6 +63,22 @@ export async function acquireSilent(scopes: string[]): Promise<MsToken> {
   if (!account) throw new Error('no_account')
   const res = await msal.acquireTokenSilent({ scopes, account })
   return { token: res.accessToken, account: res.account }
+}
+
+/** Mint an EDITABLE Office-for-the-web embed URL for a file, using the signed-in user's
+ *  delegated token (Graph preview + allowEdit). Throws if the user isn't connected or the
+ *  edit scopes aren't consented yet — callers should fall back to the read-only viewer. */
+export async function getEditEmbedUrl(driveId: string, itemId: string): Promise<string> {
+  const { token } = await acquireSilent(EDIT_SCOPES)
+  const res = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/preview`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ allowEdit: true }),
+  })
+  if (!res.ok) throw new Error('preview_edit_failed_' + res.status)
+  const data = await res.json()
+  if (!data.getUrl) throw new Error('no_edit_url')
+  return data.getUrl as string
 }
 
 export async function currentMsAccount(): Promise<AccountInfo | null> {
