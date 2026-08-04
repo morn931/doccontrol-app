@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { getFileBytesByUrl, putFileBytesByUrl } from '@/lib/services/graph'
 import { stampSignature, pngFromDataUrl } from '@/lib/signoff-pdf'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+import { splitEmails } from '@/lib/utils/emails'
 
 export const maxDuration = 120
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
@@ -92,7 +93,24 @@ export async function POST(_req: Request, { params }: { params: Promise<{ taskId
       })
     } catch {}
   } else {
+    // Fully signed — mark the batch and notify the Document Controller that it's ready to
+    // retrieve and upload to Aconex.
     await db.from('batches').update({ status: 'signed', signed_at: now, updated_at: now }).eq('id', b.id)
+    try {
+      const { data: setting } = await db.from('system_settings').select('value').eq('key', 'doc_request_controller_email').maybeSingle()
+      const controller = splitEmails((setting as any)?.value)
+      if (!controller.length) controller.push('mornec@ppetech.co.za')
+      await sendMail({
+        to: controller,
+        subject: `Fully signed — ${b.internal_ref ?? ''} ${docTitle}`,
+        htmlBody: brandedEmail({
+          heading: 'Document fully signed — ready to issue',
+          bodyHtml: `<p><b>${docTitle}</b>${b.internal_ref ? ` (${b.internal_ref})` : ''} has been signed by all signatories.</p>
+            <p style="color:#6b7280;font-size:13px">It's ready to retrieve and upload to Aconex.${b.signoff_pdf_url ? ` The signed PDF: <a href="${b.signoff_pdf_url}">open in SharePoint</a>.` : ''}</p>`,
+          cta: { href: `${APP_URL}/batches/${b.id}`, label: 'Open batch →' },
+        }),
+      })
+    } catch {}
   }
 
   await db.from('audit_events').insert({
