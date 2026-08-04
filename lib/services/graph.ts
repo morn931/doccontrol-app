@@ -447,6 +447,27 @@ export async function uploadBytesToLibrary(
   return { webUrl: item.webUrl, id: item.id }
 }
 
+/** Upload bytes to a PATH inside a library (e.g. "Signed/DOC.pdf"), creating the file (or
+ *  replacing it). Used for the sign-off PDF, which lives in Internal Reviews / Signed. */
+export async function uploadBytesToLibraryFolder(
+  pathInLibrary: string,
+  bytes: ArrayBuffer | Uint8Array,
+  contentType = 'application/pdf',
+  libraryName: string = INTERNAL_REVIEW_LIBRARY,
+  siteUrl: string = INTERNAL_REVIEW_SITE_URL
+): Promise<{ webUrl: string; id: string }> {
+  const siteId  = await getSiteId(siteUrl)
+  const driveId = await getLibraryDriveId(siteId, libraryName)
+  const encPath = pathInLibrary.replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/')
+  const res = await graphFetch(
+    `/sites/${siteId}/drives/${driveId}/root:/${encPath}:/content`,
+    { method: 'PUT', headers: { 'Content-Type': contentType }, body: bytes as any }
+  )
+  if (!res.ok) throw new Error(`Upload to "${libraryName}/${pathInLibrary}" failed (${res.status}): ${await res.text()}`)
+  const item = await res.json()
+  return { webUrl: item.webUrl, id: item.id }
+}
+
 /** The folder inside the Internal Reviews library that holds site redline
  *  uploads (driveway C front door). No new site/library needed. */
 export const REDLINE_FOLDER = process.env.REDLINE_FOLDER || 'Site Redlines'

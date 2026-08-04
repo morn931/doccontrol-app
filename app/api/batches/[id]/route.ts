@@ -16,6 +16,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       reject_bucket_deleted, reject_source_deleted, reject_picks_closed,
       reject_vendor_notified, reject_cleanup_error, sp_approver_picks_id,
       recommended_reviewers,
+      signoff_pdf_url, signoff_started_at, signed_at,
+      signoff_tasks(id, signatory_email, signatory_name, role_label, sequence_number, status, signed_at, decline_reason),
       vendors(id, name, code, primary_contact_email),
       packages(id, package_code, package_name),
       document_versions(

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, use } from 'react'
-import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw } from 'lucide-react'
+import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw, PenLine, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
@@ -57,6 +57,10 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set())
   const [rejectDocIds, setRejectDocIds] = useState<string[] | null>(null)  // null = whole batch
   const [retryingDoc, setRetryingDoc]   = useState<string | null>(null)
+  const [showSignoff, setShowSignoff]   = useState(false)
+  const [signatories, setSignatories]   = useState<{ role: string; name: string; email: string }[]>([{ role: 'Prepared', name: '', email: '' }])
+  const [startingSignoff, setStartingSignoff] = useState(false)
+  const [signoffError, setSignoffError] = useState('')
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
   const [saving, setSaving]             = useState(false)
@@ -129,6 +133,25 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   // Retry the hard-delete cleanup for a single already-rejected document.
+  async function handleStartSignoff() {
+    const clean = signatories.map(s => ({ role: s.role.trim(), name: s.name.trim(), email: s.email.trim() })).filter(s => s.email.includes('@'))
+    if (!clean.length) { setSignoffError('Add at least one signatory with an email.'); return }
+    setStartingSignoff(true); setSignoffError('')
+    try {
+      const res = await fetch(`/api/batches/${id}/signoff/start`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signatories: clean }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSignoffError(data.error ?? 'Failed to start sign-off'); return }
+      setShowSignoff(false); loadBatch()
+    } catch (e: any) {
+      setSignoffError(e.message ?? 'Unexpected error')
+    } finally {
+      setStartingSignoff(false)
+    }
+  }
+
   async function handleRetryDoc(dvId: string) {
     setRetryingDoc(dvId)
     try {
@@ -370,6 +393,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 }
               </button>
             )}
+            {batch.source === 'internal_review' && ['review_complete','signoff_declined'].includes(batch.status) && (
+              <button onClick={() => { setSignoffError(''); setShowSignoff(true) }} className="btn-primary text-sm">
+                <PenLine className="h-4 w-4" /> {batch.status === 'signoff_declined' ? 'Re-send for sign-off' : 'Send for sign-off'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -431,6 +459,49 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           <span>{transmittalError}</span>
           <button onClick={() => setTransmittalError('')} className="ml-auto shrink-0"><X className="h-4 w-4" /></button>
+        </div>
+      )}
+
+      {/* Send-for-sign-off modal */}
+      {showSignoff && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2"><PenLine className="h-5 w-5 text-teal-600" /> Send for sign-off</h2>
+              <button onClick={() => setShowSignoff(false)}><X className="h-5 w-5 text-slate-400 hover:text-slate-600" /></button>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              The document is converted to PDF and routed to each signatory in order to sign <strong>in the app</strong>.
+              The native file is untouched. Preview the PDF first — especially for Excel.
+            </p>
+
+            <datalist id="signoff-roles"><option value="Prepared" /><option value="Checked" /><option value="Approved" /><option value="Reviewed" /></datalist>
+            <div className="space-y-2">
+              {signatories.map((s, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <span className="w-5 text-xs text-slate-400 shrink-0">{i + 1}.</span>
+                  <input list="signoff-roles" value={s.role} onChange={e => setSignatories(sig => sig.map((x, j) => j === i ? { ...x, role: e.target.value } : x))} placeholder="Role" className="input text-sm w-28 shrink-0" />
+                  <input value={s.name} onChange={e => setSignatories(sig => sig.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} placeholder="Name" className="input text-sm flex-1" />
+                  <input type="email" value={s.email} onChange={e => setSignatories(sig => sig.map((x, j) => j === i ? { ...x, email: e.target.value } : x))} placeholder="email@ppetech.co.za" className="input text-sm flex-1" />
+                  <button onClick={() => setSignatories(sig => sig.filter((_, j) => j !== i))} disabled={signatories.length === 1} className="text-slate-400 hover:text-red-500 disabled:opacity-30 shrink-0"><X className="h-4 w-4" /></button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setSignatories(sig => [...sig, { role: '', name: '', email: '' }])} className="btn-secondary text-xs py-1.5 px-3 mt-2">
+              <Plus className="h-3.5 w-3.5" /> Add signatory
+            </button>
+
+            {signoffError && <p className="text-sm text-red-600 mt-3">{signoffError}</p>}
+            <div className="flex gap-3 mt-5">
+              <button onClick={handleStartSignoff} disabled={startingSignoff} className="btn-primary flex-1 justify-center">
+                {startingSignoff ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing…</> : <><PenLine className="h-4 w-4" /> Send for sign-off</>}
+              </button>
+              <a href={`/api/batches/${id}/signoff/preview`} target="_blank" rel="noopener noreferrer" className="btn-secondary justify-center px-4">
+                <FileText className="h-4 w-4" /> Preview PDF
+              </a>
+              <button onClick={() => setShowSignoff(false)} className="btn-secondary justify-center px-4">Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -527,6 +598,44 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Sign-off status — the signature chain for an internal-review document */}
+      {batch.source === 'internal_review' && (batch.signoff_tasks?.length ?? 0) > 0 && (
+        <div className="card">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <PenLine className="h-4 w-4 text-slate-500" />
+            <h2 className="font-semibold text-slate-900">Sign-off</h2>
+            <span className={`ml-auto px-2.5 py-1 rounded-full text-xs font-medium ${
+              batch.status === 'signed' ? 'bg-green-100 text-emerald-800' :
+              batch.status === 'signoff_declined' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+              {batch.status === 'signed' ? 'Fully signed' : batch.status === 'signoff_declined' ? 'Declined' : 'In progress'}
+            </span>
+            {batch.signoff_pdf_url && (
+              <a href={batch.signoff_pdf_url} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3">
+                <ExternalLink className="h-3.5 w-3.5" /> Open PDF
+              </a>
+            )}
+          </div>
+          <div className="divide-y divide-slate-50">
+            {[...batch.signoff_tasks].sort((a: any, b: any) => a.sequence_number - b.sequence_number).map((t: any) => (
+              <div key={t.id} className="px-6 py-3 flex items-center gap-4">
+                <div className="w-7 h-7 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-bold text-xs shrink-0">{t.sequence_number}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-slate-900">{t.signatory_name || t.signatory_email} {t.role_label && <span className="text-slate-400 font-normal">· {t.role_label}</span>}</p>
+                  <p className="text-xs text-slate-400">{t.signatory_email}</p>
+                  {t.decline_reason && <p className="text-xs text-red-600 mt-0.5">Declined: {t.decline_reason}</p>}
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+                  t.status === 'signed' ? 'bg-green-100 text-emerald-700' :
+                  t.status === 'declined' ? 'bg-red-100 text-red-700' :
+                  t.status === 'sent' || t.status === 'opened' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                  {t.status}{t.signed_at ? ` · ${format(new Date(t.signed_at), 'd MMM')}` : ''}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
