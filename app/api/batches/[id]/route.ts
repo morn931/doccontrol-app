@@ -13,6 +13,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       id, batch_guid, status, source, request_line_id,
       file_count, received_at, started_at, completed_at,
       returned_at, rejected_at, comments, reject_reason, vendor_email,
+      reject_bucket_deleted, reject_source_deleted, reject_picks_closed,
+      reject_vendor_notified, reject_cleanup_error, sp_approver_picks_id,
       recommended_reviewers,
       vendors(id, name, code),
       packages(id, package_code, package_name),

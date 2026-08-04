@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, use } from 'react'
-import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
@@ -51,6 +51,8 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [rejectReason, setRejectReason] = useState('')
   const [rejecting, setRejecting]   = useState(false)
   const [rejectError, setRejectError] = useState('')
+  const [rejectPreview, setRejectPreview] = useState<any>(null)   // dry-run manifest before confirm
+  const [retrying, setRetrying]     = useState(false)
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
   const [saving, setSaving]             = useState(false)
@@ -106,18 +108,59 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     setLoading(false)
   }
 
-  async function handleReject() {
+  function closeRejectModal() {
+    setShowReject(false); setRejectReason(''); setRejectError(''); setRejectPreview(null)
+  }
+
+  // Stage 1 — dry run: fetch the manifest of exactly what reject WOULD remove/close/email.
+  async function handlePreviewReject() {
     if (!rejectReason.trim()) { setRejectError('Please enter a rejection reason'); return }
     setRejecting(true); setRejectError('')
-    const res = await fetch(`/api/batches/${id}/reject`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rejectReason }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setRejectError(data.error ?? 'Failed'); setRejecting(false) }
-    else { setShowReject(false); setRejectReason(''); loadBatch() }
-    setRejecting(false)
+    try {
+      const res = await fetch(`/api/batches/${id}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectReason, commit: false }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setRejectError(data.error ?? 'Failed to build preview'); return }
+      setRejectPreview(data)
+    } catch (e: any) {
+      setRejectError(e.message ?? 'Unexpected error')
+    } finally {
+      setRejecting(false)
+    }
+  }
+
+  // Stage 2 — commit: perform the reject unwind (hard-deletes are irreversible).
+  async function handleConfirmReject() {
+    setRejecting(true); setRejectError('')
+    try {
+      const res = await fetch(`/api/batches/${id}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectReason, commit: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setRejectError(data.error ?? 'Failed'); return }
+      closeRejectModal(); loadBatch()
+    } catch (e: any) {
+      setRejectError(e.message ?? 'Unexpected error')
+    } finally {
+      setRejecting(false)
+    }
+  }
+
+  // Resume a partially-failed reject (idempotent — only the unfinished steps re-run).
+  async function handleRetryCleanup() {
+    setRetrying(true)
+    try {
+      await fetch(`/api/batches/${id}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commit: true }),
+      })
+      await loadBatch()
+    } finally {
+      setRetrying(false)
+    }
   }
 
   async function handleGeneratePreview() {
@@ -311,6 +354,43 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             <p>{batch.reject_reason}</p>
           </div>
         )}
+
+        {/* Reject cleanup status — what the unwind removed / still needs retrying */}
+        {batch.status === 'rejected_before_review' && (() => {
+          const notifyDone = batch.reject_vendor_notified || !batch.vendor_email
+          const steps = [
+            { label: 'PPE approval-bucket copies deleted', done: batch.reject_bucket_deleted },
+            { label: 'Vendor drop-off copy removed',       done: batch.reject_source_deleted },
+            { label: 'Approver Picks row closed',          done: batch.reject_picks_closed },
+            { label: batch.vendor_email ? 'Vendor notified by email' : 'Vendor notified (no email on file — skipped)', done: notifyDone },
+          ]
+          const allDone = steps.every(s => s.done) && !batch.reject_cleanup_error
+          return (
+            <div className={`mt-4 p-3 rounded-md text-sm border ${allDone ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-200'}`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className={`font-medium flex items-center gap-1.5 ${allDone ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {allDone ? <><CheckCircle2 className="h-4 w-4" /> Cleanup complete — all traces removed</> : <><AlertCircle className="h-4 w-4" /> Cleanup incomplete</>}
+                </p>
+                {!allDone && (
+                  <button onClick={handleRetryCleanup} disabled={retrying} className="btn-secondary text-xs py-1 px-2.5">
+                    {retrying ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Retrying…</> : <><RotateCw className="h-3.5 w-3.5" /> Retry cleanup</>}
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-1">
+                {steps.map((s, i) => (
+                  <li key={i} className={`flex items-center gap-2 ${s.done ? 'text-slate-600' : 'text-slate-500'}`}>
+                    {s.done ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                    {s.label}
+                  </li>
+                ))}
+              </ul>
+              {batch.reject_cleanup_error && (
+                <p className="mt-2 text-xs text-red-700 break-words"><span className="font-medium">Last error:</span> {batch.reject_cleanup_error}</p>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Transmittal error banner */}
@@ -322,38 +402,83 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       )}
 
-      {/* Reject modal */}
+      {/* Reject modal — two stages: reason → preview manifest → confirm hard-delete */}
       {showReject && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
                 <XCircle className="h-5 w-5 text-red-500" /> Reject Batch Before Review
               </h2>
-              <button onClick={() => { setShowReject(false); setRejectReason(''); setRejectError('') }}>
+              <button onClick={closeRejectModal}>
                 <X className="h-5 w-5 text-slate-400 hover:text-slate-600" />
               </button>
             </div>
-            <p className="text-sm text-slate-600 mb-4">
-              The vendor will be notified by email. Provide a clear reason so they can correct and resubmit.
-            </p>
-            <label className="label">Rejection Reason <span className="text-red-500">*</span></label>
-            <textarea
-              value={rejectReason}
-              onChange={e => setRejectReason(e.target.value)}
-              rows={4}
-              className="input resize-none"
-              placeholder="e.g. Wrong document type on cover page. Title block does not match SDDR. Please correct and resubmit."
-            />
-            {rejectError && <p className="text-sm text-red-600 mt-2">{rejectError}</p>}
-            <div className="flex gap-3 mt-4">
-              <button onClick={handleReject} disabled={rejecting} className="btn-danger flex-1 justify-center">
-                {rejecting ? 'Rejecting…' : 'Confirm Rejection'}
-              </button>
-              <button onClick={() => { setShowReject(false); setRejectReason('') }} className="btn-secondary flex-1 justify-center">
-                Cancel
-              </button>
-            </div>
+
+            {!rejectPreview ? (
+              // ── Stage 1: reason ──────────────────────────────────────────────
+              <>
+                <p className="text-sm text-slate-600 mb-4">
+                  The vendor will be notified by email. Provide a clear reason so they can correct and resubmit.
+                  You'll see exactly what will be removed before anything is deleted.
+                </p>
+                <label className="label">Rejection Reason <span className="text-red-500">*</span></label>
+                <textarea
+                  value={rejectReason}
+                  onChange={e => setRejectReason(e.target.value)}
+                  rows={4}
+                  className="input resize-none"
+                  placeholder="e.g. Wrong document type on cover page. Title block does not match SDDR. Please correct and resubmit."
+                />
+                {rejectError && <p className="text-sm text-red-600 mt-2">{rejectError}</p>}
+                <div className="flex gap-3 mt-4">
+                  <button onClick={handlePreviewReject} disabled={rejecting} className="btn-danger flex-1 justify-center">
+                    {rejecting ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</> : <>Preview reject</>}
+                  </button>
+                  <button onClick={closeRejectModal} className="btn-secondary flex-1 justify-center">Cancel</button>
+                </div>
+              </>
+            ) : (
+              // ── Stage 2: manifest preview + confirm ──────────────────────────
+              <>
+                <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+                  <p className="font-medium flex items-center gap-1.5"><Trash2 className="h-4 w-4" /> This will permanently delete the files below and cannot be undone.</p>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="font-medium text-slate-700 mb-1">Hard-delete from PPE approval bucket ({rejectPreview.manifest.bucketFiles.length})</p>
+                    {rejectPreview.manifest.bucketFiles.length
+                      ? <ul className="list-disc pl-5 text-slate-600 space-y-0.5">{rejectPreview.manifest.bucketFiles.map((f: any, i: number) => <li key={i} className="font-mono text-xs break-all">{f.fileName}</li>)}</ul>
+                      : <p className="text-slate-400 text-xs">Nothing recorded.</p>}
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-700 mb-1">Delete from vendor FROM VENDOR drop-off ({rejectPreview.manifest.vendorFiles.length})</p>
+                    {rejectPreview.manifest.vendorFiles.length
+                      ? <ul className="list-disc pl-5 text-slate-600 space-y-0.5">{rejectPreview.manifest.vendorFiles.map((f: any, i: number) => <li key={i} className="font-mono text-xs break-all">{f.fileName}</li>)}</ul>
+                      : <p className="text-slate-400 text-xs">Nothing recorded — vendor must delete their copy manually.</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 text-slate-600">
+                    <span><span className="font-medium text-slate-700">Approver Picks:</span> {rejectPreview.manifest.approverPicksRow} → closed</span>
+                    <span><span className="font-medium text-slate-700">Email to:</span> {rejectPreview.manifest.vendorEmail ?? '— none —'}</span>
+                  </div>
+                </div>
+
+                {rejectPreview.warnings?.length > 0 && (
+                  <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-1">
+                    {rejectPreview.warnings.map((w: string, i: number) => <p key={i} className="flex items-start gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {w}</p>)}
+                  </div>
+                )}
+
+                {rejectError && <p className="text-sm text-red-600 mt-3">{rejectError}</p>}
+                <div className="flex gap-3 mt-4">
+                  <button onClick={handleConfirmReject} disabled={rejecting} className="btn-danger flex-1 justify-center">
+                    {rejecting ? <><Loader2 className="h-4 w-4 animate-spin" /> Rejecting…</> : <><Trash2 className="h-4 w-4" /> Confirm — hard-delete &amp; reject</>}
+                  </button>
+                  <button onClick={() => setRejectPreview(null)} disabled={rejecting} className="btn-secondary flex-1 justify-center">Back</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

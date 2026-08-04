@@ -311,6 +311,56 @@ export async function markApprovalListRowSent(
   }
 }
 
+// ─── APPROVER PICKS: soft-close a rejected batch ──────────────────────────────
+//
+// Part of the reject unwind. Rather than DELETE the Approver Picks row (which the
+// return-to-vendor Logic App and the legacy Power App both key off — a dangling
+// reference is exactly what broke reject before), we mark it not-ready and stamp the
+// reason, using only columns the legacy va-intake-reject flow already wrote (so the
+// PATCH can't fail on an unknown field). Locates the row by its stored SharePoint item
+// id when we have it, else scans by BatchID. A batch created entirely in the new app
+// has no Approver Picks row → returns { ok:true, found:false } (nothing to close).
+export async function closeApproverPicksRow(
+  opts: { spItemId?: string | null; batchGuid: string; reason: string }
+): Promise<{ ok: boolean; found: boolean; error?: string }> {
+  try {
+    const siteId = await getDocControlSiteId()
+    let itemId: string | null = opts.spItemId ? String(opts.spItemId) : null
+
+    if (!itemId) {
+      const targetGuid = opts.batchGuid.trim().toLowerCase()
+      let nextUrl: string | null = null
+      const firstUrl = `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items?$expand=fields($select=BatchID)&$top=200`
+      for (let page = 0; page < 30; page++) {
+        const res: Response = page === 0 ? await graphFetch(firstUrl) : await graphFetchAbsolute(nextUrl!)
+        if (!res.ok) return { ok: false, found: false, error: `Scan failed: ${res.status}` }
+        const data: any = await res.json()
+        const hit = (data.value ?? []).find((i: any) => i.fields?.BatchID?.trim().toLowerCase() === targetGuid)
+        if (hit) { itemId = String(hit.id); break }
+        nextUrl = data['@odata.nextLink'] ?? null
+        if (!nextUrl) break
+      }
+    }
+
+    if (!itemId) return { ok: true, found: false }   // new-app-only batch, nothing to close
+
+    const patchRes = await graphFetch(
+      `/sites/${siteId}/lists/${APPROVER_PICKS_ID}/items/${itemId}/fields`,
+      { method: 'PATCH', body: JSON.stringify({
+        ReadyToStart:       false,
+        RejectRequested:    false,
+        VendorRejectReason: (opts.reason ?? '').slice(0, 3000),
+      }) }
+    )
+    if (!patchRes.ok) {
+      return { ok: false, found: true, error: `PATCH failed: ${patchRes.status} ${(await patchRes.text()).slice(0, 200)}` }
+    }
+    return { ok: true, found: true }
+  } catch (e: any) {
+    return { ok: false, found: false, error: e.message }
+  }
+}
+
 // ─── APPROVER PICKS: flag ReturnRequested = true ──────────────────────────────
 //
 // The existing Logic App polls the Approver Picks list every 5 minutes for items

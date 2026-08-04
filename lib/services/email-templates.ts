@@ -50,8 +50,14 @@ export function batchRejectedEmail(params: {
   fileNames:   string[]
   rejectReason: string
   controllerEmail: string
+  // True when PPE has already removed the rejected file(s) from the vendor's drop-off
+  // library as part of the reject unwind, so the vendor only needs to upload a fresh copy.
+  sourceRemoved?: boolean
 }): string {
   const fileList = `<ul style="margin:0;padding-left:16px;">${params.fileNames.map(f => `<li style="margin:4px 0;word-break:break-all;">${f}</li>`).join('')}</ul>`
+  const nextStep = params.sourceRemoved
+    ? 'The rejected file(s) have been removed from your drop-off folder. Once corrected, please upload the documents again as a <strong>new upload</strong> — a fresh upload automatically re-triggers the review.'
+    : 'Please delete the current versions from your SharePoint drop-off folder and upload corrected documents as a <strong>new upload</strong> (a fresh upload is what re-triggers the review — do not overwrite the existing file).'
 
   return layout('Document Batch Rejected — Action Required', `
     <p style="margin:0 0 16px 0;">Your document batch submitted to <strong>${params.packageName}</strong> has been rejected by PPE Tech Document Control before formal review.</p>
@@ -60,7 +66,7 @@ export function batchRejectedEmail(params: {
       ['Files', fileList],
     ])}
     ${dangerCalloutBlock(`<strong>Rejection Reason:</strong><br>${params.rejectReason}`)}
-    <p style="margin:16px 0;">Please delete the current versions from your SharePoint drop-off folder and upload corrected documents as a new batch.</p>
+    <p style="margin:16px 0;">${nextStep}</p>
     <p style="font-size:13px;color:#6B7280;margin:0;">If you have questions, please contact the Document Controller at ${params.controllerEmail}</p>
   `)
 }
