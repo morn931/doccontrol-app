@@ -340,6 +340,44 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-04 — Internal Review stream + sign-off + in-app Office viewer (Roelien/Jarrod thread).**
+  Sparked by Roelien's email (Jarrod couldn't complete a review; and internal docs had no home).
+  - **Overdue-review fix** (`reviews/[id]/page.tsx`): `canSubmit` omitted `'overdue'`, so once a
+    task passed its due date the whole review form + add-reviewer control vanished — a reviewer
+    was stuck. Added `'overdue'`; the `earlierOpen` turn-order guard still applies. (Root of
+    Jarrod's "couldn't add comments / outcome". The *other* half was that his doc was a **.docx** —
+    see the Office viewer below.)
+  - **In-app Office viewer** — Word/Excel now open **inside our window** (read-only), not from
+    SharePoint (which dumped reviewers in the library on close). Uses Microsoft's embeddable
+    Office-for-the-web: `graph.ts getOfficeEmbedUrl()` → Graph **`preview`** action → a short-lived
+    `embed.aspx` URL rendered in an `<iframe>`. **Works with our app-only token** (proven live; no
+    per-user SharePoint sign-in). `GET /api/documents/[id]/office-embed` mints it per view. Wired
+    into the **review workspace** ("View document" overlay) + the **batch document list** ("View").
+    PDFs keep the in-app markup viewer. **Read-only only** — *edit-in-window would need Microsoft
+    SSO (delegated identity); logged as a future option, not built.* Also fixed **"Open in
+    SharePoint"** (`/api/documents/[id]/download-url`): it rewrote the URL into an `AllItems.aspx`
+    link that mangled `Doc.aspx?sourcedoc=` viewer URLs (internal uploads) into a broken link — now
+    redirects to the file's real Graph `webUrl` (resolveDriveItemByUrl returns `webUrl`).
+  - **Internal Review stream — Phase 1** (the "4th door"). Internal working docs (Word/Excel/PDF)
+    with **no vendor and no document number**, reviewed in **native form**, kept isolated from the
+    engineer-facing (Aconex-synced) SharePoint. Migration **034**: `batches.source='internal_review'`
+    + `internal_ref` (INT-YYYY-NNNN via `next_internal_ref()`/`internal_ref_seq`). `POST
+    /api/internal-review/submit` uploads to the existing isolated **"Internal Reviews"** library →
+    creates the batch/version → review engine (Incoming Batches). Page `/internal-review/new` + nav +
+    perms (`NAV_/ACTION_START_INTERNAL_REVIEW`). Review engine treats it as internal (A1/B1/Q1),
+    suppresses the vendor transmittal, and MDDR sync excludes it.
+  - **Sign-off — Phase 2** (review complete → PDF → in-app signature chain, Marnus's ask). Migration
+    **035**: `signoff_tasks` (RLS on) + `batches.signoff_pdf_url/…` + statuses
+    `signoff_in_progress/signed/signoff_declined`. `signoff/start` renders native→PDF (Graph
+    `format=pdf`), appends an **approval block** (`lib/signoff-pdf.ts`), stores it in Internal
+    Reviews/**Signed**, creates the chain, emails signatory 1; `signoff/preview` returns the PDF to
+    eyeball. `/signoff/[taskId]` (+ `/file` stream, `/sign`, `/decline`) = **in-app signing**: fetch
+    the signatory's stored signature (shell store, `SIGNATURE_LOOKUP_SECRET`) → **pdf-lib** stamps it
+    into their row → write back → advance / email next → last = batch `signed`. `/signoffs` queue +
+    nav (`NAV_SIGNOFFS`/`ACTION_START_SIGNOFF`). Batch page: **Send for sign-off** + status panel.
+  - **Migrations applied:** 034, 035. **Permissions seeded** by data insert (not migration). **Open:**
+    Phase 3 (assign RDMC number → Aconex issue → sync to engineer library → supersede WIP);
+    edit-in-window via Microsoft SSO; add the 2 new nav rows to the Developer→Permissions matrix UI.
 - **2026-08-04 — Batch reject fully reworked: server-orchestrated, per-document, move-not-delete.**
   The old reject (SharePoint Power App + the `va-intake-reject-batch` poller) left the copied
   file in the PPE bucket, the vendor's copy in place, and the Approver Picks row live — and it
