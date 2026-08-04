@@ -52,7 +52,7 @@ export default function MicrosoftCheckPage() {
       setEditState('ok'); setEditMsg('Admin consent is in place — editing can be turned on.')
     } catch (e: any) {
       const code = e?.errorCode || e?.message || String(e)
-      if (/consent|AADSTS65001|interaction_required|approval|no_account/i.test(code)) {
+      if (/consent|AADSTS65001|AADSTS90008|invalid_grant|interaction_required|approval|no_account/i.test(code)) {
         setEditState('consent'); setEditMsg('Awaiting admin consent for Files.ReadWrite.All / Sites.ReadWrite.All (expected until IT grants it).')
       } else { setEditState('err'); setEditMsg('Error: ' + code) }
     } finally { setBusy(false) }
