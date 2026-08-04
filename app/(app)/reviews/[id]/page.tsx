@@ -183,7 +183,11 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const OPEN_ANY = ['pending', 'sent', 'opened', 'in_progress', 'overdue', 'needs_more_review']
   const earlierOpen = docChain.filter((t: any) =>
     t.sequence_number < task.sequence_number && OPEN_ANY.includes(t.status))
-  const canSubmit   = ['sent','opened','in_progress','pending'].includes(task.status) && !submitted && earlierOpen.length === 0
+  // 'overdue' is a LATE-but-still-active state (a reminder cron flips a past-due task to
+  // it) — the reviewer must still be able to submit. It was missing here, so once a task
+  // went overdue the whole review form + add-reviewer control disappeared (Jarrod, Aug'26).
+  // OPEN_ANY above already treats overdue as open for the turn-order guard, which still applies.
+  const canSubmit   = ['sent','opened','in_progress','pending','overdue'].includes(task.status) && !submitted && earlierOpen.length === 0
 
   // Previous reviewers who already completed (visible to current reviewer)
   const completedBefore = docChain.filter((t: any) =>
