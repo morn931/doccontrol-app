@@ -61,6 +61,20 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [signatories, setSignatories]   = useState<{ role: string; name: string; email: string }[]>([{ role: 'Prepared', name: '', email: '' }])
   const [startingSignoff, setStartingSignoff] = useState(false)
   const [signoffError, setSignoffError] = useState('')
+  const [officeDoc, setOfficeDoc] = useState<{ id: string; name: string } | null>(null)
+  const [officeUrl, setOfficeUrl] = useState('')
+  const [officeLoading, setOfficeLoading] = useState(false)
+  const [officeError, setOfficeError] = useState('')
+
+  async function openOfficeViewer(dvId: string, name: string) {
+    setOfficeDoc({ id: dvId, name }); setOfficeError(''); setOfficeUrl(''); setOfficeLoading(true)
+    try {
+      const res = await fetch(`/api/documents/${dvId}/office-embed`)
+      const data = await res.json()
+      if (!res.ok) { setOfficeError(data.error ?? 'Could not open the viewer'); return }
+      setOfficeUrl(data.url)
+    } catch (e: any) { setOfficeError(e.message ?? 'Unexpected error') } finally { setOfficeLoading(false) }
+  }
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
   const [saving, setSaving]             = useState(false)
@@ -317,6 +331,28 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* In-app Office viewer — Word/Excel run inside our window (read-only); close returns
+          here, never to the SharePoint library. */}
+      {officeDoc && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex flex-col p-3 sm:p-6">
+          <div className="flex items-center justify-between text-white mb-2 shrink-0">
+            <span className="text-sm font-medium flex items-center gap-2"><FileText className="h-4 w-4" /> {officeDoc.name}</span>
+            <button onClick={() => { setOfficeDoc(null); setOfficeUrl('') }} className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
+              <X className="h-4 w-4" /> Close
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 rounded-lg overflow-hidden bg-white">
+            {officeLoading ? <div className="h-full flex items-center justify-center text-slate-400 text-sm">Opening document…</div>
+              : officeError ? (
+                <div className="h-full flex flex-col items-center justify-center gap-3 text-center p-6">
+                  <p className="text-sm text-red-600">{officeError}</p>
+                  <a href={`/api/documents/${officeDoc.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-sm"><ExternalLink className="h-4 w-4" /> Open in SharePoint instead</a>
+                </div>
+              ) : officeUrl ? <iframe src={officeUrl} className="w-full h-full border-0" title={officeDoc.name} /> : null}
+          </div>
+        </div>
+      )}
+
       {/* Back */}
       <div className="flex items-center gap-3">
         <Link href="/batches" className="btn-secondary text-xs py-1.5 px-3">
@@ -765,6 +801,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                           <button onClick={() => { setEditingDv(dv.id); setEditForm({ doc_name: dv.doc_name, discipline: dv.discipline, document_type: dv.document_type, topic: dv.topic }) }}
                             className="btn-secondary text-xs py-1.5 px-3">
                             <Edit3 className="h-3.5 w-3.5" /> Edit
+                          </button>
+                        )}
+                        {dv.central_file_url && !/\.pdf$/i.test(dv.file_name || dv.central_file_url) && (
+                          <button onClick={() => openOfficeViewer(dv.id, dv.file_name)} className="btn-secondary text-xs py-1.5 px-3">
+                            <FileText className="h-3.5 w-3.5" /> View
                           </button>
                         )}
                         {dv.central_file_url && (
