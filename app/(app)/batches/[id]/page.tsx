@@ -54,6 +54,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [rejectPreview, setRejectPreview] = useState<any>(null)   // dry-run manifest before confirm
   const [rejectVendorEmail, setRejectVendorEmail] = useState('')  // controller-confirmed reject recipient
   const [retrying, setRetrying]     = useState(false)
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set())
+  const [rejectDocIds, setRejectDocIds] = useState<string[] | null>(null)  // null = whole batch
+  const [retryingDoc, setRetryingDoc]   = useState<string | null>(null)
   const [editingDv, setEditingDv]       = useState<string | null>(null)
   const [editForm, setEditForm]         = useState<any>({})
   const [saving, setSaving]             = useState(false)
@@ -110,7 +113,33 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   function closeRejectModal() {
-    setShowReject(false); setRejectReason(''); setRejectError(''); setRejectPreview(null); setRejectVendorEmail('')
+    setShowReject(false); setRejectReason(''); setRejectError(''); setRejectPreview(null); setRejectVendorEmail(''); setRejectDocIds(null)
+  }
+
+  function toggleDoc(dvId: string) {
+    setSelectedDocs(prev => { const n = new Set(prev); n.has(dvId) ? n.delete(dvId) : n.add(dvId); return n })
+  }
+
+  // Open the reject modal for the whole batch (null) or a specific document set.
+  function openReject(docIds: string[] | null) {
+    setRejectDocIds(docIds)
+    setRejectVendorEmail(batch.vendor_email || batch.vendors?.primary_contact_email || '')
+    setRejectPreview(null); setRejectError(''); setRejectReason('')
+    setShowReject(true)
+  }
+
+  // Retry the hard-delete cleanup for a single already-rejected document.
+  async function handleRetryDoc(dvId: string) {
+    setRetryingDoc(dvId)
+    try {
+      await fetch(`/api/batches/${id}/reject`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentVersionIds: [dvId], commit: true }),
+      })
+      await loadBatch()
+    } finally {
+      setRetryingDoc(null)
+    }
   }
 
   // Stage 1 — dry run: fetch the manifest of exactly what reject WOULD remove/close/email.
@@ -120,7 +149,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const res = await fetch(`/api/batches/${id}/reject`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rejectReason, vendorEmail: rejectVendorEmail.trim(), commit: false }),
+        body: JSON.stringify({ rejectReason, vendorEmail: rejectVendorEmail.trim(), documentVersionIds: rejectDocIds ?? undefined, commit: false }),
       })
       const data = await res.json()
       if (!res.ok) { setRejectError(data.error ?? 'Failed to build preview'); return }
@@ -138,11 +167,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const res = await fetch(`/api/batches/${id}/reject`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rejectReason, vendorEmail: rejectVendorEmail.trim(), commit: true }),
+        body: JSON.stringify({ rejectReason, vendorEmail: rejectVendorEmail.trim(), documentVersionIds: rejectDocIds ?? undefined, commit: true }),
       })
       const data = await res.json()
       if (!res.ok) { setRejectError(data.error ?? 'Failed'); return }
-      closeRejectModal(); loadBatch()
+      setSelectedDocs(new Set()); closeRejectModal(); loadBatch()
     } catch (e: any) {
       setRejectError(e.message ?? 'Unexpected error')
     } finally {
@@ -317,9 +346,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           {/* Actions */}
           <div className="flex flex-col gap-2 shrink-0">
             {canReject && (
-              <button
-                onClick={() => { setRejectVendorEmail(batch.vendor_email || batch.vendors?.primary_contact_email || ''); setShowReject(true) }}
-                className="btn-danger text-sm">
+              <button onClick={() => openReject(null)} className="btn-danger text-sm">
                 <XCircle className="h-4 w-4" /> Reject Batch
               </button>
             )}
@@ -412,7 +439,8 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-                <XCircle className="h-5 w-5 text-red-500" /> Reject Batch Before Review
+                <XCircle className="h-5 w-5 text-red-500" />
+                {rejectDocIds ? `Reject ${rejectDocIds.length} selected document${rejectDocIds.length === 1 ? '' : 's'}` : 'Reject Batch Before Review'}
               </h2>
               <button onClick={closeRejectModal}>
                 <X className="h-5 w-5 text-slate-400 hover:text-slate-600" />
@@ -458,6 +486,10 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               <>
                 <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
                   <p className="font-medium flex items-center gap-1.5"><Trash2 className="h-4 w-4" /> This will permanently delete the files below and cannot be undone.</p>
+                  <p className="mt-1 text-xs">
+                    Scope: <b>{rejectPreview.manifest.scope}</b>
+                    {!rejectPreview.wholeBatch && ' — the remaining documents keep moving through review.'}
+                  </p>
                 </div>
 
                 <div className="space-y-3 text-sm">
@@ -474,7 +506,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                       : <p className="text-slate-400 text-xs">Nothing recorded — vendor must delete their copy manually.</p>}
                   </div>
                   <div className="flex flex-wrap gap-x-6 gap-y-1 text-slate-600">
-                    <span><span className="font-medium text-slate-700">Approver Picks:</span> {rejectPreview.manifest.approverPicksRow} → closed</span>
+                    <span><span className="font-medium text-slate-700">Approver Picks:</span> {rejectPreview.manifest.approverPicksRow}</span>
                     <span><span className="font-medium text-slate-700">Email to:</span> {rejectPreview.manifest.vendorEmail ?? '— none —'}</span>
                   </div>
                 </div>
@@ -503,6 +535,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
           <FileText className="h-4 w-4 text-slate-500" />
           <h2 className="font-semibold text-slate-900">Documents ({docVersions.length})</h2>
+          {canReject && selectedDocs.size > 0 && (
+            <button onClick={() => openReject([...selectedDocs])} className="btn-danger text-xs py-1.5 px-3 ml-auto">
+              <XCircle className="h-3.5 w-3.5" /> Reject selected ({selectedDocs.size})
+            </button>
+          )}
           {uniqueReviewers.length > 0 && (
             <div className="ml-auto flex flex-wrap gap-1.5">
               {uniqueReviewers.map((r, i) => {
@@ -569,18 +606,31 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               ) : (
                 // ── View mode ──────────────────────────────────────────────
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3">
+                  {canReject && !dv.is_rejected && (
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 accent-red-600 cursor-pointer shrink-0"
+                      checked={selectedDocs.has(dv.id)}
+                      onChange={() => toggleDoc(dv.id)}
+                      title="Select for rejection"
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm font-semibold text-slate-900">{dv.file_name}</span>
+                      <span className={`font-mono text-sm font-semibold ${dv.is_rejected ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{dv.file_name}</span>
                       {dv.revision && <span className="px-1.5 py-0.5 bg-navy-100 text-navy-700 rounded text-xs font-mono font-bold">Rev {dv.revision}</span>}
-                      <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                        dv.ai_metadata_source === 'manually_overridden' ? 'bg-teal-100 text-teal-700' :
-                        dv.ai_metadata_source === 'manually_confirmed'  ? 'bg-blue-100 text-teal-700' :
-                        'bg-slate-100 text-slate-500'
-                      }`}>
-                        {dv.ai_metadata_source === 'manually_overridden' ? 'Manual' : dv.ai_metadata_source === 'manually_confirmed' ? 'AI (confirmed)' : 'AI'}
-                      </span>
+                      {dv.is_rejected ? (
+                        <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">Rejected</span>
+                      ) : (
+                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                          dv.ai_metadata_source === 'manually_overridden' ? 'bg-teal-100 text-teal-700' :
+                          dv.ai_metadata_source === 'manually_confirmed'  ? 'bg-blue-100 text-teal-700' :
+                          'bg-slate-100 text-slate-500'
+                        }`}>
+                          {dv.ai_metadata_source === 'manually_overridden' ? 'Manual' : dv.ai_metadata_source === 'manually_confirmed' ? 'AI (confirmed)' : 'AI'}
+                        </span>
+                      )}
                     </div>
                     {dv.doc_name && dv.doc_name !== dv.file_name && <p className="text-sm text-slate-700 font-medium mt-0.5">{dv.doc_name}</p>}
                     <div className="flex flex-wrap gap-x-3 text-xs text-slate-400 mt-0.5">
@@ -588,18 +638,31 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                       {dv.document_type && <span>· {dv.document_type}</span>}
                       {dv.topic         && <span>· {dv.topic}</span>}
                     </div>
+                    {dv.is_rejected && dv.reject_reason && <p className="text-xs text-red-600 mt-0.5">{dv.reject_reason}</p>}
                   </div>
-                  <div className="flex gap-2 shrink-0">
-                    {canEdit && (
-                      <button onClick={() => { setEditingDv(dv.id); setEditForm({ doc_name: dv.doc_name, discipline: dv.discipline, document_type: dv.document_type, topic: dv.topic }) }}
-                        className="btn-secondary text-xs py-1.5 px-3">
-                        <Edit3 className="h-3.5 w-3.5" /> Edit
-                      </button>
-                    )}
-                    {dv.central_file_url && (
-                      <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3">
-                        <ExternalLink className="h-3.5 w-3.5" /> Open
-                      </a>
+                  <div className="flex gap-2 shrink-0 items-center">
+                    {dv.is_rejected ? (
+                      (dv.reject_bucket_deleted && dv.reject_source_deleted) ? (
+                        <span className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Removed</span>
+                      ) : (
+                        <button onClick={() => handleRetryDoc(dv.id)} disabled={retryingDoc === dv.id} className="btn-secondary text-xs py-1.5 px-3">
+                          {retryingDoc === dv.id ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Retrying…</> : <><RotateCw className="h-3.5 w-3.5" /> Retry cleanup</>}
+                        </button>
+                      )
+                    ) : (
+                      <>
+                        {canEdit && (
+                          <button onClick={() => { setEditingDv(dv.id); setEditForm({ doc_name: dv.doc_name, discipline: dv.discipline, document_type: dv.document_type, topic: dv.topic }) }}
+                            className="btn-secondary text-xs py-1.5 px-3">
+                            <Edit3 className="h-3.5 w-3.5" /> Edit
+                          </button>
+                        )}
+                        {dv.central_file_url && (
+                          <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3">
+                            <ExternalLink className="h-3.5 w-3.5" /> Open
+                          </a>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

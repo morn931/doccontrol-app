@@ -32,7 +32,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const db = createServiceClient()
 
   const { data: docVersions } = await db.from('document_versions')
-    .select('id, file_name, doc_name').eq('batch_id', batchId)
+    .select('id, file_name, doc_name').eq('batch_id', batchId).eq('is_rejected', false)
   if (!docVersions?.length) return NextResponse.json({ error: 'No documents in batch' }, { status: 400 })
 
   const { data: allTasks } = await db.from('review_tasks')

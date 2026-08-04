@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       document_versions(
         id, file_name, revision, doc_name, discipline, document_type, topic,
         status, is_latest, central_file_url, uploaded_at, ai_text, ai_metadata_source,
-        document_id
+        document_id, is_rejected, reject_reason, reject_bucket_deleted, reject_source_deleted
       )
     `).eq('id', id).single()
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Not found' }, { status: 404 })

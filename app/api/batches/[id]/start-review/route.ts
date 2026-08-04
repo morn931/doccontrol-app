@@ -32,14 +32,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .select(`id, batch_guid, status, vendor_id, package_id, target_library, controller_email,
              packages(package_name, package_code), vendors(name),
              document_versions(id, file_name, doc_name, doc_unique_id, central_file_url,
-                              discipline, document_type, topic, ai_text)`)
+                              discipline, document_type, topic, ai_text, is_rejected)`)
     .eq('id', batchId).single()
 
   if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
   if (['review_in_progress','review_complete'].includes(batch.status))
     return NextResponse.json({ error: 'Review already started' }, { status: 400 })
 
-  const docVersions = (batch.document_versions as any[]) ?? []
+  // Rejected-before-review documents are excluded from assignment/review.
+  const docVersions = ((batch.document_versions as any[]) ?? []).filter(d => !d.is_rejected)
   if (!docVersions.length)
     return NextResponse.json({ error: 'No documents in this batch' }, { status: 400 })
 
