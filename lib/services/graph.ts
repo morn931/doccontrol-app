@@ -270,6 +270,20 @@ export async function moveFileToRejectedFolder(
   }
 }
 
+/** Mint a short-lived, embeddable Office-for-the-web URL (read-only) for a SharePoint file
+ *  via the Graph `preview` action. Dropped into an <iframe>, it renders the REAL Word/Excel/
+ *  PPT/PDF inside our own window — no SharePoint sign-in, no landing in the library on close.
+ *  The token is short-lived, so call this per view (never store the URL). */
+export async function getOfficeEmbedUrl(fileUrl: string): Promise<string> {
+  const item = await resolveDriveItemByUrl(fileUrl)
+  if (!item?.driveId) throw new Error('Could not locate the file in SharePoint.')
+  const res = await graphFetch(`/drives/${item.driveId}/items/${item.id}/preview`, { method: 'POST', body: JSON.stringify({}) })
+  if (!res.ok) throw new Error(`preview failed (${res.status}): ${(await res.text()).slice(0, 200)}`)
+  const data = await res.json()
+  if (!data.getUrl) throw new Error('No embed URL returned by Graph preview.')
+  return data.getUrl as string
+}
+
 /** Download a driveItem's content bytes — optionally converted (format='pdf' renders
  *  Office docs to PDF so they display inline in a browser). */
 export async function getDriveItemContentBytes(driveId: string, itemId: string, format?: string): Promise<ArrayBuffer> {

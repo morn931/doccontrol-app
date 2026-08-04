@@ -67,6 +67,25 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const [projectUsers, setProjectUsers] = useState<{ id: string; email: string; full_name: string | null }[]>([])
   const [newReviewerReason, setNewReviewerReason] = useState('')
   const [addingReviewer, setAddingReviewer] = useState(false)
+  const [showOffice, setShowOffice] = useState(false)
+  const [officeUrl, setOfficeUrl] = useState('')
+  const [officeLoading, setOfficeLoading] = useState(false)
+  const [officeError, setOfficeError] = useState('')
+
+  async function openOfficeViewer(dvId: string) {
+    setShowOffice(true); setOfficeError(''); setOfficeUrl('')
+    setOfficeLoading(true)
+    try {
+      const res = await fetch(`/api/documents/${dvId}/office-embed`)
+      const data = await res.json()
+      if (!res.ok) { setOfficeError(data.error ?? 'Could not open the viewer'); return }
+      setOfficeUrl(data.url)
+    } catch (e: any) {
+      setOfficeError(e.message ?? 'Unexpected error')
+    } finally {
+      setOfficeLoading(false)
+    }
+  }
 
   useEffect(() => { loadContext() }, [id])
 
@@ -242,6 +261,33 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-4 max-w-4xl">
+      {/* In-app Office viewer — the real Word/Excel runs inside our window (read-only).
+          Closing this returns to the review; the user never lands in the SharePoint library. */}
+      {showOffice && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex flex-col p-3 sm:p-6">
+          <div className="flex items-center justify-between text-white mb-2 shrink-0">
+            <span className="text-sm font-medium flex items-center gap-2"><FileText className="h-4 w-4" /> {dv.file_name}</span>
+            <button onClick={() => { setShowOffice(false); setOfficeUrl('') }} className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
+              <X className="h-4 w-4" /> Close
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 rounded-lg overflow-hidden bg-white">
+            {officeLoading ? (
+              <div className="h-full flex items-center justify-center text-slate-400 text-sm">Opening document…</div>
+            ) : officeError ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-center p-6">
+                <p className="text-sm text-red-600">{officeError}</p>
+                <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-sm">
+                  <ExternalLink className="h-4 w-4" /> Open in SharePoint instead
+                </a>
+              </div>
+            ) : officeUrl ? (
+              <iframe src={officeUrl} className="w-full h-full border-0" title={dv.file_name} />
+            ) : null}
+          </div>
+        </div>
+      )}
+
       {/* Back + multi-doc nav */}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href="/reviews" className="btn-secondary text-xs py-1.5 px-3">
@@ -322,14 +368,19 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
               ) : (
                 <>
                   {isPdf && <Link href={`/reviews/${id}/markup`} className="btn-primary">🖊 Open &amp; Markup</Link>}
+                  {/* Word / Excel: view the real document IN-APP (Office for the web in our
+                      window) — no SharePoint landing on close. */}
+                  {!isPdf && (
+                    <button onClick={() => openOfficeViewer(dv.id)} className="btn-primary">
+                      <FileText className="h-4 w-4" /> View document
+                    </button>
+                  )}
                   <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer"
-                    className={isPdf
-                      ? "inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                      : "btn-primary"}>
-                    <ExternalLink className={isPdf ? "h-3.5 w-3.5" : "h-4 w-4"} /> Open in SharePoint
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+                    <ExternalLink className="h-3.5 w-3.5" /> Open in SharePoint
                   </a>
                   {!isPdf && (
-                    <span className="text-right text-[11px] text-slate-400">Not a PDF — in-app markup isn&apos;t available for this format.</span>
+                    <span className="text-right text-[11px] text-slate-400">Opens the real Word/Excel in our window · review by comments below.</span>
                   )}
                 </>
               )
