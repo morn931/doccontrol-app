@@ -17,12 +17,19 @@
     },
     "app/api/cron/corebase-contractual/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/cron/eng2-sync/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/cron/sharepoint-sync",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/eng2-sync",
+      "schedule": "0 1 * * *"
     },
     {
       "path": "/api/cron/mddr-sync",
