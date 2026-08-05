@@ -482,6 +482,25 @@ export async function uploadBytesToLibraryFolder(
   return { webUrl: item.webUrl, id: item.id }
 }
 
+/** Set SharePoint list-item metadata columns on a file already in a library,
+ *  addressed by its drive-item id (returned by uploadBytesToLibrary). Blank/nullish
+ *  values are dropped. Callers treat this as best-effort — the file exists regardless
+ *  of whether every column patches — so a single read-only/choice column never blocks
+ *  the return. (Fixes: reviewed docs landed in ENG2 with blank Full Title / Doc Type.) */
+export async function setLibraryItemFields(
+  siteUrl: string, libraryName: string, driveItemId: string, fields: Record<string, unknown>
+): Promise<void> {
+  const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v != null && v !== ''))
+  if (!Object.keys(clean).length) return
+  const siteId = await getSiteId(siteUrl)
+  const driveId = await getLibraryDriveId(siteId, libraryName)
+  const res = await graphFetch(
+    `/sites/${siteId}/drives/${driveId}/items/${driveItemId}/listItem/fields`,
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clean) }
+  )
+  if (!res.ok) throw new Error(`Set metadata on "${libraryName}" failed (${res.status}): ${await res.text()}`)
+}
+
 /** The folder inside the Internal Reviews library that holds site redline
  *  uploads (driveway C front door). No new site/library needed. */
 export const REDLINE_FOLDER = process.env.REDLINE_FOLDER || 'Site Redlines'

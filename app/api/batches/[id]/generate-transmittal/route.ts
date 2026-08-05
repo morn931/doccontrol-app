@@ -1,7 +1,8 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
-import { sendEmail, getFileBytesByUrl, uploadBytesToLibrary, ENGINEERING_SITE_URL } from '@/lib/services/graph'
+import { sendEmail, getFileBytesByUrl, uploadBytesToLibrary, setLibraryItemFields, ENGINEERING_SITE_URL } from '@/lib/services/graph'
+import { disciplineName } from '@/lib/mddr/disciplines'
 import { vendorTransmittalEmail } from '@/lib/services/email-templates'
 import { setApproverPicksReturnRequested } from '@/lib/services/sharepoint-lists'
 import { OUTCOME_CODES } from '@/lib/utils/outcome-codes'
@@ -608,10 +609,14 @@ async function returnInternalToEngineer(db: any, batchId: string, batch: any, pr
   if (!destLibrary)
     return NextResponse.json({ error: 'Select the ENG2 discipline library before returning the document.' }, { status: 400 })
 
-  // Engineer (requestor) email from the linked Document Request.
+  // Engineer (requestor) email + the document's known metadata, from the linked Document Request line.
   let engineerEmail: string | null = null
+  let line: any = null
   if (batch.request_line_id) {
-    const { data: line } = await db.from('document_number_request_line').select('request_id').eq('id', batch.request_line_id).single()
+    const { data } = await db.from('document_number_request_line')
+      .select('request_id, full_title, discipline_code, document_type_code, revision, area_code, rdmc_document_number')
+      .eq('id', batch.request_line_id).single()
+    line = data
     if (line?.request_id) {
       const { data: reqHdr } = await db.from('document_number_request').select('requestor_email').eq('id', line.request_id).single()
       engineerEmail = reqHdr?.requestor_email ?? null
@@ -630,6 +635,20 @@ async function returnInternalToEngineer(db: any, batchId: string, batch: any, pr
       const bytes = await getFileBytesByUrl(dv.central_file_url)
       const up = await uploadBytesToLibrary(dv.file_name, bytes, 'application/pdf', destLibrary, ENGINEERING_SITE_URL)
       if (!engineeringLink) engineeringLink = up.webUrl
+      // Fill the SharePoint metadata columns from the document's known details, so the
+      // team's on-site pull isn't looking at blank Full Title / Doc Type / Discipline.
+      // Best-effort: the file is returned regardless of whether every column patches.
+      try {
+        await setLibraryItemFields(ENGINEERING_SITE_URL, destLibrary, up.id, {
+          FullTitle: line?.full_title ?? dv.doc_name ?? null,
+          Revision: dv.revision ?? line?.revision ?? null,
+          DocType: line?.document_type_code ?? dv.document_type ?? null,
+          Discipline: disciplineName(line?.discipline_code ?? dv.discipline ?? destLibrary),
+          Status: 'Approved',
+        })
+      } catch (e: any) {
+        console.error(`Metadata write-back failed for "${dv.file_name}" in ENG2 › ${destLibrary}:`, e?.message ?? e)
+      }
     } catch (e: any) {
       return NextResponse.json({ error: `Could not copy "${dv.file_name}" into ENG2 › ${destLibrary}: ${e?.message ?? e}` }, { status: 502 })
     }
