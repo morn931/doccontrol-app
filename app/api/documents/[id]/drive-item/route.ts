@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     const item = await resolveDriveItemByUrl(url)
     if (!item?.driveId) return NextResponse.json({ error: 'Could not locate the file.' }, { status: 404 })
-    return NextResponse.json({ driveId: item.driveId, itemId: item.id })
+    return NextResponse.json({ driveId: item.driveId, itemId: item.id, webUrl: (item as any).webUrl ?? null })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? String(e) }, { status: 502 })
   }

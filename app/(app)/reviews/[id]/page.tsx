@@ -73,6 +73,7 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
   const [officeError, setOfficeError] = useState('')
   const [officeMode, setOfficeMode] = useState<'edit' | 'read'>('read')
   const [officeCanConnect, setOfficeCanConnect] = useState(false)
+  const [officeEditHref, setOfficeEditHref] = useState('')
   const [officeDvId, setOfficeDvId] = useState('')
 
   // Pre-init MSAL so the edit token can be acquired silently for a connected user.
@@ -80,20 +81,17 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
 
   async function openOfficeViewer(dvId: string) {
     setShowOffice(true); setOfficeError(''); setOfficeUrl(''); setOfficeCanConnect(false); setOfficeDvId(dvId)
-    setOfficeLoading(true)
+    setOfficeEditHref(''); setOfficeLoading(true)
     try {
-      // Try EDIT first (signed-in Microsoft user + consented edit scopes); else read-only.
+      // The in-window Office surface is READ-ONLY: Microsoft only lets its embeddable
+      // preview (embed.aspx) be framed on a third-party domain — the full editor
+      // (Doc.aspx?action=edit) sets X-Frame-Options and can't be iframed here. So we show
+      // the read preview in-window and offer a one-click "Edit in Word/Excel" that opens
+      // the REAL editor in a new tab (same SharePoint file → edits save straight back).
       try {
-        const msal = await import('@/lib/msal')
         const di = await (await fetch(`/api/documents/${dvId}/drive-item`)).json()
-        if (di?.driveId && di?.itemId) {
-          const editUrl = await msal.getEditEmbedUrl(di.driveId, di.itemId)
-          setOfficeUrl(editUrl); setOfficeMode('edit'); return
-        }
-      } catch {
-        setOfficeCanConnect(true)   // couldn't get an edit session — offer to connect Microsoft
-      }
-      // Read-only fallback (app token; works for everyone, no sign-in).
+        if (di?.webUrl) setOfficeEditHref(String(di.webUrl) + (String(di.webUrl).includes('?') ? '&' : '?') + 'action=edit')
+      } catch { /* edit link is best-effort; the read view still works for everyone */ }
       const res = await fetch(`/api/documents/${dvId}/office-embed`)
       const data = await res.json()
       if (!res.ok) { setOfficeError(data.error ?? 'Could not open the viewer'); return }
@@ -296,16 +294,17 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
             <span className="text-sm font-medium flex items-center gap-2 min-w-0">
               <FileText className="h-4 w-4 shrink-0" /> <span className="truncate">{dv.file_name}</span>
               {officeUrl && (
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${officeMode === 'edit' ? 'bg-emerald-500/90' : 'bg-white/20'}`}>
-                  {officeMode === 'edit' ? 'Editing — changes save to the document' : 'Read-only'}
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 bg-white/20">
+                  Read-only preview
                 </span>
               )}
             </span>
             <div className="flex items-center gap-2 shrink-0">
-              {officeMode === 'read' && officeCanConnect && (
-                <button onClick={connectAndEdit} className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
-                  <FileText className="h-4 w-4" /> Connect Microsoft to edit
-                </button>
+              {officeEditHref && (
+                <a href={officeEditHref} target="_blank" rel="noopener noreferrer"
+                   className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 px-3 py-1.5 text-sm font-medium">
+                  <ExternalLink className="h-4 w-4" /> Edit in Word / Excel
+                </a>
               )}
               <button onClick={() => { setShowOffice(false); setOfficeUrl('') }} className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
                 <X className="h-4 w-4" /> Close
