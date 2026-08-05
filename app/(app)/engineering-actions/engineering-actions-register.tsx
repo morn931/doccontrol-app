@@ -31,7 +31,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
   const [groupByPerson, setGroupByPerson] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showRaise, setShowRaise] = useState(false)
-  const [view, setView] = useState<'register' | 'manager'>('register')
+  const [view, setView] = useState<'register' | 'manager' | 'decisions'>('register')
 
   async function load() {
     setLoading(true)
@@ -76,17 +76,17 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
         </button>
       </div>
 
-      {isManager && (
-        <div className="flex gap-1 border-b border-slate-200">
-          {(['register', 'manager'] as const).map(v => (
-            <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 text-sm font-medium -mb-px border-b-2 ${view === v ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-              {v === 'register' ? 'Register' : 'Manager view'}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-1 border-b border-slate-200">
+        {(['register', ...(isManager ? ['manager'] : []), 'decisions'] as ('register' | 'manager' | 'decisions')[]).map(v => (
+          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 text-sm font-medium -mb-px border-b-2 ${view === v ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            {v === 'register' ? 'Register' : v === 'manager' ? 'Manager view' : 'Engineering Decisions'}
+          </button>
+        ))}
+      </div>
 
-      {view === 'manager' && isManager ? <ManagerView actions={actions} onChange={load} /> : (
+      {view === 'manager' && isManager ? <ManagerView actions={actions} onChange={load} />
+        : view === 'decisions' ? <DecisionsView isManager={isManager} me={me} users={users} />
+        : (
       <>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -116,7 +116,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
               </tr></thead>
               <tbody>
                 {g.rows.map(a => (
-                  <Row key={a.id} a={a} isManager={isManager} expanded={expanded === a.id}
+                  <Row key={a.id} a={a} isManager={isManager} users={users} expanded={expanded === a.id}
                     onToggle={() => setExpanded(expanded === a.id ? null : a.id)} onChange={load} />
                 ))}
               </tbody>
@@ -234,11 +234,162 @@ function ManagerView({ actions, onChange }: { actions: Action[]; onChange: () =>
   )
 }
 
-function Row({ a, isManager, expanded, onToggle, onChange }: { a: Action; isManager: boolean; expanded: boolean; onToggle: () => void; onChange: () => void }) {
+// ── Engineering Decision Register (EDR) tab ──────────────────────────────────
+type Decision = {
+  id: string; decision_ref: string; title: string | null; background: string | null
+  discipline: string | null; document_number: string | null
+  options_considered: string | null; decision_made: string | null; rationale: string | null
+  priority: string | null; cost_impact: string | null; schedule_impact: string | null; safety_impact: string | null
+  raised_by_email: string; raised_by_name: string | null; owner_email: string | null; owner_name: string | null
+  status: string; approved_by_email: string | null; date_raised: string; date_closed: string | null
+  related_documents: string | null; comments: string | null; source_action_id: string | null
+}
+const DEC_STATUS: Record<string, string> = { pending_approval: 'bg-amber-100 text-amber-800', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-red-100 text-red-700', on_hold: 'bg-slate-100 text-slate-600', superseded: 'bg-slate-100 text-slate-500', closed: 'bg-slate-100 text-slate-500' }
+
+function DecisionsView({ isManager, me, users }: { isManager: boolean; me: Me; users: { email: string; full_name: string | null }[] }) {
+  const [decisions, setDecisions] = useState<Decision[]>([])
+  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState('pending_approval')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [showNew, setShowNew] = useState(false)
+
+  async function load() { setLoading(true); try { const r = await fetch('/api/engineering-decisions'); if (r.ok) setDecisions((await r.json()).decisions ?? []) } finally { setLoading(false) } }
+  useEffect(() => { load() }, [])
+  const filtered = decisions.filter(d => status === 'all' || d.status === status)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-slate-500">The controlled Engineering Decision Register — pushed from actions or entered directly, each with an approval loop. {decisions.filter(d => d.status === 'pending_approval').length} pending approval.</p>
+        <button onClick={() => setShowNew(true)} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700"><Plus className="h-4 w-4" /> New decision</button>
+      </div>
+      <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm">
+        <option value="pending_approval">Pending approval</option><option value="approved">Approved</option><option value="rejected">Rejected</option>
+        <option value="on_hold">On hold</option><option value="superseded">Superseded</option><option value="closed">Closed</option><option value="all">All</option>
+      </select>
+
+      {loading ? <p className="text-sm text-slate-400">Loading…</p> : filtered.length === 0 ? <p className="text-sm text-slate-400">No decisions.</p> : (
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-[#0B3563] text-white text-left"><tr>
+              <th className="px-3 py-2 font-medium">Ref</th><th className="px-3 py-2 font-medium">Decision</th>
+              <th className="px-3 py-2 font-medium">Discipline</th><th className="px-3 py-2 font-medium">Owner/Approver</th>
+              <th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2"></th>
+            </tr></thead>
+            <tbody>
+              {filtered.map(d => <DecisionRow key={d.id} d={d} me={me} isManager={isManager} expanded={expanded === d.id} onToggle={() => setExpanded(expanded === d.id ? null : d.id)} onChange={load} />)}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {showNew && <DecisionModal users={users} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); load() }} />}
+    </div>
+  )
+}
+
+function DecisionRow({ d, me, isManager, expanded, onToggle, onChange }: { d: Decision; me: Me; isManager: boolean; expanded: boolean; onToggle: () => void; onChange: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const canApprove = isManager || (d.owner_email && me.email.toLowerCase() === d.owner_email.toLowerCase())
+  async function patch(body: any) { setBusy(true); await fetch(`/api/engineering-decisions/${d.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); setBusy(false); onChange() }
+  async function del() { if (!confirm(`Delete ${d.decision_ref}?`)) return; setBusy(true); await fetch(`/api/engineering-decisions/${d.id}`, { method: 'DELETE' }); onChange() }
+  const F = ({ label, v }: { label: string; v: string | null }) => v ? <p className="text-sm"><span className="text-slate-500">{label}: </span><span className="text-slate-800 whitespace-pre-wrap">{v}</span></p> : null
+  return (
+    <>
+      <tr className="border-t border-slate-100 hover:bg-slate-50 align-top">
+        <td className="px-3 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">{d.decision_ref}</td>
+        <td className="px-3 py-2 text-slate-800 max-w-md"><button onClick={onToggle} className="text-left hover:text-teal-700">{d.title || d.background || '(untitled)'}</button></td>
+        <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{d.discipline ?? '—'}</td>
+        <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{nameOf(d.owner_email, d.owner_name)}</td>
+        <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs capitalize ${DEC_STATUS[d.status]}`}>{d.status.replace('_', ' ')}</span></td>
+        <td className="px-3 py-2 text-right"><button onClick={onToggle} className="text-slate-400 hover:text-teal-600">{expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button></td>
+      </tr>
+      {expanded && (
+        <tr className="bg-slate-50/60"><td colSpan={6} className="px-4 py-3 space-y-1">
+          <p className="text-xs text-slate-500">Raised {d.date_raised} by {nameOf(d.raised_by_email, d.raised_by_name)}{d.source_action_id ? ' · pushed from an action' : ''}{d.document_number ? ` · ${d.document_number}` : ''}</p>
+          <F label="Background" v={d.background} /><F label="Options considered" v={d.options_considered} />
+          <F label="Decision" v={d.decision_made} /><F label="Rationale" v={d.rationale} />
+          {(d.cost_impact || d.schedule_impact || d.safety_impact || d.priority) && <p className="text-xs text-slate-500">Impact — cost {d.cost_impact ?? '—'} · schedule {d.schedule_impact ?? '—'} · safety {d.safety_impact ?? '—'}{d.priority ? ` · priority ${d.priority}` : ''}</p>}
+          <F label="Related documents" v={d.related_documents} />
+          {d.approved_by_email && <p className="text-xs text-emerald-700">{d.status} by {d.approved_by_email}{d.date_closed ? ` on ${d.date_closed}` : ''}</p>}
+          {canApprove && d.status === 'pending_approval' && (
+            <div className="mt-2 flex flex-wrap gap-2 border-t border-slate-200 pt-2">
+              <button onClick={() => patch({ status: 'approved' })} disabled={busy} className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Approve</button>
+              <button onClick={() => patch({ status: 'rejected' })} disabled={busy} className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700">Reject</button>
+              <button onClick={() => patch({ status: 'on_hold' })} disabled={busy} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-white">On hold</button>
+              {isManager && <button onClick={del} disabled={busy} className="rounded-md border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 ml-auto">Delete</button>}
+            </div>
+          )}
+          {canApprove && d.status !== 'pending_approval' && isManager && (
+            <div className="mt-2 flex gap-2 border-t border-slate-200 pt-2">
+              <button onClick={() => patch({ status: 'pending_approval' })} disabled={busy} className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-white">Reopen</button>
+              <button onClick={del} disabled={busy} className="rounded-md border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50 ml-auto">Delete</button>
+            </div>
+          )}
+        </td></tr>
+      )}
+    </>
+  )
+}
+
+// Shared decision form (used for manual "New decision" and "Push to EDR"). `prefill` seeds
+// it from an action; `sourceActionId` links it back.
+function DecisionModal({ users, onClose, onSaved, prefill, sourceActionId, title = 'New engineering decision' }:
+  { users: { email: string; full_name: string | null }[]; onClose: () => void; onSaved: () => void; prefill?: Partial<Decision>; sourceActionId?: string; title?: string }) {
+  const [f, setF] = useState<any>({
+    title: prefill?.title ?? '', background: prefill?.background ?? '', discipline: prefill?.discipline ?? '',
+    documentNumber: prefill?.document_number ?? '', optionsConsidered: '', decisionMade: '', rationale: '',
+    ownerEmail: '', priority: '', costImpact: '', scheduleImpact: '', safetyImpact: '', relatedDocuments: '',
+  })
+  const [saving, setSaving] = useState(false); const [err, setErr] = useState('')
+  const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value })
+  async function save() {
+    if (!f.title.trim() && !f.background.trim()) { setErr('A title or background is required.'); return }
+    setSaving(true); setErr('')
+    const res = await fetch('/api/engineering-decisions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...f, sourceActionId }) })
+    setSaving(false); if (res.ok) onSaved(); else setErr((await res.json().catch(() => ({})))?.error || 'Could not save.')
+  }
+  const imp = ['', 'none', 'low', 'medium', 'high']
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+      <div className="w-full max-w-xl rounded-xl bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-3"><h2 className="text-lg font-bold text-slate-900">{title}</h2><button onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button></div>
+        {sourceActionId && <p className="mb-2 text-xs text-teal-700">Pushed from an engineering action — enters the EDR as Pending Approval.</p>}
+        <div className="space-y-3 text-sm">
+          <div><label className="block text-slate-600 mb-1">Decision title *</label><input value={f.title} onChange={set('title')} className="w-full rounded-md border border-slate-300 p-2" /></div>
+          <div><label className="block text-slate-600 mb-1">Description / background</label><textarea value={f.background} onChange={set('background')} rows={2} className="w-full rounded-md border border-slate-300 p-2" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-slate-600 mb-1">Discipline</label><input value={f.discipline} onChange={set('discipline')} className="w-full rounded-md border border-slate-300 p-2" /></div>
+            <div><label className="block text-slate-600 mb-1">Document no.</label><input value={f.documentNumber} onChange={set('documentNumber')} className="w-full rounded-md border border-slate-300 p-2" /></div>
+          </div>
+          <div><label className="block text-slate-600 mb-1">Options considered</label><textarea value={f.optionsConsidered} onChange={set('optionsConsidered')} rows={2} className="w-full rounded-md border border-slate-300 p-2" /></div>
+          <div><label className="block text-slate-600 mb-1">Proposed decision</label><textarea value={f.decisionMade} onChange={set('decisionMade')} rows={2} className="w-full rounded-md border border-slate-300 p-2" /></div>
+          <div><label className="block text-slate-600 mb-1">Rationale</label><textarea value={f.rationale} onChange={set('rationale')} rows={2} className="w-full rounded-md border border-slate-300 p-2" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-slate-600 mb-1">Decision Owner / Approver</label><select value={f.ownerEmail} onChange={set('ownerEmail')} className="w-full rounded-md border border-slate-300 p-2"><option value="">—</option>{users.map(u => <option key={u.email} value={u.email}>{u.full_name || u.email}</option>)}</select></div>
+            <div><label className="block text-slate-600 mb-1">Priority</label><select value={f.priority} onChange={set('priority')} className="w-full rounded-md border border-slate-300 p-2"><option value="">—</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {(['costImpact', 'scheduleImpact', 'safetyImpact'] as const).map(k => (
+              <div key={k}><label className="block text-slate-600 mb-1 capitalize">{k.replace('Impact', '')} impact</label><select value={f[k]} onChange={set(k)} className="w-full rounded-md border border-slate-300 p-2">{imp.map(x => <option key={x} value={x}>{x || '—'}</option>)}</select></div>
+            ))}
+          </div>
+          {err && <p className="text-xs text-red-600">{err}</p>}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-md px-3 py-2 text-sm text-slate-500 hover:bg-slate-100">Cancel</button>
+          <button onClick={save} disabled={saving} className="rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">{saving ? 'Saving…' : 'Submit for approval'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Row({ a, isManager, users, expanded, onToggle, onChange }: { a: Action; isManager: boolean; users: { email: string; full_name: string | null }[]; expanded: boolean; onToggle: () => void; onChange: () => void }) {
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
   const [closeComment, setCloseComment] = useState('')
   const [closing, setClosing] = useState(false)
+  const [showPush, setShowPush] = useState(false)
 
   async function patch(body: any) { setBusy(true); await fetch(`/api/engineering-actions/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); setBusy(false); onChange() }
   async function sendReply() { if (!reply.trim()) return; setBusy(true); await fetch(`/api/engineering-actions/${a.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: reply.trim() }) }); setReply(''); setBusy(false); onChange() }
@@ -284,6 +435,13 @@ function Row({ a, isManager, expanded, onToggle, onChange }: { a: Action; isMana
               <button onClick={sendReply} disabled={busy || !reply.trim()} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"><MessageSquare className="h-3.5 w-3.5" /> Reply</button>
             </div>
           )}
+          {/* Push to the Engineering Decision Register (any engineer) */}
+          <div className="mt-2">
+            <button onClick={() => setShowPush(true)} className="inline-flex items-center gap-1 rounded-md border border-teal-300 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-50"><ClipboardList className="h-3.5 w-3.5" /> Push to EDR</button>
+          </div>
+          {showPush && <DecisionModal users={users} title="Push to Engineering Decision Register" sourceActionId={a.id}
+            prefill={{ title: a.description.slice(0, 120), background: a.description, discipline: a.discipline, document_number: a.document_number }}
+            onClose={() => setShowPush(false)} onSaved={() => setShowPush(false)} />}
           {/* EM controls */}
           {isManager && (
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-2">
