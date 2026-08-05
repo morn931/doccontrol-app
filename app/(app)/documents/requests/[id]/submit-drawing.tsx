@@ -13,12 +13,14 @@ type Rec = EmailEntry
  * (route handler → creates an internal batch + emails the Controller with the picks).
  * The Controller still has the final say on the Assign Reviewers screen.
  */
-export default function SubmitDrawing({ lineId, rdmc, revision, packageId }: {
+export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode = 'first' }: {
   lineId: string
   rdmc: string
   revision: string | null
   packageId?: string | null
+  mode?: 'first' | 'newRevision'
 }) {
+  const isNewRev = mode === 'newRevision'
   const [file, setFile] = useState<File | null>(null)
   const [drag, setDrag] = useState(false)
   const [msg, setMsg] = useState<{ type: 'err' | 'ok'; text: string } | null>(null)
@@ -53,6 +55,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId }: {
     const fd = new FormData()
     fd.set('file', file)
     fd.set('lineId', lineId)
+    if (isNewRev) fd.set('newRevision', '1')
     if (recs.length) fd.set('recommendedReviewers', JSON.stringify(recs))
     start(async () => {
       try {
@@ -69,10 +72,12 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId }: {
   }
 
   return (
-    <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50/40 p-3">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-teal-800">
-        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-teal-700">Internal review</span>
-        Submit the drawing for review — number confirmed against <span className="font-mono">{rdmc}</span>
+    <div className={`mt-3 rounded-lg border p-3 ${isNewRev ? 'border-amber-200 bg-amber-50/50' : 'border-teal-200 bg-teal-50/40'}`}>
+      <div className={`mb-2 flex items-center gap-2 text-xs font-semibold ${isNewRev ? 'text-amber-800' : 'text-teal-800'}`}>
+        <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${isNewRev ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>{isNewRev ? 'New revision' : 'Internal review'}</span>
+        {isNewRev
+          ? <>Book a newer revision for <span className="font-mono">{rdmc}</span> — a fresh review &amp; sign-off cycle on the same document</>
+          : <>Submit the drawing for review — number confirmed against <span className="font-mono">{rdmc}</span></>}
       </div>
 
       <div
@@ -126,9 +131,9 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId }: {
         <button
           onClick={submit}
           disabled={pending || !file}
-          className="shrink-0 rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-40"
+          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition disabled:opacity-40 ${isNewRev ? 'bg-amber-700 hover:bg-amber-800' : 'bg-teal-700 hover:bg-teal-800'}`}
         >
-          {pending ? 'Submitting…' : 'Submit for review'}
+          {pending ? 'Submitting…' : isNewRev ? 'Submit new revision' : 'Submit for review'}
         </button>
       </div>
     </div>

@@ -56,6 +56,7 @@ export async function POST(req: Request) {
   const form = await req.formData()
   const file = form.get('file') as File | null
   const lineId = String(form.get('lineId') ?? '')
+  const newRevision = String(form.get('newRevision') ?? '') === '1'
   const recommendedReviewers = parseRecs(form.get('recommendedReviewers'))
   if (!lineId) return NextResponse.json({ error: 'Missing request line.' }, { status: 400 })
   if (!file || file.size === 0) return NextResponse.json({ error: 'Choose a drawing file to upload.' }, { status: 400 })
@@ -69,8 +70,12 @@ export async function POST(req: Request) {
   if (!line) return NextResponse.json({ error: 'Request line not found.' }, { status: 404 })
   if (!line.rdmc_document_number)
     return NextResponse.json({ error: 'This line has no allocated number yet — Document Control must allocate it first.' }, { status: 400 })
-  if (line.linked_document_id)
-    return NextResponse.json({ error: 'A drawing has already been submitted for this line.' }, { status: 409 })
+  // A line normally holds ONE drawing. But when a newer revision comes back (e.g. from
+  // Aconex), "Submit new revision" re-books it: a fresh review/sign-off cycle on the SAME
+  // document. Without that flag, a re-submit is still blocked.
+  const existingDocId: string | null = line.linked_document_id ?? null
+  if (existingDocId && !newRevision)
+    return NextResponse.json({ error: 'A drawing has already been submitted for this line. Use "Submit new revision" to book a newer revision in.' }, { status: 409 })
 
   const { data: reqHdr } = await svc.from('document_number_request')
     .select('id, package_id').eq('id', line.request_id).single()
@@ -84,6 +89,14 @@ export async function POST(req: Request) {
   }
   const revision = parsed.revision ?? line.revision ?? 'A'
   const title = line.full_title ?? ([line.title1, line.title2, line.title3].filter(Boolean).join(' — ') || null)
+
+  // New-revision re-book: don't accept a revision that's already in CoreDocs for this doc.
+  if (existingDocId) {
+    const { data: existingVers } = await svc.from('document_versions').select('revision').eq('document_id', existingDocId)
+    const have = new Set((existingVers ?? []).map((v: any) => String(v.revision ?? '').toUpperCase()))
+    if (have.has(String(revision).toUpperCase()))
+      return NextResponse.json({ error: `Revision ${revision} is already in CoreDocs for ${line.rdmc_document_number}. Name the file with the new revision (e.g. ${line.rdmc_document_number}_<newRev>.pdf) and try again.` }, { status: 409 })
+  }
 
   // ─── Store the review copy in SharePoint ─────────────────────────────────
   let centralUrl: string
@@ -108,15 +121,23 @@ export async function POST(req: Request) {
   }).select('id').single()
   if (be || !batch) return NextResponse.json({ error: be?.message ?? 'Could not create batch.' }, { status: 500 })
 
-  const { data: doc, error: de } = await svc.from('documents').insert({
-    normalized_document_number: line.rdmc_document_number,
-    display_document_number:    line.rdmc_document_number,
-    title,
-    package_id:    reqHdr?.package_id ?? null,
-    discipline:    line.discipline_code ?? null,
-    document_type: line.document_type_code ?? null,
-  }).select('id').single()
-  if (de || !doc) return NextResponse.json({ error: de?.message ?? 'Could not create document.' }, { status: 500 })
+  let doc: { id: string } | null
+  if (existingDocId) {
+    // New revision → reuse the existing document; the prior version is no longer latest.
+    doc = { id: existingDocId }
+    await svc.from('document_versions').update({ is_latest: false }).eq('document_id', existingDocId)
+  } else {
+    const { data, error: de } = await svc.from('documents').insert({
+      normalized_document_number: line.rdmc_document_number,
+      display_document_number:    line.rdmc_document_number,
+      title,
+      package_id:    reqHdr?.package_id ?? null,
+      discipline:    line.discipline_code ?? null,
+      document_type: line.document_type_code ?? null,
+    }).select('id').single()
+    if (de || !data) return NextResponse.json({ error: de?.message ?? 'Could not create document.' }, { status: 500 })
+    doc = data
+  }
 
   const { data: dv, error: ve } = await svc.from('document_versions').insert({
     document_id:        doc.id,

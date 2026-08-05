@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import AllocatePanel, { type LineForAlloc } from './allocate-panel'
 import SubmitDrawing from './submit-drawing'
+import SubmittedLine from './submitted-line'
 import ReturnBooking from './return-booking'
 import RecallEdit from './recall-edit'
 
@@ -128,9 +129,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             </div>
             </div>
             {l.rdmc_document_number && (l.linked_document_id ? (
-              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                ✅ Drawing submitted for review — it&apos;s now an internal batch in <a className="font-medium underline" href="/batches">Incoming Batches</a>.
-              </div>
+              <SubmittedLine lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} packageId={req.package_id ?? null} canSubmit={canSubmit} />
             ) : canSubmit ? (
               <SubmitDrawing lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} packageId={req.package_id ?? null} />
             ) : null)}
