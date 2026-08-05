@@ -68,6 +68,10 @@ export async function createRequest(input: {
   if (!c) return { ok: false, error: 'Not signed in' }
   if (!can(c.perms, FK.ACTION_REQUEST_DOC_NUMBER, c.role)) return { ok: false, error: 'Not authorised to request a document number.' }
 
+  // A request without a package cannot be allocated (DNR-2026-0012) — refuse it here too,
+  // not just in the form, so no client path can create one.
+  if (!input.package_code?.trim()) return { ok: false, error: 'Select a package — every request must be raised against a package.' }
+
   const lines = input.lines.filter((l) => l.document_type_code || l.title2 || l.title3)
   if (lines.length === 0) return { ok: false, error: 'Add at least one document line.' }
 
@@ -123,6 +127,101 @@ export async function createRequest(input: {
 
   revalidatePath('/documents/requests')
   return { ok: true, id: hdr.id }
+}
+
+/**
+ * Recall & edit: the requestor (or Document Control) re-opens a submitted request,
+ * fixes the header/lines, and it is re-submitted in one step. Allowed only while
+ * NOTHING has been allocated: status='submitted', every line still 'pending' with no
+ * linked_document_id, and no active number booking (booked numbers use Return instead).
+ */
+export async function recallEditRequest(id: string, input: {
+  package_code: string
+  package_id?: string | null
+  response_required_by?: string | null
+  notes?: string
+  lines: LineInput[]
+}): Promise<{ ok: boolean; error?: string }> {
+  const c = await ctx()
+  if (!c) return { ok: false, error: 'Not signed in' }
+  const svc = createServiceClient()
+
+  const { data: req } = await svc.from('document_number_request')
+    .select('id, request_no, status, requestor_user_id, requestor_email')
+    .eq('id', id).single()
+  if (!req) return { ok: false, error: 'Request not found' }
+
+  const isRequestor = (!!req.requestor_user_id && req.requestor_user_id === c.profile?.id) ||
+    (!!req.requestor_email && req.requestor_email === c.profile?.email)
+  const isController = can(c.perms, FK.ACTION_ASSIGN_DOC_NUMBER, c.role)
+  if (!isRequestor && !isController) return { ok: false, error: 'Only the requestor or Document Control can recall this request.' }
+
+  if (req.status !== 'submitted') return { ok: false, error: 'Only a submitted request can be recalled.' }
+  const { data: oldLines } = await svc.from('document_number_request_line')
+    .select('id, line_status, linked_document_id').eq('request_id', id)
+  const old = (oldLines ?? []) as { id: string; line_status: string; linked_document_id: string | null }[]
+  if (old.some((l) => l.line_status !== 'pending' || l.linked_document_id))
+    return { ok: false, error: 'Document Control has already started allocating — this request can no longer be recalled.' }
+  const { data: bk } = await svc.from('doc_number_booking')
+    .select('id').eq('request_id', id).eq('released', false).maybeSingle()
+  if (bk) return { ok: false, error: 'This request carries a booked number — use "Return this number" instead.' }
+
+  if (!input.package_code?.trim()) return { ok: false, error: 'Select a package — every request must be raised against a package.' }
+  const lines = input.lines.filter((l) => l.document_type_code || l.title2 || l.title3)
+  if (lines.length === 0) return { ok: false, error: 'Add at least one document line.' }
+
+  const { error: he } = await svc.from('document_number_request').update({
+    package_code: input.package_code,
+    package_id: input.package_id || null,
+    response_required_by: input.response_required_by || null,
+    notes: input.notes || null,
+    status: 'submitted',
+    updated_at: new Date().toISOString(),
+  }).eq('id', id)
+  if (he) return { ok: false, error: he.message }
+
+  // Insert the edited lines first, then remove the old ones — never leaves the request lineless.
+  const rows = lines.map((l, i) => ({
+    request_id: id,
+    line_no: i + 1,
+    document_type_code: l.document_type_code || null,
+    discipline_code: l.discipline_code || null,
+    area_code: l.area_code || null,
+    title1: l.title1 || null,
+    title2: l.title2 || null,
+    title3: l.title3 || null,
+    revision: l.revision || 'A',
+    due_date: l.due_date || null,
+    comments: l.comments || null,
+  }))
+  const { error: le } = await svc.from('document_number_request_line').insert(rows)
+  if (le) return { ok: false, error: le.message }
+  if (old.length > 0) {
+    const { error: de } = await svc.from('document_number_request_line')
+      .delete().in('id', old.map((l) => l.id))
+    if (de) return { ok: false, error: de.message }
+  }
+
+  // Let the Document Controller know the request changed (best-effort).
+  try {
+    const to = splitEmails(await controllerEmailFrom(svc))
+    await sendMail({
+      to,
+      subject: `Document number request updated ${req.request_no ?? ''}`,
+      htmlBody: brandedEmail({
+        heading: `Request updated — ${req.request_no ?? ''}`,
+        bodyHtml: `<p>The requestor has recalled and corrected this document number request before allocation. Please work from the updated details.</p>
+          <p style="margin:12px 0"><b>Requestor:</b> ${req.requestor_email ?? c.profile?.email ?? '—'}<br/>
+          <b>Package:</b> ${input.package_code}<br/>
+          <b>Documents to number:</b> ${rows.length}</p>`,
+        cta: { href: `${APP_URL}/documents/requests/${id}`, label: 'Open request to allocate →' },
+      }),
+    })
+  } catch {}
+
+  revalidatePath(`/documents/requests/${id}`)
+  revalidatePath('/documents/requests')
+  return { ok: true }
 }
 
 export async function allocateLine(lineId: string, patch: {

@@ -31,10 +31,11 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
 
   const submit = () => {
     setErr(null)
+    if (!packageCode) { setErr('Select a package — every request must be raised against a package.'); return }
     const pkg = packages.find((p) => p.code === packageCode)
     start(async () => {
       const r = await createRequest({
-        package_code: packageCode || undefined,
+        package_code: packageCode,
         package_id: pkg?.id ?? null,
         response_required_by: dueBy || null,
         notes: notes || undefined,
@@ -70,8 +71,9 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
       )}
       <div className={`rounded-xl border border-slate-200 bg-white p-4 transition ${gateOpen ? '' : 'pointer-events-none select-none opacity-40'}`}>
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className="text-xs font-medium text-slate-600">Package
-            <select value={packageCode} onChange={(e) => setPackageCode(e.target.value)} className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm">
+          <label className="text-xs font-medium text-slate-600">Package <span className="text-red-600">*</span>
+            <select value={packageCode} onChange={(e) => setPackageCode(e.target.value)} required
+              className={`mt-1 w-full rounded border px-2 py-1.5 text-sm ${packageCode ? 'border-slate-300' : 'border-amber-400'}`}>
               <option value="">Select…</option>
               {packages.map((p) => <option key={p.id} value={p.code}>{p.code}{p.name ? ` — ${p.name}` : ''}</option>)}
             </select>

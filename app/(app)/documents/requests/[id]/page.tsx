@@ -5,6 +5,7 @@ import { getPermissions, can, FK } from '@/lib/permissions'
 import AllocatePanel, { type LineForAlloc } from './allocate-panel'
 import SubmitDrawing from './submit-drawing'
 import ReturnBooking from './return-booking'
+import RecallEdit from './recall-edit'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +25,8 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const { data: req } = await supabase.from('document_number_request').select('*').eq('id', id).single()
   if (!req) notFound()
   const { data: lineRows } = await supabase.from('document_number_request_line').select('*').eq('request_id', id).order('line_no')
-  const { data: lookups } = await supabase.from('doc_lookup').select('kind, code, name')
-  const lk = (lookups ?? []) as { kind: string; code: string; name: string }[]
+  const { data: lookups } = await supabase.from('doc_lookup').select('kind, code, name, active').order('sort')
+  const lk = (lookups ?? []) as { kind: string; code: string; name: string; active: boolean | null }[]
   const nm = (kind: string, code: string | null) => (code ? (lk.find((l) => l.kind === kind && l.code === code)?.name ?? code) : '—')
   const lines = (lineRows ?? []) as Line[]
 
@@ -37,6 +38,18 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const isBooker = !!booking && ((!!booking.booked_by && booking.booked_by === profile?.id) ||
     (!!booking.booked_by_email && booking.booked_by_email === user.email))
   const canReturn = !!booking && !submitted && (isBooker || canAssign)
+
+  // Recall & edit: only while nothing has been allocated — status still 'submitted',
+  // every line still 'pending' with no linked drawing, and no active number booking.
+  // Offered to the requestor and to Document Control.
+  const isRequestor = (!!req.requestor_user_id && req.requestor_user_id === profile?.id) ||
+    (!!req.requestor_email && req.requestor_email === user.email)
+  const recallable = req.status === 'submitted' && !booking && lines.length > 0 &&
+    lines.every((l) => l.line_status === 'pending' && !l.linked_document_id)
+  const opts = (kind: string) => lk.filter((o) => o.kind === kind && o.active !== false).map((o) => ({ code: o.code, name: o.name }))
+  const { data: pkgs } = recallable && (isRequestor || canAssign)
+    ? await supabase.from('packages').select('id, package_code, package_name').eq('active', true).order('package_code')
+    : { data: null }
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -51,6 +64,29 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
       </div>
 
       {canReturn && booking && <ReturnBooking requestId={id} docno={booking.docno} />}
+
+      {recallable && (isRequestor || canAssign) && (
+        <RecallEdit
+          requestId={id}
+          initial={{ package_code: req.package_code ?? null, response_required_by: req.response_required_by ?? null, notes: req.notes ?? null }}
+          initialLines={lines.map((l) => ({
+            document_type_code: l.document_type_code ?? undefined,
+            discipline_code: l.discipline_code ?? undefined,
+            area_code: l.area_code ?? undefined,
+            title1: l.title1 ?? undefined,
+            title2: l.title2 ?? undefined,
+            title3: l.title3 ?? undefined,
+            revision: l.revision ?? undefined,
+            due_date: l.due_date ?? undefined,
+            comments: l.comments ?? undefined,
+          }))}
+          documentTypes={opts('document_type')}
+          disciplines={opts('discipline')}
+          areas={opts('wbs_area')}
+          packages={((pkgs ?? []) as { id: string; package_code: string; package_name: string | null }[])
+            .map((p) => ({ id: p.id, code: p.package_code, name: p.package_name ?? '' }))}
+        />
+      )}
 
       {req.status === 'assigned' && (
         <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
