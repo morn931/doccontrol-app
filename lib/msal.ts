@@ -78,7 +78,19 @@ export async function getEditEmbedUrl(driveId: string, itemId: string): Promise<
   if (!res.ok) throw new Error('preview_edit_failed_' + res.status)
   const data = await res.json()
   if (!data.getUrl) throw new Error('no_edit_url')
-  return data.getUrl as string
+  // Graph's preview getUrl embeds Microsoft's read-only "interactivepreview" WOPI action
+  // even with allowEdit:true — so the file renders but there's no ribbon. Swap the action
+  // to "edit" to load the full Office-for-the-web editor in the same embeddable frame.
+  // (Both are Doc.aspx actions and stay framable on our origin.) wdenableroaming=1 keeps
+  // the editor from bouncing to a full-page redirect inside the iframe.
+  let url = String(data.getUrl)
+  if (/[?&]action=/i.test(url)) {
+    url = url.replace(/([?&]action=)[^&]*/i, '$1edit')
+  } else {
+    url += (url.includes('?') ? '&' : '?') + 'action=edit'
+  }
+  if (!/[?&]wdenableroaming=/i.test(url)) url += '&wdenableroaming=1'
+  return url
 }
 
 export async function currentMsAccount(): Promise<AccountInfo | null> {
