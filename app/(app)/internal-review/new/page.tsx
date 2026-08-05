@@ -32,7 +32,7 @@ export default function NewInternalReviewPage() {
       const res = await fetch('/api/internal-review/submit', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Submission failed'); return }
-      router.push(`/batches/${data.batchId}`)
+      router.push('/dashboard')
     } catch (e: any) {
       setError(e.message ?? 'Unexpected error')
     } finally {

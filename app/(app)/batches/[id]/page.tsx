@@ -1,14 +1,10 @@
 'use client'
 import { useState, useEffect, useRef, use } from 'react'
-import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, Edit3, Save, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw, PenLine, Plus } from 'lucide-react'
+import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw, PenLine, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { outcomeColorClass } from '@/lib/utils/outcome-codes'
 import type { ReviewOutcomeCode } from '@/lib/types/database'
-
-const DISCIPLINES  = ['Electrical','Instrumentation','Automation','Mechanical','Civil','Commercial','Not sure']
-const DOC_TYPES    = ['Specification','Drawing','Calculation','Datasheet','RFI','Contract Notice','Change Request','Variation/VO','Delay Notice','Claim','Commercial Letter','Not sure']
-const TOPICS       = ['Technical','SHERQ','Contractual','Not sure']
 
 const STATUS_COLORS: Record<string, string> = {
   intake_received:              'bg-blue-100 text-teal-800',
@@ -75,9 +71,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       setOfficeUrl(data.url)
     } catch (e: any) { setOfficeError(e.message ?? 'Unexpected error') } finally { setOfficeLoading(false) }
   }
-  const [editingDv, setEditingDv]       = useState<string | null>(null)
-  const [editForm, setEditForm]         = useState<any>({})
-  const [saving, setSaving]             = useState(false)
   const transmittalRef = useRef<HTMLDivElement>(null)
   const [transmittalPreview, setTransmittalPreview]       = useState<any>(null)  // inline preview (before send)
   const [transmittalSent, setTransmittalSent]             = useState<any>(null)  // confirmed after send
@@ -294,17 +287,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
-  async function handleSaveMetadata(dvId: string) {
-    setSaving(true)
-    const res = await fetch(`/api/documents/${dvId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editForm),
-    })
-    if (res.ok) { setEditingDv(null); loadBatch() }
-    setSaving(false)
-  }
-
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-700" />
@@ -317,7 +299,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const statusColor = STATUS_COLORS[batch.status] ?? 'bg-slate-100 text-slate-600'
   const statusLabel = STATUS_LABELS[batch.status] ?? batch.status
   const canReject = ['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status)
-  const canEdit   = ['intake_received','metadata_pending','ready_for_reviewer_assignment'].includes(batch.status)
 
   // Unique reviewers
   const reviewerMap = new Map<string, { email: string; minSeq: number; statuses: string[] }>()
@@ -706,52 +687,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             <div className="px-6 py-8 text-center text-slate-400 text-sm">No documents linked yet.</div>
           ) : docVersions.map((dv: any) => (
             <div key={dv.id} className="px-6 py-4">
-              {editingDv === dv.id ? (
-                // ── Edit mode ──────────────────────────────────────────────
-                <div className="space-y-3">
-                  <p className="font-mono text-sm font-semibold text-slate-900">{dv.file_name}</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="label text-xs">Document Title</label>
-                      <input value={editForm.doc_name ?? ''} onChange={e => setEditForm({...editForm, doc_name: e.target.value})} className="input text-sm" />
-                    </div>
-                    <div>
-                      <label className="label text-xs">Discipline</label>
-                      <select value={editForm.discipline ?? ''} onChange={e => setEditForm({...editForm, discipline: e.target.value})} className="input text-sm">
-                        <option value="">—</option>
-                        {DISCIPLINES.map(d => <option key={d}>{d}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label text-xs">Document Type</label>
-                      <select value={editForm.document_type ?? ''} onChange={e => setEditForm({...editForm, document_type: e.target.value})} className="input text-sm">
-                        <option value="">—</option>
-                        {DOC_TYPES.map(d => <option key={d}>{d}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label text-xs">Topic</label>
-                      <select value={editForm.topic ?? ''} onChange={e => setEditForm({...editForm, topic: e.target.value})} className="input text-sm">
-                        <option value="">—</option>
-                        {TOPICS.map(d => <option key={d}>{d}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  {dv.ai_text && (
-                    <div className="p-3 bg-blue-50 rounded text-xs text-teal-700 max-h-32 overflow-auto">
-                      <strong>AI Output:</strong><br />
-                      <pre className="whitespace-pre-wrap font-sans">{dv.ai_text}</pre>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <button onClick={() => handleSaveMetadata(dv.id)} disabled={saving} className="btn-primary text-xs py-1.5">
-                      <Save className="h-3.5 w-3.5" /> {saving ? 'Saving…' : 'Save'}
-                    </button>
-                    <button onClick={() => setEditingDv(null)} className="btn-secondary text-xs py-1.5">Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                // ── View mode ──────────────────────────────────────────────
                 <div className="flex items-start gap-3">
                   {canReject && !dv.is_rejected && (
                     <input
@@ -797,12 +732,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                       )
                     ) : (
                       <>
-                        {canEdit && (
-                          <button onClick={() => { setEditingDv(dv.id); setEditForm({ doc_name: dv.doc_name, discipline: dv.discipline, document_type: dv.document_type, topic: dv.topic }) }}
-                            className="btn-secondary text-xs py-1.5 px-3">
-                            <Edit3 className="h-3.5 w-3.5" /> Edit
-                          </button>
-                        )}
                         {dv.central_file_url && !/\.pdf$/i.test(dv.file_name || dv.central_file_url) && (
                           <button onClick={() => openOfficeViewer(dv.id, dv.file_name)} className="btn-secondary text-xs py-1.5 px-3">
                             <FileText className="h-3.5 w-3.5" /> View
@@ -817,7 +746,6 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                     )}
                   </div>
                 </div>
-              )}
             </div>
           ))}
         </div>
