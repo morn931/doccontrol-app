@@ -32,7 +32,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
   const [groupByPerson, setGroupByPerson] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showRaise, setShowRaise] = useState(false)
-  const [view, setView] = useState<'register' | 'manager' | 'decisions'>('register')
+  const [view, setView] = useState<'register' | 'manager' | 'decisions' | 'suggested'>('register')
 
   async function load() {
     setLoading(true)
@@ -45,8 +45,11 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
   useEffect(() => { fetch('/api/engineering-actions?assignees=1').then(r => r.json()).then(d => setUsers(d.users ?? [])).catch(() => {}) }, [])
 
   const suggestedCount = actions.filter(a => a.suggested).length
+  // If the last suggested item is cleared while the AI-suggested tab is open, the tab disappears —
+  // fall back to the Register so the user isn't stranded on a now-hidden view.
+  useEffect(() => { if (view === 'suggested' && suggestedCount === 0) setView('register') }, [view, suggestedCount])
   const filtered = useMemo(() => actions.filter(a => {
-    if (status === 'suggested') { if (!a.suggested) return false }
+    if (view === 'suggested') { if (!a.suggested) return false }
     else { if (a.suggested) return false; if (status !== 'all' && a.status !== status) return false }
     if (assignee && a.assigned_to_email !== assignee) return false
     if (search) {
@@ -54,7 +57,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
       if (!(`${a.action_ref} ${a.description} ${a.document_number ?? ''} ${a.discipline ?? ''}`.toLowerCase().includes(s))) return false
     }
     return true
-  }).sort((x, y) => (y.source_date || y.raised_at).localeCompare(x.source_date || x.raised_at)), [actions, status, assignee, search])
+  }).sort((x, y) => (y.source_date || y.raised_at).localeCompare(x.source_date || x.raised_at)), [actions, status, assignee, search, view])
 
   const groups = useMemo(() => {
     if (!groupByPerson) return [{ key: '', label: '', rows: filtered }]
@@ -73,7 +76,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><ClipboardList className="h-6 w-6 text-teal-600" /> Engineering Action Register</h1>
           <p className="text-sm text-slate-500 mt-0.5">Actions raised from design reviews. {openCount} open · {live.length} total.
-            {suggestedCount > 0 && <span className="text-amber-700"> · {suggestedCount} AI-suggested to review (filter “AI-suggested”).</span>}
+            {suggestedCount > 0 && <span className="text-amber-700"> · {suggestedCount} AI-suggested awaiting review (see the “AI-suggested” tab).</span>}
             {isManager ? ' You can prioritise, close and delete.' : ' Raise and reply; the Engineering Manager closes.'}</p>
         </div>
         <button onClick={() => setShowRaise(true)} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">
@@ -81,12 +84,18 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
         </button>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200">
-        {(['register', ...(isManager ? ['manager'] : []), 'decisions'] as ('register' | 'manager' | 'decisions')[]).map(v => (
-          <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 text-sm font-medium -mb-px border-b-2 ${view === v ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            {v === 'register' ? 'Register' : v === 'manager' ? 'Manager view' : 'Engineering Decisions'}
-          </button>
-        ))}
+      <div className="flex gap-1 border-b border-slate-200 flex-wrap">
+        {(['register', ...(isManager ? ['manager'] : []), 'decisions', ...(isManager && suggestedCount > 0 ? ['suggested'] : [])] as ('register' | 'manager' | 'decisions' | 'suggested')[]).map(v => {
+          const active = view === v
+          const amber = v === 'suggested'
+          return (
+            <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 text-sm font-medium -mb-px border-b-2 ${
+              active ? (amber ? 'border-amber-500 text-amber-700' : 'border-teal-600 text-teal-700')
+                     : (amber ? 'border-transparent text-amber-600 hover:text-amber-700' : 'border-transparent text-slate-500 hover:text-slate-700')}`}>
+              {v === 'register' ? 'Register' : v === 'manager' ? 'Manager view' : v === 'decisions' ? 'Engineering Decisions' : `AI-suggested (${suggestedCount})`}
+            </button>
+          )
+        })}
       </div>
 
       {view === 'manager' && isManager ? <ManagerView actions={actions} users={users} onChange={load} />
@@ -95,12 +104,16 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
       <>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5">
-          <option value="open">Open</option><option value="in_progress">In progress</option>
-          <option value="closed">Closed</option><option value="dismissed">Dismissed</option><option value="all">All statuses</option>
-          {suggestedCount > 0 && <option value="suggested">AI-suggested ({suggestedCount})</option>}
-        </select>
-        {status === 'suggested' && <span className="text-xs text-amber-700">Review AI-picked actions — Confirm to make live, or Dismiss.</span>}
+        {view === 'suggested' ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800">
+            AI-picked from meetings &amp; emails — <b>Confirm</b> each to make it a live action, or <b>Dismiss</b>.
+          </span>
+        ) : (
+          <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5">
+            <option value="open">Open</option><option value="in_progress">In progress</option>
+            <option value="closed">Closed</option><option value="dismissed">Dismissed</option><option value="all">All statuses</option>
+          </select>
+        )}
         <select value={assignee} onChange={e => setAssignee(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5">
           <option value="">All assignees</option>
           {users.map(u => <option key={u.email} value={u.email}>{u.full_name || u.email}</option>)}
@@ -110,7 +123,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
       </div>
 
       {loading ? <p className="text-sm text-slate-400">Loading…</p> : filtered.length === 0 ? (
-        <p className="text-sm text-slate-400">No actions match.</p>
+        <p className="text-sm text-slate-400">{view === 'suggested' ? 'No AI-suggested items awaiting review — all caught up.' : 'No actions match.'}</p>
       ) : groups.map(g => (
         <div key={g.key} className="space-y-2">
           {g.label && <p className="text-sm font-semibold text-slate-700 mt-2">{g.label}</p>}
