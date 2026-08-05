@@ -20,6 +20,9 @@
     },
     "app/api/cron/eng2-sync/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/cron/engineering-actions-digest/route.ts": {
+      "maxDuration": 120
     }
   },
   "crons": [
@@ -46,6 +49,10 @@
     {
       "path": "/api/cron/review-reminders",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/engineering-actions-digest",
+      "schedule": "0 6 * * 1-5"
     }
   ],
   "git": {

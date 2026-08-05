@@ -1,9 +1,10 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 
 export const dynamic = 'force-dynamic'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
+// Per the Engineering Manager (2026-08): NO instant per-action emails — people check the
+// register, and a daily per-person digest (api/cron/engineering-actions-digest) nudges them
+// with their outstanding count + new answers on things they raised.
 
 // GET /api/engineering-actions
 //   ?assignees=1                 → directory of assignable users (for the picker)
@@ -89,21 +90,6 @@ export async function POST(req: Request) {
   }
   const { data: created, error } = await db.from('engineering_action').insert(row).select('id, action_ref').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // Notify the assignee (best-effort).
-  if (row.assigned_to_email) {
-    try {
-      await sendMail({
-        to: [row.assigned_to_email],
-        subject: `Engineering action assigned — ${(created as any).action_ref}${document_number ? ` · ${document_number}` : ''}`,
-        htmlBody: brandedEmail({
-          heading: 'An engineering action needs your follow-up',
-          bodyHtml: `<p><b>${row.raised_by_name || row.raised_by_email}</b> logged an action${document_number ? ` on <b>${document_number}</b>` : ''} and assigned it to you:</p>
-            <p style="padding:8px 12px;border-left:3px solid #d97706;background:#fffbeb">${description}</p>`,
-          cta: { href: `${APP_URL}/engineering-actions`, label: 'Open the Engineering Action Register →' },
-        }),
-      })
-    } catch {}
-  }
+  // No email here — the daily digest covers assignees (EM's preference).
   return NextResponse.json({ ok: true, id: (created as any).id, action_ref: (created as any).action_ref }, { status: 201 })
 }

@@ -1,12 +1,10 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 
 export const dynamic = 'force-dynamic'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 
-// POST — add a reply to an action's thread. This is the loop-closer: whoever ISN'T the
-// author (raiser + assignee) gets notified, so the person who asked finally sees the answer.
+// POST — add a reply to an action's thread. The loop closes via the daily digest, which
+// tells the raiser their action got a new answer (EM's preference: no instant emails).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,24 +24,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { error } = await db.from('engineering_action_reply').insert({ action_id: id, author_email, author_name, body })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  // Assignee picking up an action moves it to in-progress (if still open).
-  await db.from('engineering_action').update({ updated_at: new Date().toISOString() }).eq('id', id).eq('status', 'open')
-
-  const recipients = [...new Set([(action as any).raised_by_email, (action as any).assigned_to_email]
-    .filter((e: string) => e && e.toLowerCase() !== author_email.toLowerCase()))]
-  if (recipients.length) {
-    try {
-      await sendMail({
-        to: recipients,
-        subject: `Reply on engineering action ${(action as any).action_ref}`,
-        htmlBody: brandedEmail({
-          heading: 'New reply on an engineering action',
-          bodyHtml: `<p><b>${author_name || author_email}</b> replied on <b>${(action as any).action_ref}</b>${(action as any).document_number ? ` (${(action as any).document_number})` : ''} — “${(action as any).description}”:</p>
-            <p style="padding:8px 12px;border-left:3px solid #2563eb;background:#eff6ff">${body}</p>`,
-          cta: { href: `${APP_URL}/engineering-actions`, label: 'Open the register →' },
-        }),
-      })
-    } catch {}
-  }
+  // Reply from someone other than the raiser bumps the action to in-progress (if still open).
+  if (author_email.toLowerCase() !== String((action as any).raised_by_email ?? '').toLowerCase())
+    await db.from('engineering_action').update({ status: 'in_progress', updated_at: new Date().toISOString() }).eq('id', id).eq('status', 'open')
+  else
+    await db.from('engineering_action').update({ updated_at: new Date().toISOString() }).eq('id', id)
+  // No email — the daily digest surfaces new answers to the raiser.
   return NextResponse.json({ ok: true })
 }
