@@ -7,7 +7,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getFileBytesByUrl, putFileBytesByUrl } from '@/lib/services/graph'
-import { stampSignature, pngFromDataUrl } from '@/lib/signoff-pdf'
+import { stampSignature, stampOnTitleBlock, pngFromDataUrl } from '@/lib/signoff-pdf'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { splitEmails } from '@/lib/utils/emails'
 
@@ -55,15 +55,19 @@ export async function POST(_req: Request, { params }: { params: Promise<{ taskId
   if (!b?.signoff_pdf_url) return NextResponse.json({ error: 'No sign-off PDF on this batch.' }, { status: 400 })
 
   // ── Stamp the signature into the PDF and write it back ───────────────────────
+  // Prefer the cover-page title block (in the column matching this signatory's role, above
+  // the name); fall back to the appended approval block if the doc has no title block.
   try {
     const current = await getFileBytesByUrl(b.signoff_pdf_url)
     const img = await signatureImageFor(user.email)
-    const stamped = await stampSignature(current, {
-      blockRow: t.block_row ?? (t.sequence_number - 1),
-      dateStr: new Date().toISOString().slice(0, 10),
-      signaturePng: pngFromDataUrl(img),
-      typedName: profile?.full_name ?? user.email,   // fallback if no signature image on file
-    })
+    const png = pngFromDataUrl(img)
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const typedName = profile?.full_name ?? user.email
+
+    const cover = await stampOnTitleBlock(current, { roleLabel: t.role_label, dateStr, signaturePng: png, typedName })
+    const stamped = cover.placed
+      ? cover.bytes
+      : await stampSignature(current, { blockRow: t.block_row ?? (t.sequence_number - 1), dateStr, signaturePng: png, typedName })
     await putFileBytesByUrl(b.signoff_pdf_url, stamped)
   } catch (e: any) {
     return NextResponse.json({ error: `Could not stamp the signature: ${e?.message ?? e}` }, { status: 502 })

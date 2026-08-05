@@ -11,7 +11,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import { resolveDriveItemByUrl, getDriveItemContentBytes, uploadBytesToLibraryFolder } from '@/lib/services/graph'
-import { appendSignoffBlock } from '@/lib/signoff-pdf'
+import { appendSignoffBlock, findTitleBlockColumns } from '@/lib/signoff-pdf'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 
 export const maxDuration = 120
@@ -51,9 +51,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const item = await resolveDriveItemByUrl(dv.central_file_url)
     if (!item?.driveId) return NextResponse.json({ error: 'Could not locate the source file in SharePoint.' }, { status: 404 })
-    const nativePdf = await getDriveItemContentBytes(item.driveId, item.id, 'pdf')
-    const { bytes } = await appendSignoffBlock(nativePdf, signatories.map((s: any) => ({ name: s.name, role: s.role })),
-      { title: dv.doc_name ?? dv.file_name, reference: b.internal_ref ?? undefined })
+    // Word/Excel → convert to PDF; a file that's already a PDF is used as-is
+    // (Graph's ?format=pdf rejects PDF input with 406 InputFormatNotSupported).
+    const ext = (item.name?.split('.').pop() || '').toLowerCase()
+    const nativePdf = ext === 'pdf'
+      ? await getDriveItemContentBytes(item.driveId, item.id)
+      : await getDriveItemContentBytes(item.driveId, item.id, 'pdf')
+    // If the cover has a Prepared/Checked/Approved title block, sign there (no appended page).
+    // Only documents WITHOUT that block get the appended approval block as a fallback.
+    const hasTitleBlock = await findTitleBlockColumns(nativePdf).catch(() => null)
+    let bytes: Uint8Array
+    if (hasTitleBlock) {
+      bytes = nativePdf instanceof Uint8Array ? nativePdf : new Uint8Array(nativePdf)
+    } else {
+      ({ bytes } = await appendSignoffBlock(nativePdf, signatories.map((s: any) => ({ name: s.name, role: s.role })),
+        { title: dv.doc_name ?? dv.file_name, reference: b.internal_ref ?? undefined }))
+    }
     const safe = String(b.internal_ref ?? b.id).replace(/[^A-Za-z0-9._-]/g, '_')
     const up = await uploadBytesToLibraryFolder(`Signed/${safe}.pdf`, bytes, 'application/pdf')
     pdfUrl = up.webUrl

@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   },
   // Prevent webpack from bundling pdfkit — it must run as native Node.js
   // in the serverless runtime. Bundling it mangles internal class constructors.
-  serverExternalPackages: ['pdfkit'],
+  serverExternalPackages: ['pdfkit', 'pdfjs-dist'],
 }
 
 export default nextConfig

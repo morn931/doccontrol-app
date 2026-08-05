@@ -34,7 +34,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     const item = await resolveDriveItemByUrl(dv.central_file_url)
     if (!item?.driveId) return NextResponse.json({ error: 'Could not locate the source file in SharePoint.' }, { status: 404 })
-    const pdf = await getDriveItemContentBytes(item.driveId, item.id, 'pdf')
+    // Word/Excel → convert to PDF; a file that's already a PDF is used as-is
+    // (Graph's ?format=pdf rejects PDF input with 406 InputFormatNotSupported).
+    const ext = (item.name?.split('.').pop() || '').toLowerCase()
+    const pdf = ext === 'pdf'
+      ? await getDriveItemContentBytes(item.driveId, item.id)
+      : await getDriveItemContentBytes(item.driveId, item.id, 'pdf')
     return new NextResponse(Buffer.from(pdf as ArrayBuffer), {
       headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="signoff-preview.pdf"' },
     })

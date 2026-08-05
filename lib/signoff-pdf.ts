@@ -96,6 +96,79 @@ export async function stampSignature(
   return doc.save()
 }
 
+// ── Cover-page title block (Prepared / Checked / Approved) ───────────────────
+// PPE controlled documents carry a title block at the foot of the cover page with
+// PREPARED BY / CHECKED BY / APPROVED BY columns and the engineers' names above the
+// labels. Signatures belong there — in the column matching the signatory's role, above
+// the name — not on an appended page. We locate the columns with pdfjs (text + position)
+// and stamp with pdf-lib. If the block isn't found, callers fall back to appendSignoffBlock.
+
+type Col = { x: number; y: number; w: number }
+
+async function pageOneWords(pdfBytes: ArrayBuffer | Uint8Array): Promise<{ str: string; x: number; y: number; w: number }[]> {
+  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const data = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes)
+  const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise
+  try {
+    const page = await doc.getPage(1)
+    const tc = await page.getTextContent()
+    return (tc.items as any[]).filter(i => typeof i.str === 'string')
+      .map(i => ({ str: i.str, x: i.transform[4], y: i.transform[5], w: i.width }))
+  } finally { await doc.destroy() }
+}
+
+/** Locate the PREPARED/CHECKED/APPROVED columns on the cover page. Returns null if the
+ *  title block isn't present (→ caller uses the appended-block fallback). */
+export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array): Promise<Record<string, Col> | null> {
+  let words
+  try { words = await pageOneWords(pdfBytes) } catch { return null }
+  const cols: Record<string, Col> = {}
+  for (const kw of ['PREPARED', 'CHECKED', 'APPROVED']) {
+    const m = words.find(w => w.str.toUpperCase().includes(kw))
+    if (m) cols[kw] = { x: m.x, y: m.y, w: m.w }
+  }
+  return Object.keys(cols).length ? cols : null
+}
+
+const ROLE_TO_COL: [string, string][] = [['prepar', 'PREPARED'], ['compil', 'PREPARED'], ['check', 'CHECKED'], ['review', 'CHECKED'], ['approv', 'APPROVED']]
+
+/** Stamp a signature into the title-block column matching the signatory's role, above the
+ *  name. Returns placed:false if the block/column isn't found (caller falls back). */
+export async function stampOnTitleBlock(
+  pdfBytes: ArrayBuffer | Uint8Array,
+  opts: { roleLabel?: string | null; dateStr: string; signaturePng?: Uint8Array | null; typedName?: string }
+): Promise<{ bytes: Uint8Array; placed: boolean }> {
+  const asBytes = () => (pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes))
+  const cols = await findTitleBlockColumns(pdfBytes)
+  if (!cols) return { bytes: asBytes(), placed: false }
+
+  const rl = (opts.roleLabel || '').toLowerCase()
+  const key = ROLE_TO_COL.find(([frag]) => rl.includes(frag))?.[1] ?? null
+  const col = key ? cols[key] : null
+  if (!col) return { bytes: asBytes(), placed: false }
+
+  const doc = await PDFDocument.load(pdfBytes)
+  const font = await doc.embedFont(StandardFonts.Helvetica)
+  const page = doc.getPages()[0]
+  const ink = rgb(0.09, 0.11, 0.16)
+  const cx = col.x + col.w / 2       // column centre
+  const boxW = 66, boxH = 22, by = col.y + 30   // sits above the name row (name ≈ label y + 18)
+
+  if (opts.signaturePng?.byteLength) {
+    try {
+      const img = await doc.embedPng(opts.signaturePng)
+      const scale = Math.min(boxW / img.width, boxH / img.height)
+      const w = img.width * scale, h = img.height * scale
+      page.drawImage(img, { x: cx - w / 2, y: by, width: w, height: h })
+    } catch {
+      if (opts.typedName) page.drawText(opts.typedName, { x: col.x, y: by + 4, size: 7, font, color: ink })
+    }
+  } else if (opts.typedName) {
+    page.drawText(opts.typedName, { x: col.x, y: by + 4, size: 7, font, color: ink })
+  }
+  return { bytes: await doc.save(), placed: true }
+}
+
 // Decode a data-URL / base64 PNG (as returned by the signature store) to bytes.
 export function pngFromDataUrl(image: string | null | undefined): Uint8Array | null {
   if (!image) return null
