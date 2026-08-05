@@ -84,7 +84,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
         ))}
       </div>
 
-      {view === 'manager' && isManager ? <ManagerView actions={actions} onChange={load} />
+      {view === 'manager' && isManager ? <ManagerView actions={actions} users={users} onChange={load} />
         : view === 'decisions' ? <DecisionsView isManager={isManager} me={me} users={users} />
         : (
       <>
@@ -133,10 +133,11 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
 }
 
 // ── Manager view: per-engineer board (worst-first), this-week stats, drill-in, bulk ──
-function ManagerView({ actions, onChange }: { actions: Action[]; onChange: () => void }) {
+function ManagerView({ actions, users, onChange }: { actions: Action[]; users: { email: string; full_name: string | null }[]; onChange: () => void }) {
   const [open, setOpen] = useState<string | null>(null)
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [push, setPush] = useState<Action | null>(null)
 
   const now = Date.now(), DAY = 86400000, weekAgo = now - 7 * DAY, today = new Date().toISOString().slice(0, 10)
   const isOpen = (a: Action) => a.status === 'open' || a.status === 'in_progress'
@@ -219,6 +220,7 @@ function ManagerView({ actions, onChange }: { actions: Action[]; onChange: () =>
                             <td className="px-2 py-1.5 text-slate-800">{a.description}<span className="text-xs text-slate-400"> · {ageDays(a)}d old{overdue(a) ? ' · overdue' : ''}</span></td>
                             <td className="px-2 py-1.5">{a.priority ? <span className={`rounded-full px-2 py-0.5 text-xs ${PRIO_COLOR[a.priority]}`}>{a.priority}</span> : '—'}</td>
                             <td className="px-2 py-1.5"><span className={`rounded-full px-2 py-0.5 text-xs capitalize ${STATUS_COLOR[a.status]}`}>{a.status.replace('_', ' ')}</span></td>
+                            <td className="px-2 py-1.5 text-right"><button onClick={() => setPush(a)} className="rounded-md border border-teal-300 px-2 py-0.5 text-xs font-semibold text-teal-700 hover:bg-teal-50 whitespace-nowrap">Push to EDR</button></td>
                           </tr>
                         ))}
                       </tbody></table>
@@ -230,6 +232,9 @@ function ManagerView({ actions, onChange }: { actions: Action[]; onChange: () =>
           </table>
         </div>
       )}
+      {push && <DecisionModal users={users} title="Push to Engineering Decision Register" sourceActionId={push.id}
+        prefill={{ title: push.description.slice(0, 120), background: push.description, discipline: push.discipline, document_number: push.document_number }}
+        onClose={() => setPush(null)} onSaved={() => setPush(null)} />}
     </div>
   )
 }
