@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Plus, MessageSquare, ChevronDown, ChevronRight, X, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -12,7 +12,7 @@ type Action = {
   priority: 'low' | 'medium' | 'high' | null
   status: 'open' | 'in_progress' | 'closed' | 'dismissed'
   description: string; source: string; due_date: string | null
-  closeout_comment: string | null; closed_by_email: string | null
+  closeout_comment: string | null; closed_by_email: string | null; closed_at: string | null
   replies: Reply[]
 }
 type Me = { email: string; name: string | null }
@@ -31,6 +31,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
   const [groupByPerson, setGroupByPerson] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showRaise, setShowRaise] = useState(false)
+  const [view, setView] = useState<'register' | 'manager'>('register')
 
   async function load() {
     setLoading(true)
@@ -75,6 +76,18 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
         </button>
       </div>
 
+      {isManager && (
+        <div className="flex gap-1 border-b border-slate-200">
+          {(['register', 'manager'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 text-sm font-medium -mb-px border-b-2 ${view === v ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+              {v === 'register' ? 'Register' : 'Manager view'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === 'manager' && isManager ? <ManagerView actions={actions} onChange={load} /> : (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5">
@@ -111,8 +124,112 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
           </div>
         </div>
       ))}
+      </>
+      )}
 
       {showRaise && <RaiseModal users={users} onClose={() => setShowRaise(false)} onSaved={() => { setShowRaise(false); load() }} />}
+    </div>
+  )
+}
+
+// ── Manager view: per-engineer board (worst-first), this-week stats, drill-in, bulk ──
+function ManagerView({ actions, onChange }: { actions: Action[]; onChange: () => void }) {
+  const [open, setOpen] = useState<string | null>(null)
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+
+  const now = Date.now(), DAY = 86400000, weekAgo = now - 7 * DAY, today = new Date().toISOString().slice(0, 10)
+  const isOpen = (a: Action) => a.status === 'open' || a.status === 'in_progress'
+  const overdue = (a: Action) => isOpen(a) && !!a.due_date && a.due_date < today
+  const ageDays = (a: Action) => Math.floor((now - new Date(a.raised_at).getTime()) / DAY)
+
+  const stats = useMemo(() => ({
+    raisedThisWeek: actions.filter(a => new Date(a.raised_at).getTime() >= weekAgo).length,
+    closedThisWeek: actions.filter(a => a.closed_at && new Date(a.closed_at).getTime() >= weekAgo).length,
+    stillOpen: actions.filter(isOpen).length,
+    overdue: actions.filter(overdue).length,
+  }), [actions])
+
+  const board = useMemo(() => {
+    const m: Record<string, Action[]> = {}
+    for (const a of actions) if (isOpen(a)) (m[a.assigned_to_email ?? '—unassigned—'] ??= []).push(a)
+    return Object.entries(m).map(([email, rows]) => ({
+      email, name: nameOf(email === '—unassigned—' ? null : email, rows[0]?.assigned_to_name ?? null),
+      open: rows.length,
+      high: rows.filter(r => r.priority === 'high').length,
+      overdue: rows.filter(overdue).length,
+      oldest: rows.reduce((mx, r) => Math.max(mx, ageDays(r)), 0),
+      rows: rows.sort((x, y) => (Number(overdue(y)) - Number(overdue(x))) || ageDays(y) - ageDays(x)),
+    })).sort((x, y) => y.overdue - x.overdue || y.high - x.high || y.oldest - x.oldest)
+  }, [actions])
+
+  function toggleSel(id: string) { setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n }) }
+  async function bulk(patch: any) {
+    if (!sel.size) return
+    setBulkBusy(true)
+    await Promise.all([...sel].map(id => fetch(`/api/engineering-actions/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })))
+    setSel(new Set()); setBulkBusy(false); onChange()
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* This-week stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[['Still open', stats.stillOpen, 'text-slate-900'], ['Overdue', stats.overdue, 'text-red-600'], ['Raised this week', stats.raisedThisWeek, 'text-slate-900'], ['Closed this week', stats.closedThisWeek, 'text-emerald-600']].map(([label, val, cls]) => (
+          <div key={label as string} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{label}</p><p className={`text-2xl font-semibold ${cls}`}>{val as number}</p></div>
+        ))}
+      </div>
+
+      {/* Bulk bar */}
+      {sel.size > 0 && (
+        <div className="sticky top-2 z-10 flex items-center gap-2 rounded-lg border border-teal-300 bg-teal-50 px-3 py-2 text-sm">
+          <span className="font-medium text-teal-900">{sel.size} selected</span>
+          <select disabled={bulkBusy} onChange={e => e.target.value && bulk({ priority: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-xs"><option value="">Set priority…</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+          <button disabled={bulkBusy} onClick={() => bulk({ status: 'closed', closeoutComment: 'Bulk-closed in weekly review' })} className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Close selected</button>
+          <button onClick={() => setSel(new Set())} className="ml-auto text-xs text-slate-500">clear</button>
+        </div>
+      )}
+
+      {board.length === 0 ? <p className="text-sm text-slate-400">No open actions.</p> : (
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-[#0B3563] text-white text-left"><tr>
+              <th className="px-3 py-2 font-medium">Engineer</th><th className="px-3 py-2 font-medium text-center">Open</th>
+              <th className="px-3 py-2 font-medium text-center">High</th><th className="px-3 py-2 font-medium text-center">Overdue</th>
+              <th className="px-3 py-2 font-medium text-center">Oldest</th><th className="px-3 py-2"></th>
+            </tr></thead>
+            <tbody>
+              {board.map(p => (
+                <Fragment key={p.email}>
+                  <tr className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => setOpen(open === p.email ? null : p.email)}>
+                    <td className="px-3 py-2 font-medium text-slate-800">{p.name}</td>
+                    <td className="px-3 py-2 text-center">{p.open}</td>
+                    <td className="px-3 py-2 text-center">{p.high ? <span className="rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">{p.high}</span> : '—'}</td>
+                    <td className="px-3 py-2 text-center">{p.overdue ? <span className="rounded-full bg-red-100 text-red-800 px-2 py-0.5 text-xs">{p.overdue}</span> : '—'}</td>
+                    <td className="px-3 py-2 text-center text-slate-600">{p.oldest}d</td>
+                    <td className="px-3 py-2 text-right">{open === p.email ? <ChevronDown className="h-4 w-4 inline text-slate-400" /> : <ChevronRight className="h-4 w-4 inline text-slate-400" />}</td>
+                  </tr>
+                  {open === p.email && (
+                    <tr><td colSpan={6} className="px-3 py-2 bg-slate-50/60">
+                      <table className="w-full text-sm"><tbody>
+                        {p.rows.map(a => (
+                          <tr key={a.id} className="border-t border-slate-100 align-top">
+                            <td className="px-1 py-1.5 w-6"><input type="checkbox" checked={sel.has(a.id)} onChange={() => toggleSel(a.id)} /></td>
+                            <td className="px-2 py-1.5 font-mono text-xs text-slate-400 whitespace-nowrap">{a.action_ref}</td>
+                            <td className="px-2 py-1.5 text-slate-800">{a.description}<span className="text-xs text-slate-400"> · {ageDays(a)}d old{overdue(a) ? ' · overdue' : ''}</span></td>
+                            <td className="px-2 py-1.5">{a.priority ? <span className={`rounded-full px-2 py-0.5 text-xs ${PRIO_COLOR[a.priority]}`}>{a.priority}</span> : '—'}</td>
+                            <td className="px-2 py-1.5"><span className={`rounded-full px-2 py-0.5 text-xs capitalize ${STATUS_COLOR[a.status]}`}>{a.status.replace('_', ' ')}</span></td>
+                          </tr>
+                        ))}
+                      </tbody></table>
+                    </td></tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
