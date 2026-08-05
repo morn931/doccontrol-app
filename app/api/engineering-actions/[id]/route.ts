@@ -26,6 +26,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const patch: any = { updated_at: new Date().toISOString() }
   if (b.priority !== undefined) patch.priority = ['low', 'medium', 'high'].includes(b.priority) ? b.priority : null
   if (b.dueDate !== undefined) patch.due_date = b.dueDate || null
+  if (b.suggested !== undefined) patch.suggested = !!b.suggested   // confirm an AI-suggested action into the live register
   if (b.status !== undefined) {
     if (!['open', 'in_progress', 'closed', 'dismissed'].includes(b.status))
       return NextResponse.json({ error: 'Invalid status.' }, { status: 400 })

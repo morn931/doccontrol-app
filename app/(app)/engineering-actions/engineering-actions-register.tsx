@@ -11,7 +11,7 @@ type Action = {
   assigned_to_email: string | null; assigned_to_name: string | null
   priority: 'low' | 'medium' | 'high' | null
   status: 'open' | 'in_progress' | 'closed' | 'dismissed'
-  description: string; source: string; due_date: string | null
+  description: string; source: string; due_date: string | null; suggested: boolean
   closeout_comment: string | null; closed_by_email: string | null; closed_at: string | null
   replies: Reply[]
 }
@@ -43,8 +43,10 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
   useEffect(() => { load() }, [])
   useEffect(() => { fetch('/api/engineering-actions?assignees=1').then(r => r.json()).then(d => setUsers(d.users ?? [])).catch(() => {}) }, [])
 
+  const suggestedCount = actions.filter(a => a.suggested).length
   const filtered = useMemo(() => actions.filter(a => {
-    if (status !== 'all' && a.status !== status) return false
+    if (status === 'suggested') { if (!a.suggested) return false }
+    else { if (a.suggested) return false; if (status !== 'all' && a.status !== status) return false }
     if (assignee && a.assigned_to_email !== assignee) return false
     if (search) {
       const s = search.toLowerCase()
@@ -93,7 +95,9 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
         <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5">
           <option value="open">Open</option><option value="in_progress">In progress</option>
           <option value="closed">Closed</option><option value="dismissed">Dismissed</option><option value="all">All statuses</option>
+          {suggestedCount > 0 && <option value="suggested">AI-suggested ({suggestedCount})</option>}
         </select>
+        {status === 'suggested' && <span className="text-xs text-amber-700">Review AI-picked actions — Confirm to make live, or Dismiss.</span>}
         <select value={assignee} onChange={e => setAssignee(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5">
           <option value="">All assignees</option>
           {users.map(u => <option key={u.email} value={u.email}>{u.full_name || u.email}</option>)}
@@ -140,13 +144,13 @@ function ManagerView({ actions, users, onChange }: { actions: Action[]; users: {
   const [push, setPush] = useState<Action | null>(null)
 
   const now = Date.now(), DAY = 86400000, weekAgo = now - 7 * DAY, today = new Date().toISOString().slice(0, 10)
-  const isOpen = (a: Action) => a.status === 'open' || a.status === 'in_progress'
+  const isOpen = (a: Action) => (a.status === 'open' || a.status === 'in_progress') && !a.suggested
   const overdue = (a: Action) => isOpen(a) && !!a.due_date && a.due_date < today
   const ageDays = (a: Action) => Math.floor((now - new Date(a.raised_at).getTime()) / DAY)
 
   const stats = useMemo(() => ({
-    raisedThisWeek: actions.filter(a => new Date(a.raised_at).getTime() >= weekAgo).length,
-    closedThisWeek: actions.filter(a => a.closed_at && new Date(a.closed_at).getTime() >= weekAgo).length,
+    raisedThisWeek: actions.filter(a => !a.suggested && new Date(a.raised_at).getTime() >= weekAgo).length,
+    closedThisWeek: actions.filter(a => !a.suggested && a.closed_at && new Date(a.closed_at).getTime() >= weekAgo).length,
     stillOpen: actions.filter(isOpen).length,
     overdue: actions.filter(overdue).length,
   }), [actions])
@@ -424,6 +428,15 @@ function Row({ a, isManager, users, expanded, onToggle, onChange }: { a: Action;
       </tr>
       {expanded && (
         <tr className="bg-slate-50/60"><td colSpan={7} className="px-4 py-3">
+          {a.suggested && (
+            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
+              <span className="text-xs font-semibold text-amber-800">AI-suggested from {a.source.replace('_', ' ')} — not yet live</span>
+              {isManager && <>
+                <button onClick={() => patch({ suggested: false })} disabled={busy} className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Confirm → live</button>
+                <button onClick={() => patch({ status: 'dismissed' })} disabled={busy} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-white">Dismiss</button>
+              </>}
+            </div>
+          )}
           {a.discipline && <p className="text-xs text-slate-500 mb-2">Discipline: {a.discipline} · Raised {format(new Date(a.raised_at), 'd MMM yyyy')} · via {a.source.replace('_', ' ')}</p>}
           {/* Reply thread */}
           <div className="space-y-1.5">
