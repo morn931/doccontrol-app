@@ -8,10 +8,11 @@ type Reply = { id: string; author_email: string; author_name: string | null; bod
 type Action = {
   id: string; action_ref: string; document_number: string | null; discipline: string | null
   raised_by_email: string; raised_by_name: string | null; raised_at: string
+  area_system: string | null
   assigned_to_email: string | null; assigned_to_name: string | null
   priority: 'low' | 'medium' | 'high' | null
   status: 'open' | 'in_progress' | 'closed' | 'dismissed'
-  description: string; source: string; due_date: string | null; suggested: boolean
+  description: string; source: string; source_date: string | null; due_date: string | null; suggested: boolean
   closeout_comment: string | null; closed_by_email: string | null; closed_at: string | null
   replies: Reply[]
 }
@@ -53,7 +54,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
       if (!(`${a.action_ref} ${a.description} ${a.document_number ?? ''} ${a.discipline ?? ''}`.toLowerCase().includes(s))) return false
     }
     return true
-  }), [actions, status, assignee, search])
+  }).sort((x, y) => (y.source_date || y.raised_at).localeCompare(x.source_date || x.raised_at)), [actions, status, assignee, search])
 
   const groups = useMemo(() => {
     if (!groupByPerson) return [{ key: '', label: '', rows: filtered }]
@@ -412,7 +413,11 @@ function Row({ a, isManager, users, expanded, onToggle, onChange }: { a: Action;
         <td className="px-3 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">{a.action_ref}</td>
         <td className="px-3 py-2 text-slate-800 max-w-md">
           <button onClick={onToggle} className="text-left hover:text-teal-700">{a.description}</button>
-          <span className="ml-1 text-xs text-slate-400">· {nameOf(a.raised_by_email, a.raised_by_name)}{a.replies.length ? ` · ${a.replies.length} repl${a.replies.length === 1 ? 'y' : 'ies'}` : ''}</span>
+          <span className="ml-1 text-xs text-slate-400">
+            {a.suggested
+              ? `· via ${a.source === 'email' ? 'Email' : 'Meeting'}${a.source_date ? ' · ' + format(new Date(a.source_date), 'd MMM yyyy') : ''}`
+              : `· ${nameOf(a.raised_by_email, a.raised_by_name)}`}
+            {a.replies.length ? ` · ${a.replies.length} repl${a.replies.length === 1 ? 'y' : 'ies'}` : ''}</span>
         </td>
         <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{a.document_number ?? '—'}</td>
         <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{nameOf(a.assigned_to_email, a.assigned_to_name)}</td>
@@ -432,7 +437,7 @@ function Row({ a, isManager, users, expanded, onToggle, onChange }: { a: Action;
         <tr className="bg-slate-50/60"><td colSpan={7} className="px-4 py-3">
           {a.suggested && (
             <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
-              <span className="text-xs font-semibold text-amber-800">AI-suggested from {a.source.replace('_', ' ')} — not yet live</span>
+              <span className="text-xs font-semibold text-amber-800">AI-suggested · {a.source === 'email' ? 'Email' : 'Meeting'}{a.source_date ? ' · ' + format(new Date(a.source_date), 'd MMM yyyy') : ''}{a.area_system ? ` · “${a.area_system}”` : ''} — not yet live</span>
               {isManager && <>
                 <button onClick={() => patch({ suggested: false })} disabled={busy} className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Confirm → live</button>
                 <button onClick={() => patch({ status: 'dismissed' })} disabled={busy} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-white">Dismiss</button>

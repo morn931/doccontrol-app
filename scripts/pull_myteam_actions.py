@@ -61,6 +61,9 @@ extra_emails = {f'{u}@ppetech.co.za' for u in EXTRA}
 for u in docs_get('users', {'select': 'email,full_name', 'limit': '2000'}):
     if u.get('email') and u['email'].lower() in extra_emails: name_by[u['email'].lower()] = u.get('full_name')
 team = set(name_by.keys()) | extra_emails
+# Excluded 2026-08-05 (Morné — "we'll use them elsewhere later").
+EXCLUDE = ['mornec', 'leeroyp', 'johanm', 'flippiev', 'jans', 'ebertv', 'wesw', 'omaric', 'brianc', 'jarrodm']
+team -= {f'{u}@ppetech.co.za' for u in EXCLUDE}
 def clean_name(s):  # coreflow assignee_name can carry mojibake — keep only sane names
     s = (s or '').strip()
     return s if s and re.fullmatch(r"[A-Za-z .'\-]+", s) else None
@@ -108,6 +111,7 @@ body = [{
     'raised_by_email': 'ai-scan@coreflow.build', 'raised_by_name': 'AI scan · My Team Actions',
     'source': src(r['source_type']), 'source_ref': r['id'], 'suggested': True, 'status': 'open',
     'area_system': (r.get('source_title') or None),
+    'source_date': r.get('source_date'),   # requires migration 038
 } for r in new]
 wrote = 0
 for i in range(0, len(body), 200):
