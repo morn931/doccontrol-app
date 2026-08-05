@@ -63,14 +63,16 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
       .map(([k, rows]) => ({ key: k, label: nameOf(k, rows[0]?.assigned_to_name ?? null) + ` (${rows.length})`, rows }))
   }, [filtered, groupByPerson])
 
-  const openCount = actions.filter(a => a.status === 'open' || a.status === 'in_progress').length
+  const live = actions.filter(a => !a.suggested)
+  const openCount = live.filter(a => a.status === 'open' || a.status === 'in_progress').length
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><ClipboardList className="h-6 w-6 text-teal-600" /> Engineering Action Register</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Actions raised from design reviews. {openCount} open · {actions.length} total.
+          <p className="text-sm text-slate-500 mt-0.5">Actions raised from design reviews. {openCount} open · {live.length} total.
+            {suggestedCount > 0 && <span className="text-amber-700"> · {suggestedCount} AI-suggested to review (filter “AI-suggested”).</span>}
             {isManager ? ' You can prioritise, close and delete.' : ' Raise and reply; the Engineering Manager closes.'}</p>
         </div>
         <button onClick={() => setShowRaise(true)} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">
