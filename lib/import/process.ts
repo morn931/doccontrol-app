@@ -176,12 +176,40 @@ async function importApprovalList(rows: any[], isDryRun: boolean, db: any, error
       const { data: dvRows } = await db.from('document_versions').select('id, doc_unique_id').in('doc_unique_id', chunk)
       dvRows?.forEach((dv: any) => dvIdMap.set(dv.doc_unique_id, dv.id))
     }
-    const rtFinal = rtUpserts.map(rt => {
+    let rtFinal = rtUpserts.map(rt => {
       const dvId = dvIdMap.get(rt._doc_unique_id)
       if (!dvId) return null
       const { _doc_unique_id, ...rest } = rt
       return { ...rest, document_version_id: dvId }
     }).filter(Boolean)
+
+    // ── Guard (2026-08-06): never overlay the legacy SharePoint reviewer chain onto
+    // a document the CoreDocs app already manages. App-created review_tasks carry a
+    // batch_id; importer rows do not. Once a reviewer is added in-app the chain is
+    // re-sequenced, but the SharePoint Approval List still holds the ORIGINAL sequence
+    // numbers — re-importing them either injects phantom duplicate reviewers (which
+    // block the live reviewer via the turn-order guard) or demotes an active task back
+    // to 'pending'/clears its date_sent. Yolandi's E-Rooms deadlock was exactly this.
+    // So: drop importer review_tasks for any document that has app-owned tasks. Legacy
+    // parallel-run docs (no app chain) still import unchanged.
+    let skippedAppOwned = 0
+    if (rtFinal.length) {
+      const dvIds = [...new Set(rtFinal.map((rt: any) => rt.document_version_id))]
+      const appOwned = new Set<string>()
+      for (let i = 0; i < dvIds.length; i += 200) {
+        const chunk = dvIds.slice(i, i + 200)
+        const { data: owned } = await db.from('review_tasks')
+          .select('document_version_id').not('batch_id', 'is', null).in('document_version_id', chunk)
+        owned?.forEach((r: any) => appOwned.add(r.document_version_id))
+      }
+      if (appOwned.size) {
+        const before = rtFinal.length
+        rtFinal = rtFinal.filter((rt: any) => !appOwned.has(rt.document_version_id))
+        skippedAppOwned = before - rtFinal.length
+        if (skippedAppOwned) errors.push(`Skipped ${skippedAppOwned} SharePoint review-task rows for ${appOwned.size} app-managed document(s) (CoreDocs owns the live chain).`)
+      }
+    }
+
     for (let i = 0; i < rtFinal.length; i += 100) {
       const chunk = rtFinal.slice(i, i + 100)
       const { error } = await db.from('review_tasks')
