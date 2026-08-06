@@ -57,6 +57,9 @@ export async function POST(req: Request) {
   const file = form.get('file') as File | null
   const lineId = String(form.get('lineId') ?? '')
   const newRevision = String(form.get('newRevision') ?? '') === '1'
+  // A re-issue can legitimately come back at the SAME revision label (common from Aconex).
+  // The UI asks the operator to confirm, then re-submits with this flag set.
+  const confirmSameRevision = String(form.get('confirmSameRevision') ?? '') === '1'
   const recommendedReviewers = parseRecs(form.get('recommendedReviewers'))
   if (!lineId) return NextResponse.json({ error: 'Missing request line.' }, { status: 400 })
   if (!file || file.size === 0) return NextResponse.json({ error: 'Choose a drawing file to upload.' }, { status: 400 })
@@ -87,15 +90,21 @@ export async function POST(req: Request) {
       error: `The file's number (${parsed.displayDocumentNumber}) does not match the allocated number (${line.rdmc_document_number}). Rename the file to ${line.rdmc_document_number}_${line.revision ?? 'A'}.pdf and try again.`,
     }, { status: 422 })
   }
+  // The revision is whatever the filename says — we mirror it verbatim (Aconex numbering).
   const revision = parsed.revision ?? line.revision ?? 'A'
   const title = line.full_title ?? ([line.title1, line.title2, line.title3].filter(Boolean).join(' — ') || null)
 
-  // New-revision re-book: don't accept a revision that's already in CoreDocs for this doc.
-  if (existingDocId) {
+  // New-revision re-book: if that same revision is already in CoreDocs for this doc, a re-issue
+  // at the same label is a real Aconex case — allow it, but only on explicit confirm, so an
+  // accidental double-upload of the same revision doesn't silently start another cycle.
+  if (existingDocId && !confirmSameRevision) {
     const { data: existingVers } = await svc.from('document_versions').select('revision').eq('document_id', existingDocId)
     const have = new Set((existingVers ?? []).map((v: any) => String(v.revision ?? '').toUpperCase()))
     if (have.has(String(revision).toUpperCase()))
-      return NextResponse.json({ error: `Revision ${revision} is already in CoreDocs for ${line.rdmc_document_number}. Name the file with the new revision (e.g. ${line.rdmc_document_number}_<newRev>.pdf) and try again.` }, { status: 409 })
+      return NextResponse.json({
+        error: `Revision ${revision} is already in CoreDocs for ${line.rdmc_document_number}. Re-issue it at the same revision (a fresh review & sign-off cycle)?`,
+        needsConfirm: 'sameRevision',
+      }, { status: 409 })
   }
 
   // ─── Store the review copy in SharePoint ─────────────────────────────────

@@ -412,6 +412,86 @@ export async function getAvailablePlaceholders(): Promise<Placeholder[]> {
     .sort((a, b2) => a.docno.localeCompare(b2.docno))
 }
 
+/**
+ * Book an EXISTING document number that is NOT an available placeholder — e.g. an
+ * already-issued / transmitted document that has come back from Aconex at a new revision and
+ * needs to run through internal sign-off again. Unlike bookPlaceholder (which only offers
+ * NOT_TRANSMITTED rows owned by FV/MC/VV), this books ANY valid RDMC number: metadata comes
+ * from the Aconex tracker if we know the number (any court), else it's booked bare. If the
+ * number is already booked (live), we hand back that request so the operator can upload or
+ * use "+ New revision" there.
+ */
+export async function bookExistingNumber(docnoRaw: string): Promise<{ ok: boolean; error?: string; requestId?: string; existing?: boolean }> {
+  const c = await ctx()
+  if (!c) return { ok: false, error: 'Not signed in' }
+  if (!can(c.perms, FK.ACTION_REQUEST_DOC_NUMBER, c.role)) return { ok: false, error: 'Not authorised to book a number.' }
+  const svc = createServiceClient()
+
+  const typed = docnoRaw.trim()
+  if (!typed) return { ok: false, error: 'Enter a document number.' }
+  // Must look like an RDMC number: a leading code segment then a dash then more. Permissive.
+  if (!/^[0-9A-Za-z].*-.+/.test(typed) || typed.length < 8)
+    return { ok: false, error: 'That does not look like a document number.' }
+
+  // Canonical form + metadata from the Aconex tracker if we know it (ANY court, not just placeholders).
+  const { data: meta } = await svc.from('aconex_review_doc')
+    .select('docno, title, discipline, doc_type, package_code, revision')
+    .ilike('docno', typed).order('court', { ascending: true }).limit(1).maybeSingle()
+  const docno = meta?.docno ?? typed.toUpperCase()
+
+  // Already booked (live)? → hand back that request so the operator continues there.
+  const { data: existing } = await svc.from('doc_number_booking')
+    .select('request_id').eq('docno', docno).eq('released', false).maybeSingle()
+  if (existing?.request_id) return { ok: true, requestId: existing.request_id, existing: true }
+
+  // Resolve the package_id from package_code so the internal document lands in the right package.
+  let package_id: string | null = null
+  const pkgCode = meta?.package_code ?? null
+  if (pkgCode) {
+    const { data: pkg } = await svc.from('packages').select('id').eq('package_code', pkgCode).maybeSingle()
+    package_id = pkg?.id ?? null
+  }
+
+  const year = new Date().getFullYear()
+  const { count } = await svc.from('document_number_request').select('id', { count: 'exact', head: true })
+  const request_no = `DNR-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`
+  const { data: hdr, error: he } = await svc.from('document_number_request').insert({
+    request_no,
+    requestor_user_id: c.profile?.id ?? null,
+    requestor_email: c.profile?.email ?? null,
+    package_code: pkgCode,
+    package_id,
+    status: 'assigned',
+    notes: 'Booked an existing document number for internal review (re-issued / already transmitted).',
+  }).select('id').single()
+  if (he || !hdr) return { ok: false, error: he?.message ?? 'Could not create request' }
+
+  const { data: line, error: le } = await svc.from('document_number_request_line').insert({
+    request_id: hdr.id,
+    line_no: 1,
+    discipline_code: meta?.discipline ?? null,
+    document_type_code: meta?.doc_type ?? null,
+    title2: meta?.title ?? null,
+    revision: meta?.revision || 'A',
+    rdmc_document_number: docno,
+    full_title: meta?.title ?? null,
+    line_status: 'assigned',
+    assigned_by: c.profile?.id ?? null,
+    assigned_at: new Date().toISOString(),
+  }).select('id').single()
+  if (le || !line) return { ok: false, error: le?.message ?? 'Could not create request line' }
+
+  const { error: bkErr } = await svc.from('doc_number_booking').insert({
+    docno, package_code: pkgCode, title: meta?.title ?? null, discipline: meta?.discipline ?? null,
+    booked_by: c.profile?.id ?? null, booked_by_email: c.profile?.email ?? null,
+    request_id: hdr.id, request_line_id: line.id,
+  })
+  if (bkErr) return { ok: false, error: `Could not record the booking: ${bkErr.message}` }
+
+  revalidatePath('/documents/requests')
+  return { ok: true, requestId: hdr.id }
+}
+
 export async function bookPlaceholder(docno: string): Promise<{ ok: boolean; error?: string; requestId?: string }> {
   const c = await ctx()
   if (!c) return { ok: false, error: 'Not signed in' }

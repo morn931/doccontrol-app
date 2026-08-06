@@ -50,18 +50,26 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
 
   function pick(f: File | null) { setMsg(null); setFile(f) }
 
-  function submit() {
+  function submit(confirmSameRevision = false) {
     if (!file) { setMsg({ type: 'err', text: 'Choose a drawing file first.' }); return }
     const fd = new FormData()
     fd.set('file', file)
     fd.set('lineId', lineId)
     if (isNewRev) fd.set('newRevision', '1')
+    if (confirmSameRevision) fd.set('confirmSameRevision', '1')
     if (recs.length) fd.set('recommendedReviewers', JSON.stringify(recs))
     start(async () => {
       try {
         const res = await fetch('/api/documents/internal-submit', { method: 'POST', body: fd })
         const data = await res.json()
-        if (!res.ok) { setMsg({ type: 'err', text: data.error ?? 'Submission failed.' }); return }
+        if (!res.ok) {
+          // Same-revision re-issue → ask once, then re-submit with the confirm flag.
+          if (data.needsConfirm === 'sameRevision' && !confirmSameRevision) {
+            if (typeof window !== 'undefined' && window.confirm(data.error)) { submit(true); return }
+            setMsg({ type: 'err', text: 'Cancelled — no new revision submitted.' }); return
+          }
+          setMsg({ type: 'err', text: data.error ?? 'Submission failed.' }); return
+        }
         setMsg({ type: 'ok', text: `Submitted for review as ${data.docNumber} (Rev ${data.revision}). It's now an internal batch awaiting reviewer assignment.` })
         setFile(null); setRecs([])
         router.refresh()
@@ -129,7 +137,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
           <p className={`text-xs ${msg.type === 'err' ? 'text-rose-600' : 'text-emerald-700'}`}>{msg.text}</p>
         ) : <span />}
         <button
-          onClick={submit}
+          onClick={() => submit()}
           disabled={pending || !file}
           className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition disabled:opacity-40 ${isNewRev ? 'bg-amber-700 hover:bg-amber-800' : 'bg-teal-700 hover:bg-teal-800'}`}
         >

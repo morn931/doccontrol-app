@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { getAvailablePlaceholders, bookPlaceholder, type Placeholder } from '../requests/actions'
+import { getAvailablePlaceholders, bookPlaceholder, bookExistingNumber, type Placeholder } from '../requests/actions'
 
 /**
  * The Drawing Number Picker — a pre-check atop "Request a document number".
@@ -69,6 +69,18 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
     })
   }
 
+  // Book an EXISTING/already-issued number that isn't in the placeholder pool (e.g. a
+  // document coming back from Aconex at a new revision for internal sign-off).
+  const bookExisting = () => {
+    setMsg(null)
+    startBusy(async () => {
+      const r = await bookExistingNumber(q.trim())
+      if (r.ok && r.requestId) router.push(`/documents/requests/${r.requestId}`)
+      else setMsg(r.error ?? 'Could not book that number.')
+    })
+  }
+  const looksLikeDocNo = (s: string) => /^[0-9A-Za-z].*-.+/.test(s.trim()) && s.trim().length >= 8
+
   const anyFilter = !!(q.trim() || f.package_code || f.wbs || f.discipline || f.doc_type)
   const Dropdown = (label: string, field: keyof Facets, options: string[]) => (
     <select
@@ -117,7 +129,27 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
         {loading ? (
           <p className="p-3 text-xs text-slate-400">Loading placeholder numbers…</p>
         ) : shown.length === 0 ? (
-          <p className="p-3 text-xs text-slate-400">No matching placeholder numbers{anyFilter ? ' for these filters' : ''}.</p>
+          <div className="p-3 text-xs">
+            <p className="text-slate-400">No matching placeholder numbers{anyFilter ? ' for these filters' : ''}.</p>
+            {looksLikeDocNo(q) && (
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                <p className="text-amber-800">
+                  Already-issued document coming back for a new revision? Book the exact number for internal review — it drops
+                  into your requests, ready to upload against.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="font-mono text-slate-800">{q.trim()}</span>
+                  <button
+                    onClick={bookExisting}
+                    disabled={busy}
+                    className="ml-auto shrink-0 rounded-lg bg-amber-700 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                  >
+                    Book this number →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           shown.slice(0, 300).map((p) => (
             <div key={p.docno} className="flex items-center gap-3 px-3 py-2">
