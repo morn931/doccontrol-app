@@ -525,8 +525,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: `PDF generation failed: ${e.message}` }, { status: 500 })
   }
 
-  // Vendor portal URL — use env var or the batch source_site_url as fallback
-  const vendorPortalUrl = process.env.VENDOR_PORTAL_URL ?? (batch as any).source_site_url ?? 'your SharePoint vendor portal'
+  // Vendor portal link = THIS vendor's own return bucket ("TO VENDOR" / "TO ICTS") on THEIR
+  // site, derived from the package's vendor_sites row (the authoritative per-package source of
+  // truth), falling back to the batch's own source site. Deliberately NOT a single global env:
+  // one URL cannot serve every vendor — a stale global VENDOR_PORTAL_URL (set during the first
+  // K108 setup) previously pointed every vendor's transmittal at the K108 "TO VENDOR" library.
+  let vendorPortalUrl = 'your SharePoint vendor portal'
+  {
+    let siteUrl: string | null = null
+    let returnLib = '/TO VENDOR'
+    if (batch.package_id) {
+      const { data: vs } = await db.from('vendor_sites')
+        .select('site_url, return_library').eq('package_id', batch.package_id).eq('active', true).maybeSingle()
+      if (vs?.site_url) siteUrl = vs.site_url
+      if (vs?.return_library) returnLib = vs.return_library
+    }
+    if (!siteUrl) siteUrl = (batch as any).source_site_url ?? null
+    if (siteUrl) {
+      const lib = returnLib.replace(/^\/+/, '').replace(/ /g, '%20')
+      vendorPortalUrl = `${siteUrl.replace(/\/+$/, '')}/${lib}/Forms/AllItems.aspx`
+    }
+  }
 
   // Send email
   const emailHtml = vendorTransmittalEmail({
