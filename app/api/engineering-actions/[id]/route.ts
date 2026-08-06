@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic'
 // Does this user carry the eng_action_manager capability? (engineering_manager / admin /
 // developer by default — migration 036 flag, tunable in role_definitions.)
 async function isEngManager(db: any, authUserId: string): Promise<{ ok: boolean; email: string | null }> {
-  const { data: p } = await db.from('users').select('role, email').eq('auth_user_id', authUserId).single()
+  const { data: p } = await db.from('users').select('role, email, eng_action_manager').eq('auth_user_id', authUserId).single()
   if (!p) return { ok: false, email: null }
   const { data: rd } = await db.from('role_definitions').select('eng_action_manager').eq('role', (p as any).role).maybeSingle()
-  return { ok: !!(rd as any)?.eng_action_manager, email: (p as any).email ?? null }
+  // Role flag OR the per-person override (migration 039).
+  return { ok: !!(rd as any)?.eng_action_manager || !!(p as any).eng_action_manager, email: (p as any).email ?? null }
 }
 
 // PATCH — Engineering-Manager-only: set priority / status / due date / close-with-comment.

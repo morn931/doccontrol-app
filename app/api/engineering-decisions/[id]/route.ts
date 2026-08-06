@@ -4,10 +4,11 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 async function ctx(db: any, authUserId: string) {
-  const { data: p } = await db.from('users').select('role, email').eq('auth_user_id', authUserId).single()
+  const { data: p } = await db.from('users').select('role, email, eng_action_manager').eq('auth_user_id', authUserId).single()
   if (!p) return { email: null, isMgr: false }
   const { data: rd } = await db.from('role_definitions').select('eng_action_manager').eq('role', (p as any).role).maybeSingle()
-  return { email: (p as any).email as string, isMgr: !!(rd as any)?.eng_action_manager }
+  // Role flag OR the per-person override (migration 039).
+  return { email: (p as any).email as string, isMgr: !!(rd as any)?.eng_action_manager || !!(p as any).eng_action_manager }
 }
 
 // PATCH — the approval control loop + edits. Allowed for the Decision Owner/Approver OR the

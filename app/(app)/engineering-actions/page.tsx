@@ -12,9 +12,11 @@ export default async function EngineeringActionsPage() {
   if (!user) redirect('/login')
 
   const db = createServiceClient()
-  const { data: profile } = await db.from('users').select('email, full_name, role').eq('auth_user_id', user.id).single()
+  const { data: profile } = await db.from('users').select('email, full_name, role, eng_action_manager').eq('auth_user_id', user.id).single()
   const { data: rd } = await db.from('role_definitions').select('eng_action_manager').eq('role', (profile as any)?.role ?? '').maybeSingle()
-  const isManager = !!(rd as any)?.eng_action_manager
+  // Manager surface = the role flag OR a per-person override (migration 039 — lets an assistant
+  // help the EM without changing their platform-wide role).
+  const isManager = !!(rd as any)?.eng_action_manager || !!(profile as any)?.eng_action_manager
 
   return (
     <EngineeringActionsRegister
