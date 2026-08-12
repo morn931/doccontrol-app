@@ -72,6 +72,7 @@ export default async function PermissionsPage() {
         r('Document Requests', FK.NAV_DOC_REQUESTS),
         r('Aconex Issue',      FK.NAV_ACONEX_ISSUE),
         r('Rev 0 Intake',      FK.NAV_REV0_INTAKE),
+        r('Engineering Actions', FK.NAV_ENGINEERING_ACTIONS),
         r('Developer Tools',  null, { adm: 'off', dc: 'off', rev: 'off', em: 'off', mgr: 'off', pm: 'off', ven: 'off' }),
       ],
     },
@@ -146,6 +147,14 @@ export default async function PermissionsPage() {
       rows: [
         r('View Rev 0 Intake',   FK.NAV_REV0_INTAKE),
         r('Stamp / apply Rev 0', FK.ACTION_REV0_STAMP),
+      ],
+    },
+    {
+      title: 'Engineering Actions',
+      rows: [
+        r('View Engineering Action Register', FK.NAV_ENGINEERING_ACTIONS,
+          undefined,
+          'Prioritise / close / dismiss / delete is a separate per-role (and per-user override) flag on role_definitions/users — not shown in this matrix.'),
       ],
     },
     {

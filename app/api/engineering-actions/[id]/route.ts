@@ -1,17 +1,10 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+import { isEngActionManager } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
-
-// Does this user carry the eng_action_manager capability? (engineering_manager / admin /
-// developer by default — migration 036 flag, tunable in role_definitions.)
-async function isEngManager(db: any, authUserId: string): Promise<{ ok: boolean; email: string | null }> {
-  const { data: p } = await db.from('users').select('role, email, eng_action_manager').eq('auth_user_id', authUserId).single()
-  if (!p) return { ok: false, email: null }
-  const { data: rd } = await db.from('role_definitions').select('eng_action_manager').eq('role', (p as any).role).maybeSingle()
-  // Role flag OR the per-person override (migration 039).
-  return { ok: !!(rd as any)?.eng_action_manager || !!(p as any).eng_action_manager, email: (p as any).email ?? null }
-}
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 
 // PATCH — Engineering-Manager-only: set priority / status / due date / close-with-comment.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +12,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   const db = createServiceClient()
-  const mgr = await isEngManager(db, user.id)
+  const mgr = await isEngActionManager(db, user.id)
   if (!mgr.ok) return NextResponse.json({ error: 'Only the Engineering Manager can manage actions.' }, { status: 403 })
 
   const { id } = await params
@@ -27,7 +20,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const patch: any = { updated_at: new Date().toISOString() }
   if (b.priority !== undefined) patch.priority = ['low', 'medium', 'high'].includes(b.priority) ? b.priority : null
   if (b.dueDate !== undefined) patch.due_date = b.dueDate || null
-  if (b.suggested !== undefined) patch.suggested = !!b.suggested   // confirm an AI-suggested action into the live register
   if (b.status !== undefined) {
     if (!['open', 'in_progress', 'closed', 'dismissed'].includes(b.status))
       return NextResponse.json({ error: 'Invalid status.' }, { status: 400 })
@@ -41,7 +33,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { data: updated, error } = await db.from('engineering_action').update(patch).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  // No email — closures show in the register and the daily digest.
+
+  // Notify the raiser when their action is closed/dismissed (loop closed).
+  if ((patch.status === 'closed' || patch.status === 'dismissed') && (updated as any)?.raised_by_email) {
+    try {
+      await sendMail({
+        to: [(updated as any).raised_by_email],
+        subject: `Engineering action ${patch.status} — ${(updated as any).action_ref}`,
+        htmlBody: brandedEmail({
+          heading: `Your action was ${patch.status}`,
+          bodyHtml: `<p><b>${(updated as any).action_ref}</b>${(updated as any).document_number ? ` (${(updated as any).document_number})` : ''} — “${(updated as any).description}” — was marked <b>${patch.status}</b> by the Engineering Manager.</p>
+            ${patch.closeout_comment ? `<p style="padding:8px 12px;border-left:3px solid #059669;background:#ecfdf5">${patch.closeout_comment}</p>` : ''}`,
+          cta: { href: `${APP_URL}/engineering-actions`, label: 'Open the register →' },
+        }),
+      })
+    } catch {}
+  }
   return NextResponse.json({ ok: true, action: updated })
 }
 
@@ -51,7 +58,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   const db = createServiceClient()
-  const mgr = await isEngManager(db, user.id)
+  const mgr = await isEngActionManager(db, user.id)
   if (!mgr.ok) return NextResponse.json({ error: 'Only the Engineering Manager can delete actions.' }, { status: 403 })
   const { id } = await params
   const { error } = await db.from('engineering_action').delete().eq('id', id)

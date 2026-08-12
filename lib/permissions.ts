@@ -27,6 +27,7 @@ export const FK = {
   ACTION_REV0_STAMP:        'action.rev0_stamp',
   NAV_CDDL:                 'nav.cddl',
   ACTION_EDIT_CDDL:         'action.edit_cddl',
+  NAV_ENGINEERING_ACTIONS:  'nav.engineering_actions',
 } as const
 
 export type PermMap = Map<string, boolean>

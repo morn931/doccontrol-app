@@ -16,6 +16,7 @@ export interface NavPerms {
   cddl:         boolean
   internalReview: boolean
   signoffs:     boolean
+  engineeringActions: boolean
 }
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms; inDrawer?: boolean }
@@ -79,7 +80,7 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
         {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}
         {(dev || navPerms.reviews)      && <NavLink href="/reviews"      label="My Reviews"       icon={ICON_SURFACE('review-approvals')} />}
         {(dev || navPerms.signoffs)     && <NavLink href="/signoffs"     label="My Sign-offs"     icon={ICON_SURFACE('review-approvals')} />}
-        {role !== 'vendor'              && <NavLink href="/engineering-actions" label="Engineering Actions" icon={ICON_SURFACE('engineering-tracker')} />}
+        {(dev || navPerms.engineeringActions) && <NavLink href="/engineering-actions" label="Engineering Actions" icon={ICON_SURFACE('engineering-tracker')} />}
         {(dev || navPerms.transmittals) && <NavLink href="/transmittals" label="Transmittals"     icon={ICON('reports')} />}
 
         {/* Document Search — universal */}
