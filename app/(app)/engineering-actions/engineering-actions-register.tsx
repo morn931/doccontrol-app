@@ -22,7 +22,7 @@ const PRIO_COLOR: Record<string, string> = { high: 'bg-red-100 text-red-800', me
 const STATUS_COLOR: Record<string, string> = { open: 'bg-red-50 text-red-700', in_progress: 'bg-blue-50 text-blue-700', closed: 'bg-emerald-50 text-emerald-700', dismissed: 'bg-slate-100 text-slate-500' }
 const nameOf = (e: string | null, n: string | null) => n || (e ? e.split('@')[0] : '—')
 
-export default function EngineeringActionsRegister({ isManager, me }: { isManager: boolean; me: Me }) {
+export default function EngineeringActionsRegister({ isManager, canSeeSuggested, me }: { isManager: boolean; canSeeSuggested: boolean; me: Me }) {
   const [actions, setActions] = useState<Action[]>([])
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<{ email: string; full_name: string | null }[]>([])
@@ -47,7 +47,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
   const suggestedCount = actions.filter(a => a.suggested).length
   // If the last suggested item is cleared while the AI-suggested tab is open, the tab disappears —
   // fall back to the Register so the user isn't stranded on a now-hidden view.
-  useEffect(() => { if (view === 'suggested' && suggestedCount === 0) setView('register') }, [view, suggestedCount])
+  useEffect(() => { if (view === 'suggested' && (!canSeeSuggested || suggestedCount === 0)) setView('register') }, [view, canSeeSuggested, suggestedCount])
   const filtered = useMemo(() => actions.filter(a => {
     if (view === 'suggested') { if (!a.suggested) return false }
     else { if (a.suggested) return false; if (status !== 'all' && a.status !== status) return false }
@@ -76,7 +76,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><ClipboardList className="h-6 w-6 text-teal-600" /> Engineering Action Register</h1>
           <p className="text-sm text-slate-500 mt-0.5">Actions raised from design reviews. {openCount} open · {live.length} total.
-            {suggestedCount > 0 && <span className="text-amber-700"> · {suggestedCount} AI-suggested awaiting review (see the “AI-suggested” tab).</span>}
+            {canSeeSuggested && suggestedCount > 0 && <span className="text-amber-700"> · {suggestedCount} AI-suggested awaiting review (see the “AI-suggested” tab).</span>}
             {isManager ? ' You can prioritise, close and delete.' : ' Raise and reply; the Engineering Manager closes.'}</p>
         </div>
         <button onClick={() => setShowRaise(true)} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">
@@ -85,7 +85,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
       </div>
 
       <div className="flex gap-1 border-b border-slate-200 flex-wrap">
-        {(['register', ...(isManager ? ['manager'] : []), 'decisions', ...(isManager && suggestedCount > 0 ? ['suggested'] : [])] as ('register' | 'manager' | 'decisions' | 'suggested')[]).map(v => {
+        {(['register', ...(isManager ? ['manager'] : []), 'decisions', ...(canSeeSuggested && suggestedCount > 0 ? ['suggested'] : [])] as ('register' | 'manager' | 'decisions' | 'suggested')[]).map(v => {
           const active = view === v
           const amber = v === 'suggested'
           return (
@@ -136,7 +136,7 @@ export default function EngineeringActionsRegister({ isManager, me }: { isManage
               </tr></thead>
               <tbody>
                 {g.rows.map(a => (
-                  <Row key={a.id} a={a} isManager={isManager} users={users} expanded={expanded === a.id}
+                  <Row key={a.id} a={a} isManager={isManager} canSeeSuggested={canSeeSuggested} users={users} expanded={expanded === a.id}
                     onToggle={() => setExpanded(expanded === a.id ? null : a.id)} onChange={load} />
                 ))}
               </tbody>
@@ -409,7 +409,7 @@ function DecisionModal({ users, onClose, onSaved, prefill, sourceActionId, title
   )
 }
 
-function Row({ a, isManager, users, expanded, onToggle, onChange }: { a: Action; isManager: boolean; users: { email: string; full_name: string | null }[]; expanded: boolean; onToggle: () => void; onChange: () => void }) {
+function Row({ a, isManager, canSeeSuggested, users, expanded, onToggle, onChange }: { a: Action; isManager: boolean; canSeeSuggested: boolean; users: { email: string; full_name: string | null }[]; expanded: boolean; onToggle: () => void; onChange: () => void }) {
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
   const [closeComment, setCloseComment] = useState('')
@@ -451,7 +451,7 @@ function Row({ a, isManager, users, expanded, onToggle, onChange }: { a: Action;
           {a.suggested && (
             <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
               <span className="text-xs font-semibold text-amber-800">AI-suggested · {a.source === 'email' ? 'Email' : 'Meeting'}{a.source_date ? ' · ' + format(new Date(a.source_date), 'd MMM yyyy') : ''}{a.area_system ? ` · “${a.area_system}”` : ''} — not yet live</span>
-              {isManager && <>
+              {canSeeSuggested && <>
                 <button onClick={() => patch({ suggested: false })} disabled={busy} className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Confirm → live</button>
                 <button onClick={() => patch({ status: 'dismissed' })} disabled={busy} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs hover:bg-white">Dismiss</button>
               </>}

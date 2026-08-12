@@ -17,10 +17,14 @@ export default async function EngineeringActionsPage() {
   // Manager surface = the role flag OR a per-person override (migration 039 — lets an assistant
   // help the EM without changing their platform-wide role).
   const isManager = !!(rd as any)?.eng_action_manager || !!(profile as any)?.eng_action_manager
+  // AI-suggested tab: no ingestion pipeline exists yet (nothing writes suggested=true rows), so
+  // keep it Developer-only for now rather than surfacing an inert/untested feature to the EM team.
+  const canSeeSuggested = (profile as any)?.role === 'developer'
 
   return (
     <EngineeringActionsRegister
       isManager={isManager}
+      canSeeSuggested={canSeeSuggested}
       me={{ email: (profile as any)?.email ?? user.email ?? '', name: (profile as any)?.full_name ?? null }}
     />
   )
