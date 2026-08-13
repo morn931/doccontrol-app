@@ -132,19 +132,25 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
           <div className="p-3 text-xs">
             <p className="text-slate-400">No matching placeholder numbers{anyFilter ? ' for these filters' : ''}.</p>
             {looksLikeDocNo(q) && (
-              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-                <p className="text-amber-800">
-                  Already-issued document coming back for a new revision? Book the exact number for internal review — it drops
-                  into your requests, ready to upload against.
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="font-mono text-slate-800">{q.trim()}</span>
+              <div className="mt-3 rounded-lg border-2 border-amber-400 bg-amber-100 p-4 shadow-sm">
+                <div className="flex items-start gap-2">
+                  <span className="text-lg leading-none">🔁</span>
+                  <div>
+                    <p className="text-sm font-bold text-amber-900">Already-issued document coming back for a new revision?</p>
+                    <p className="mt-0.5 text-xs text-amber-800">
+                      This number isn&apos;t in the placeholder list, but you can book the exact number for internal review — it
+                      drops straight into your requests, ready to upload the drawing against and send for signatures.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-sm font-semibold text-amber-900">{q.trim()}</span>
                   <button
                     onClick={bookExisting}
                     disabled={busy}
-                    className="ml-auto shrink-0 rounded-lg bg-amber-700 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                    className="ml-auto shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white shadow hover:bg-amber-700 disabled:opacity-50"
                   >
-                    Book this number →
+                    {busy ? 'Booking…' : 'Book this number →'}
                   </button>
                 </div>
               </div>
