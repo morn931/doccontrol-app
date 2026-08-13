@@ -99,8 +99,8 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
         <div>
           <h2 className="text-sm font-bold text-teal-900">First — check for an existing number</h2>
           <p className="text-xs text-slate-500">
-            Many numbers already exist as placeholders. Filter below; if one fits, <b>book it out</b> and use it — it drops
-            straight into your requests, ready to upload against. Only if none fits do you request a new number.
+            Many numbers already exist as placeholders. Filter below; if one fits, hit <b>To Submit Doc</b> and use it — it
+            drops straight into your requests, ready to upload against. Only if none fits do you request a new number.
           </p>
         </div>
         <span className="text-xs text-slate-400">{loading ? 'loading…' : `${shown.length} of ${all.length}`}</span>
@@ -171,7 +171,7 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
                 disabled={busy}
                 className="shrink-0 rounded-lg bg-teal-700 px-3 py-1 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
               >
-                Book out
+                To Submit Doc
               </button>
             </div>
           ))
@@ -184,7 +184,7 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
       {msg && <p className="mt-2 text-xs text-red-600">{msg}</p>}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">Found one? <b>Book out</b> — no need to request a new number.</p>
+        <p className="text-xs text-slate-500">Found one? Hit <b>To Submit Doc</b> — no need to request a new number.</p>
         {confirmed ? (
           <span className="text-xs font-medium text-emerald-700">✓ Requesting a new number below</span>
         ) : (
