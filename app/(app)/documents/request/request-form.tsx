@@ -29,6 +29,16 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
   const removeLine = (key: number) => setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls))
 
+  // Selecting an Area auto-fills Title 1 (Area/Facility) with that area's name, so engineers
+  // don't re-type it. We only overwrite Title 1 when it's blank or still holds the previously
+  // auto-filled area name — a hand-typed Title 1 is left alone.
+  const setArea = (line: Line, code: string) => {
+    const areaName = areas.find((a) => a.code === code)?.name ?? ''
+    const prevAreaName = areas.find((a) => a.code === line.area_code)?.name ?? ''
+    const keepTitle = !!line.title1 && line.title1 !== prevAreaName
+    set(line.key, { area_code: code, ...(keepTitle ? {} : { title1: areaName || undefined }) })
+  }
+
   const submit = () => {
     setErr(null)
     if (!packageCode) { setErr('Select a package — every request must be raised against a package.'); return }
@@ -114,7 +124,7 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
                   <td className="px-1 py-1 text-slate-400">{i + 1}</td>
                   <td className="px-1 py-1">{sel(l.document_type_code, (v) => set(l.key, { document_type_code: v }), documentTypes, 'Type…')}</td>
                   <td className="px-1 py-1">{sel(l.discipline_code, (v) => set(l.key, { discipline_code: v }), disciplines, 'Discipline…')}</td>
-                  <td className="px-1 py-1">{sel(l.area_code, (v) => set(l.key, { area_code: v }), areas, 'Area…')}</td>
+                  <td className="px-1 py-1">{sel(l.area_code, (v) => setArea(l, v), areas, 'Area…')}</td>
                   <td className="px-1 py-1"><input value={l.title1 ?? ''} onChange={(e) => set(l.key, { title1: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
                   <td className="px-1 py-1"><input value={l.title2 ?? ''} onChange={(e) => set(l.key, { title2: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
                   <td className="px-1 py-1"><input value={l.title3 ?? ''} onChange={(e) => set(l.key, { title3: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>

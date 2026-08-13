@@ -52,6 +52,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
 
   function submit(confirmSameRevision = false) {
     if (!file) { setMsg({ type: 'err', text: 'Choose a drawing file first.' }); return }
+    if (!recs.length) { setMsg({ type: 'err', text: 'Select at least one reviewer before submitting.' }); return }
     const fd = new FormData()
     fd.set('file', file)
     fd.set('lineId', lineId)
@@ -116,7 +117,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
 
       {/* Recommend reviewers (internal only) — the Document Controller prefills from these, final say hers */}
       <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-        <div className="mb-2 text-xs font-semibold text-slate-700">Recommend reviewers <span className="font-normal text-slate-400">(optional — the Document Controller decides finally)</span></div>
+        <div className="mb-2 text-xs font-semibold text-slate-700">Reviewers <span className="text-red-600">*</span> <span className="font-normal text-slate-400">— select who must review this before you submit</span></div>
 
         {unusedSuggestions.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
@@ -129,7 +130,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
           </div>
         )}
 
-        <EmailPicker value={recs} onChange={setRecs} placeholder="Search company emails or type one to add…" />
+        <EmailPicker value={recs} onChange={setRecs} placeholder="Select reviewers from the list…" />
       </div>
 
       <div className="mt-2 flex items-center justify-between gap-2">
@@ -138,7 +139,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
         ) : <span />}
         <button
           onClick={() => submit()}
-          disabled={pending || !file}
+          disabled={pending || !file || !recs.length}
           className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition disabled:opacity-40 ${isNewRev ? 'bg-amber-700 hover:bg-amber-800' : 'bg-teal-700 hover:bg-teal-800'}`}
         >
           {pending ? 'Submitting…' : isNewRev ? 'Submit new revision' : 'Submit for review'}
