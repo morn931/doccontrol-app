@@ -224,6 +224,54 @@ export async function recallEditRequest(id: string, input: {
   return { ok: true }
 }
 
+/**
+ * Edit the TITLE of an already-allocated line — without changing the number.
+ *
+ * "Recall & edit" only exists before allocation. But the RDMC number encodes
+ * discipline/type/area/sequence, NOT the free-text title — so once a number is issued the
+ * title can still be corrected safely (the number `…-EINS-0001` is unaffected). This is the
+ * common case Doc Control hits: a number was allocated + emailed, and the requestor then wants
+ * a wording change. Gated to Document Control; blocked once a drawing has been submitted against
+ * the number (the title is then tied to that document version). Audited.
+ */
+export async function editAllocatedTitle(lineId: string, input: {
+  title1?: string | null; title2?: string | null; title3?: string | null; full_title?: string | null
+}): Promise<{ ok: boolean; error?: string; full_title?: string | null }> {
+  const c = await ctx()
+  if (!c) return { ok: false, error: 'Not signed in' }
+  if (!can(c.perms, FK.ACTION_ASSIGN_DOC_NUMBER, c.role))
+    return { ok: false, error: 'Only Document Control can edit an allocated title.' }
+  const svc = createServiceClient()
+
+  const { data: line } = await svc.from('document_number_request_line')
+    .select('id, request_id, rdmc_document_number, linked_document_id, title1, title2, title3, full_title')
+    .eq('id', lineId).single()
+  if (!line) return { ok: false, error: 'Line not found.' }
+  if (!line.rdmc_document_number)
+    return { ok: false, error: 'This line has no allocated number yet — use "Recall & edit" instead.' }
+  if (line.linked_document_id)
+    return { ok: false, error: 'A drawing has already been submitted against this number — its title is tied to that document now.' }
+
+  const t1 = (input.title1 ?? line.title1) || null
+  const t2 = (input.title2 ?? line.title2) || null
+  const t3 = (input.title3 ?? line.title3) || null
+  const full = (input.full_title?.trim() || [t1, t2, t3].filter(Boolean).join(' - ')) || null
+
+  const { error } = await svc.from('document_number_request_line').update({
+    title1: t1, title2: t2, title3: t3, full_title: full, updated_at: new Date().toISOString(),
+  }).eq('id', lineId)
+  if (error) return { ok: false, error: error.message }
+
+  await svc.from('audit_events').insert({
+    entity_type: 'document_number_request_line', entity_id: lineId, event_type: 'allocated_title_edited',
+    actor_email: c.profile?.email ?? null,
+    event_data: { request_id: line.request_id, rdmc: line.rdmc_document_number, from: line.full_title, to: full },
+  })
+
+  revalidatePath(`/documents/requests/${line.request_id}`)
+  return { ok: true, full_title: full }
+}
+
 export async function allocateLine(lineId: string, patch: {
   rdmc_document_number?: string
   ppe_doc_number?: string

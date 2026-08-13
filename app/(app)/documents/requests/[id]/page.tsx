@@ -7,6 +7,7 @@ import SubmitDrawing from './submit-drawing'
 import SubmittedLine from './submitted-line'
 import ReturnBooking from './return-booking'
 import RecallEdit from './recall-edit'
+import EditTitle from './edit-title'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,6 +115,13 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
                 <div className="col-span-2"><span className="text-slate-400">Title:</span> {[l.title1, l.title2, l.title3].filter(Boolean).join(' — ') || '—'}</div>
                 {l.comments && <div className="col-span-2"><span className="text-slate-400">Comments:</span> {l.comments}</div>}
               </div>
+              {canAssign && l.rdmc_document_number && !l.linked_document_id && (
+                <EditTitle
+                  lineId={l.id}
+                  rdmc={l.rdmc_document_number}
+                  initial={{ title1: l.title1 ?? null, title2: l.title2 ?? null, title3: l.title3 ?? null, full_title: l.full_title ?? null }}
+                />
+              )}
             </div>
             <div>
               {canAssign ? (
