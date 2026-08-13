@@ -130,7 +130,7 @@ export default function EngineeringActionsRegister({ isManager, canSeeSuggested,
           <div className="rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-[#0B3563] text-white text-left"><tr>
-                <th className="px-3 py-2 font-medium">Ref</th><th className="px-3 py-2 font-medium">Action</th>
+                <th className="px-3 py-2 font-medium">Ref</th><th className="px-3 py-2 font-medium">Added</th><th className="px-3 py-2 font-medium">Action</th>
                 <th className="px-3 py-2 font-medium">Document</th><th className="px-3 py-2 font-medium">Assignee</th>
                 <th className="px-3 py-2 font-medium">Priority</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2"></th>
               </tr></thead>
@@ -424,6 +424,7 @@ function Row({ a, isManager, canSeeSuggested, users, expanded, onToggle, onChang
     <>
       <tr className="border-t border-slate-100 hover:bg-slate-50 align-top">
         <td className="px-3 py-2 font-mono text-xs text-slate-500 whitespace-nowrap">{a.action_ref}</td>
+        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{a.raised_at ? format(new Date(a.raised_at), 'd MMM yyyy') : '—'}</td>
         <td className="px-3 py-2 text-slate-800 max-w-md">
           <button onClick={onToggle} className="text-left hover:text-teal-700">{a.description}</button>
           <span className="ml-1 text-xs text-slate-400">
@@ -447,7 +448,7 @@ function Row({ a, isManager, canSeeSuggested, users, expanded, onToggle, onChang
         </td>
       </tr>
       {expanded && (
-        <tr className="bg-slate-50/60"><td colSpan={7} className="px-4 py-3">
+        <tr className="bg-slate-50/60"><td colSpan={8} className="px-4 py-3">
           {a.suggested && (
             <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
               <span className="text-xs font-semibold text-amber-800">AI-suggested · {a.source === 'email' ? 'Email' : 'Meeting'}{a.source_date ? ' · ' + format(new Date(a.source_date), 'd MMM yyyy') : ''}{a.area_system ? ` · “${a.area_system}”` : ''} — not yet live</span>
