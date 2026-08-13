@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getPermissions, can, FK } from '@/lib/permissions'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
@@ -41,7 +42,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       engineerEmail = reqHdr?.requestor_email ?? null
     }
   }
-  return NextResponse.json({ ...data, engineer_email: engineerEmail })
+  // Whether the viewer may amend a submitted outcome (Doc-Control-gated, same as issuing a
+  // transmittal) — drives the "Amend" control on the Review Sequence.
+  let viewerCanAmend = false
+  try {
+    const { data: me } = await db.from('users').select('role').eq('auth_user_id', user.id).single()
+    const perms = await getPermissions(supabase)
+    viewerCanAmend = can(perms, FK.ACTION_GENERATE_TRANSMITTAL, (me?.role ?? 'reviewer') as any)
+  } catch { /* default false */ }
+
+  return NextResponse.json({ ...data, engineer_email: engineerEmail, viewer_can_amend: viewerCanAmend })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

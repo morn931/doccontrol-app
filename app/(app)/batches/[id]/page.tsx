@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, use } from 'react'
 import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw, PenLine, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
-import { outcomeColorClass } from '@/lib/utils/outcome-codes'
+import { outcomeColorClass, OUTCOME_CODES } from '@/lib/utils/outcome-codes'
 import type { ReviewOutcomeCode } from '@/lib/types/database'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -58,6 +58,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [startingSignoff, setStartingSignoff] = useState(false)
   const [signoffError, setSignoffError] = useState('')
   const [officeDoc, setOfficeDoc] = useState<{ id: string; name: string } | null>(null)
+  // Amend-outcome (Doc Control): correct a reviewer's submitted code after the fact.
+  const [amendTaskId, setAmendTaskId] = useState<string | null>(null)
+  const [amendCode, setAmendCode]     = useState<string>('')
+  const [amendReason, setAmendReason] = useState('')
+  const [amendSaving, setAmendSaving] = useState(false)
+  const [amendMsg, setAmendMsg]       = useState<{ type: 'err' | 'ok'; text: string } | null>(null)
   const [officeUrl, setOfficeUrl] = useState('')
   const [officeLoading, setOfficeLoading] = useState(false)
   const [officeError, setOfficeError] = useState('')
@@ -121,6 +127,34 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       if (rtRes.ok) setReviewTasks(await rtRes.json())
     }
     setLoading(false)
+  }
+
+  function openAmend(task: any) {
+    setAmendTaskId(task.id); setAmendCode(task.review_outcome_code ?? ''); setAmendReason(''); setAmendMsg(null)
+  }
+  async function saveAmend(taskId: string) {
+    if (!amendCode) { setAmendMsg({ type: 'err', text: 'Pick an outcome code.' }); return }
+    if (!amendReason.trim()) { setAmendMsg({ type: 'err', text: 'A reason is required.' }); return }
+    setAmendSaving(true); setAmendMsg(null)
+    try {
+      const res = await fetch(`/api/batches/${id}/amend-outcome`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, newCode: amendCode, reason: amendReason.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setAmendMsg({ type: 'err', text: data.error ?? 'Amend failed.' }); return }
+      setAmendTaskId(null)
+      await loadBatch()
+      if (data.transmittalNeedsReissue) {
+        setAmendMsg({ type: 'ok', text: `Outcome updated — batch overall is now ${data.batchWorst}. Transmittal ${data.transmittalNumber} no longer matches; re-issue the corrected transmittal to the vendor.` })
+      } else {
+        setAmendMsg({ type: 'ok', text: `Outcome updated — batch overall is now ${data.batchWorst}.` })
+      }
+    } catch (e: any) {
+      setAmendMsg({ type: 'err', text: e?.message ?? 'Network error.' })
+    } finally {
+      setAmendSaving(false)
+    }
   }
 
   function closeRejectModal() {
@@ -955,33 +989,92 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           </div>
           <div className="divide-y divide-slate-50">
             {reviewTasks.map((task: any) => (
-              <div key={task.id} className="px-6 py-3 flex items-center gap-4">
-                <div className="w-7 h-7 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-bold text-xs shrink-0">
-                  {task.sequence_number}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-slate-900">{reviewerDisplayName(task.reviewer_email)}</p>
-                  <p className="text-xs text-slate-400">{task.reviewer_email}</p>
-                  {task.comment && <p className="text-xs text-slate-500 mt-0.5 italic">"{task.comment}"</p>}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {task.review_outcome_code && (
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${outcomeColorClass(task.review_outcome_code as ReviewOutcomeCode)}`}>
-                      {task.review_outcome_code}
+              <div key={task.id}>
+                <div className="px-6 py-3 flex items-center gap-4">
+                  <div className="w-7 h-7 rounded-full bg-navy-100 flex items-center justify-center text-navy-700 font-bold text-xs shrink-0">
+                    {task.sequence_number}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-slate-900">{reviewerDisplayName(task.reviewer_email)}</p>
+                    <p className="text-xs text-slate-400">{task.reviewer_email}</p>
+                    {task.comment && <p className="text-xs text-slate-500 mt-0.5 italic">"{task.comment}"</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {task.review_outcome_code && (
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${outcomeColorClass(task.review_outcome_code as ReviewOutcomeCode)}`}>
+                        {task.review_outcome_code}
+                      </span>
+                    )}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      task.status === 'completed'   ? 'bg-green-100 text-emerald-700' :
+                      task.status === 'sent'        ? 'bg-blue-100 text-teal-700' :
+                      task.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
+                      task.status === 'overdue'     ? 'bg-red-100 text-red-700' :
+                      'bg-slate-100 text-slate-600'
+                    }`}>
+                      {task.status}
                     </span>
-                  )}
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                    task.status === 'completed'   ? 'bg-green-100 text-emerald-700' :
-                    task.status === 'sent'        ? 'bg-blue-100 text-teal-700' :
-                    task.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
-                    task.status === 'overdue'     ? 'bg-red-100 text-red-700' :
-                    'bg-slate-100 text-slate-600'
-                  }`}>
-                    {task.status}
-                  </span>
+                    {batch?.viewer_can_amend && task.status === 'completed' && (
+                      <button
+                        onClick={() => amendTaskId === task.id ? setAmendTaskId(null) : openAmend(task)}
+                        title="Amend this outcome"
+                        className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-1 text-[11px] font-medium text-slate-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
+                      >
+                        <PenLine className="h-3.5 w-3.5" /> Amend
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {amendTaskId === task.id && (
+                  <div className="px-6 pb-4 pt-1 bg-amber-50/40 border-t border-amber-100">
+                    <p className="text-xs font-semibold text-amber-900 mb-2">
+                      Amend {reviewerDisplayName(task.reviewer_email)}'s outcome
+                      <span className="font-normal text-amber-700"> — currently {task.review_outcome_code ?? '—'}. This recomputes the batch outcome and is logged.</span>
+                    </p>
+                    <div className="flex flex-wrap items-start gap-2">
+                      <select
+                        value={amendCode}
+                        onChange={(e) => setAmendCode(e.target.value)}
+                        className="rounded-lg border border-amber-300 bg-white py-1.5 pl-2.5 pr-8 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      >
+                        <option value="">Select outcome…</option>
+                        {Object.values(OUTCOME_CODES).map((o) => (
+                          <option key={o.code} value={o.code}>{o.code} — {o.text}</option>
+                        ))}
+                      </select>
+                      <input
+                        value={amendReason}
+                        onChange={(e) => setAmendReason(e.target.value)}
+                        placeholder="Reason (e.g. reviewer confirmed A1 not B2 by email)"
+                        className="min-w-[240px] flex-1 rounded-lg border border-amber-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      />
+                      <button
+                        onClick={() => saveAmend(task.id)}
+                        disabled={amendSaving}
+                        className="shrink-0 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                      >
+                        {amendSaving ? 'Saving…' : 'Save amendment'}
+                      </button>
+                      <button
+                        onClick={() => setAmendTaskId(null)}
+                        className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {amendMsg && amendTaskId === task.id && (
+                      <p className={`mt-2 text-xs ${amendMsg.type === 'err' ? 'text-rose-600' : 'text-emerald-700'}`}>{amendMsg.text}</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
+            {amendMsg && amendTaskId === null && (
+              <div className="px-6 py-3">
+                <p className={`text-xs ${amendMsg.type === 'err' ? 'text-rose-600' : 'text-emerald-700'}`}>{amendMsg.text}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
