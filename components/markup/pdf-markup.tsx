@@ -26,6 +26,8 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
   const pdfBytesRef = useRef<Uint8Array | null>(null)
   const fabsRef = useRef<any[]>([])
   const wrappersRef = useRef<HTMLElement[]>([])
+  const outersRef = useRef<HTMLElement[]>([])         // per-page layout boxes (sized to zoom)
+  const pageDimsRef = useRef<{ w: number; h: number }[]>([])  // logical page size (zoom = 1)
   const undoRef = useRef<{ fab: any; obj: any }[]>([])
   const skipHistoryRef = useRef(false)
   const pendingSigRef = useRef<{ sigUrl: string; panelUrl: string } | null>(null)  // armed by "Apply signature" → placed on next click
@@ -37,6 +39,8 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
   const [color, setColor] = useState(initialColor ?? '#e11d48')
   const [status, setStatus] = useState(src ? 'Loading document…' : 'Load a PDF to begin.')
   const [fullscreen, setFullscreen] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
 
   // Esc leaves full-screen review mode.
   useEffect(() => {
@@ -45,6 +49,32 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [fullscreen])
+
+  // Zoom: scale each page's layout box + CSS-transform its content (PDF canvas + fabric
+  // markup together, so annotations stay aligned). Clamped 40%–400%.
+  function applyZoom(next: number) {
+    const z = Math.min(4, Math.max(0.4, Math.round(next * 100) / 100))
+    zoomRef.current = z; setZoom(z)
+    outersRef.current.forEach((outer, i) => {
+      const d = pageDimsRef.current[i]; if (!d) return
+      outer.style.width = `${d.w * z}px`; outer.style.height = `${d.h * z}px`
+      const inner = outer.firstElementChild as HTMLElement | null
+      if (inner) inner.style.transform = `scale(${z})`
+    })
+  }
+
+  // Ctrl/⌘ + wheel (and trackpad pinch, which fires ctrl+wheel) zooms at the cursor.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      applyZoom(zoomRef.current + (e.deltaY < 0 ? 0.15 : -0.15))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   const toolRef = useRef(tool); const colorRef = useRef(color); const shapeRef = useRef(shape)
   useEffect(() => { toolRef.current = tool; applyToolAll() }, [tool, color])
@@ -81,28 +111,41 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
     const fabric = fabricLibRef.current
 
     fabsRef.current.forEach(fb => fb.dispose?.())
-    fabsRef.current = []; wrappersRef.current = []; undoRef.current = []
+    fabsRef.current = []; wrappersRef.current = []; outersRef.current = []; pageDimsRef.current = []; undoRef.current = []
     const container = containerRef.current!; container.innerHTML = ''
 
+    // Render the PDF bitmap at a higher resolution than it is displayed, so zooming in
+    // stays crisp (the browser down-samples a hi-res canvas cleanly). Fabric + display
+    // stay at the logical size; CSS zoom scales page + markup together (see applyZoom).
+    const RENDER_MULT = 2
     for (let p = 1; p <= pdf.numPages; p++) {
       const pg = await pdf.getPage(p)
       const base = pg.getViewport({ scale: 1 })
       const scale = Math.min(SCALE, MAX_DIM / base.width, MAX_DIM / base.height)
-      const vp = pg.getViewport({ scale })
+      const vp = pg.getViewport({ scale })                                   // logical (display) size
+      const rscale = Math.min(scale * RENDER_MULT, MAX_DIM / base.width, MAX_DIM / base.height)
+      const rvp = pg.getViewport({ scale: rscale })                          // hi-res render size
+      const outer = document.createElement('div')                           // layout box — sized to zoom
+      outer.className = 'mx-auto mb-6'
+      outer.style.width = `${vp.width}px`; outer.style.height = `${vp.height}px`
       const wrap = document.createElement('div')
-      wrap.className = 'relative mx-auto mb-6 border-2 border-slate-500 shadow-lg bg-white'
-      wrap.style.width = `${vp.width}px`; wrap.style.height = `${vp.height}px`
-      const pc = document.createElement('canvas'); pc.width = vp.width; pc.height = vp.height; pc.style.display = 'block'
+      wrap.className = 'relative border-2 border-slate-500 shadow-lg bg-white'
+      wrap.style.width = `${vp.width}px`; wrap.style.height = `${vp.height}px`; wrap.style.transformOrigin = 'top left'
+      const pc = document.createElement('canvas')
+      pc.width = rvp.width; pc.height = rvp.height
+      pc.style.width = `${vp.width}px`; pc.style.height = `${vp.height}px`; pc.style.display = 'block'
       const fc = document.createElement('canvas')
-      wrap.appendChild(pc); wrap.appendChild(fc); container.appendChild(wrap)
-      await pg.render({ canvasContext: pc.getContext('2d')!, viewport: vp }).promise
+      wrap.appendChild(pc); wrap.appendChild(fc); outer.appendChild(wrap); container.appendChild(outer)
+      await pg.render({ canvasContext: pc.getContext('2d')!, viewport: rvp }).promise
       const fab = new fabric.Canvas(fc, { width: vp.width, height: vp.height, backgroundColor: undefined })
       if (fab.wrapperEl) { fab.wrapperEl.style.position = 'absolute'; fab.wrapperEl.style.top = '0'; fab.wrapperEl.style.left = '0' }
       wireFab(fab)
-      fabsRef.current.push(fab); wrappersRef.current.push(wrap)
+      fabsRef.current.push(fab); wrappersRef.current.push(wrap); outersRef.current.push(outer)
+      pageDimsRef.current.push({ w: vp.width, h: vp.height })
     }
     if (apiBase) await loadSaved()
     applyToolAll()
+    applyZoom(zoomRef.current)   // re-apply the current zoom to the freshly rendered pages
     setStatus(`${pdf.numPages} page(s). Scroll to move through the document.`)
   }
 
@@ -336,6 +379,12 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
     setSaving(false)
   }
 
+  function fitWidth() {
+    const el = containerRef.current; const d = pageDimsRef.current[0]
+    if (!el || !d) return
+    applyZoom((el.clientWidth - 48) / d.w)   // container has p-6 (24px each side)
+  }
+
   const Btn = ({ t, label }: { t: Tool; label: string }) => (
     <button onClick={() => setTool(t)}
       className={`px-3 py-1.5 rounded-md text-sm font-medium border ${tool === t ? 'bg-navy-700 text-white border-navy-700' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>
@@ -384,6 +433,14 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
           </button>
         )}
         <button onClick={flattenDownload} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Download copy</button>
+        <span className="mx-1 h-5 w-px bg-slate-200" />
+        <div className="flex items-center rounded-md border border-slate-300 overflow-hidden">
+          <button onClick={() => applyZoom(zoomRef.current - 0.2)} title="Zoom out" className="px-2.5 py-1.5 text-sm hover:bg-slate-50">−</button>
+          <button onClick={() => applyZoom(1)} title="Reset to 100%" className="px-2 py-1.5 text-sm tabular-nums min-w-[3.25rem] border-x border-slate-300 hover:bg-slate-50">{Math.round(zoom * 100)}%</button>
+          <button onClick={() => applyZoom(zoomRef.current + 0.2)} title="Zoom in" className="px-2.5 py-1.5 text-sm hover:bg-slate-50">+</button>
+          <button onClick={fitWidth} title="Fit to width" className="px-2.5 py-1.5 text-sm border-l border-slate-300 hover:bg-slate-50">Fit</button>
+        </div>
+        <span className="text-[11px] text-slate-400 hidden sm:inline">Ctrl/⌘ + scroll to zoom</span>
         <span className="mx-1 h-5 w-px bg-slate-200" />
         <button onClick={() => setFullscreen(v => !v)} title={fullscreen ? 'Exit full screen (Esc)' : 'Review using the whole screen'}
           className="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-300 hover:bg-slate-50">
