@@ -20,10 +20,12 @@ export async function GET(req: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
   const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
 
-  // 1) Open actions per assignee.
+  // 1) Open actions per assignee. ONLY live/confirmed actions — never AI-suggested ones:
+  // people should only be emailed once an action has been confirmed into the Register
+  // ("Confirm → live" sets suggested=false), not while it's an un-triaged AI suggestion.
   const { data: open } = await db.from('engineering_action')
     .select('action_ref, description, document_number, priority, assigned_to_email')
-    .in('status', OPEN).not('assigned_to_email', 'is', null).limit(5000)
+    .in('status', OPEN).eq('suggested', false).not('assigned_to_email', 'is', null).limit(5000)
 
   // 2) New answers (last 24h) on actions the recipient RAISED — replies not by the raiser.
   const { data: replies } = await db.from('engineering_action_reply')
