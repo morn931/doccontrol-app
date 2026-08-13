@@ -165,6 +165,7 @@ export default function NumberPicker({ onConfirmNone, confirmed }: { onConfirmNo
                   {p.title ?? '—'}
                   {p.discipline ? ` · ${p.discipline}` : ''}{p.doc_type ? ` · ${p.doc_type}` : ''}
                 </div>
+                {p.doc_owner && <div className="truncate text-[11px] text-slate-400">Owner: <span className="font-medium text-slate-600">{p.doc_owner}</span></div>}
               </div>
               <button
                 onClick={() => book(p.docno)}
