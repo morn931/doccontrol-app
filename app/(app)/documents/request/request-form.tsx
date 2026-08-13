@@ -39,6 +39,15 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
     set(line.key, { area_code: code, ...(keepTitle ? {} : { title1: areaName || undefined }) })
   }
 
+  // Selecting a Document Type mirrors its name into Title 3 (Equipment) — e.g. "CHR — Chart"
+  // fills Title 3 with "Chart" — unless Title 3 was hand-typed to something else.
+  const setDocType = (line: Line, code: string) => {
+    const typeName = documentTypes.find((t) => t.code === code)?.name ?? ''
+    const prevTypeName = documentTypes.find((t) => t.code === line.document_type_code)?.name ?? ''
+    const keepTitle3 = !!line.title3 && line.title3 !== prevTypeName
+    set(line.key, { document_type_code: code, ...(keepTitle3 ? {} : { title3: typeName || undefined }) })
+  }
+
   const submit = () => {
     setErr(null)
     if (!packageCode) { setErr('Select a package — every request must be raised against a package.'); return }
@@ -122,7 +131,7 @@ export default function RequestForm({ documentTypes, disciplines, areas, package
               {lines.map((l, i) => (
                 <tr key={l.key} className="align-top">
                   <td className="px-1 py-1 text-slate-400">{i + 1}</td>
-                  <td className="px-1 py-1">{sel(l.document_type_code, (v) => set(l.key, { document_type_code: v }), documentTypes, 'Type…')}</td>
+                  <td className="px-1 py-1">{sel(l.document_type_code, (v) => setDocType(l, v), documentTypes, 'Type…')}</td>
                   <td className="px-1 py-1">{sel(l.discipline_code, (v) => set(l.key, { discipline_code: v }), disciplines, 'Discipline…')}</td>
                   <td className="px-1 py-1">{sel(l.area_code, (v) => setArea(l, v), areas, 'Area…')}</td>
                   <td className="px-1 py-1"><input value={l.title1 ?? ''} onChange={(e) => set(l.key, { title1: e.target.value })} className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs" /></td>
