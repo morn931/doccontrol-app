@@ -124,7 +124,20 @@ export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array):
   try { words = await pageOneWords(pdfBytes) } catch { return null }
   const cols: Record<string, Col> = {}
   for (const kw of ['PREPARED', 'CHECKED', 'APPROVED']) {
-    const m = words.find(w => w.str.toUpperCase().includes(kw))
+    // Match the actual title-block label "<KW> BY" — NOT any prose that merely contains
+    // the word. On PPE datasheets the APPROVED column used to be hijacked by the cover
+    // disclaimer ("The document is NOT approved until an RDMC Approval stamp…") or by
+    // "STATUS APPROVAL BY …", which sit higher up the page — so the Approver's signature
+    // was misplaced (and fell back to the appended sheet). "PREPARED/CHECKED/APPROVED BY"
+    // is the label we want.
+    let m = words.find(w => w.str.toUpperCase().includes(`${kw} BY`))
+    if (!m) {
+      // Fallback for templates that split the label into separate tokens: a SHORT token
+      // containing the keyword, nearest the page foot (title blocks sit at the bottom).
+      m = words
+        .filter(w => w.str.toUpperCase().includes(kw) && w.str.trim().length <= 15)
+        .sort((a, b) => a.y - b.y)[0]
+    }
     if (m) cols[kw] = { x: m.x, y: m.y, w: m.w }
   }
   return Object.keys(cols).length ? cols : null
