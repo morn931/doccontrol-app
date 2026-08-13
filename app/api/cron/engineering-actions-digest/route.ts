@@ -18,14 +18,19 @@ export async function GET(req: NextRequest) {
   }
   const db = createServiceClient()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
+  const nowIso = new Date().toISOString()
   const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+  const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
 
-  // 1) Open actions per assignee. ONLY live/confirmed actions — never AI-suggested ones:
-  // people should only be emailed once an action has been confirmed into the Register
-  // ("Confirm → live" sets suggested=false), not while it's an un-triaged AI suggestion.
-  const { data: open } = await db.from('engineering_action')
-    .select('action_ref, description, document_number, priority, assigned_to_email')
+  // 1) Open actions per assignee. ONLY live/confirmed actions — never AI-suggested ones
+  // ("Confirm → live" sets suggested=false). Per-action WEEKLY cadence: an action is (re)sent to
+  // its assignee only once it's been ≥7 days since it was last emailed (or never). Uses select('*')
+  // + a JS filter so it degrades gracefully until migration 040 adds last_digest_emailed_at — until
+  // then every action is "due" and it behaves like the previous digest.
+  const { data: openAll } = await db.from('engineering_action')
+    .select('*')
     .in('status', OPEN).eq('suggested', false).not('assigned_to_email', 'is', null).limit(5000)
+  const open = (openAll ?? []).filter((a: any) => !a.last_digest_emailed_at || a.last_digest_emailed_at < weekAgo)
 
   // 2) New answers (last 24h) on actions the recipient RAISED — replies not by the raiser.
   const { data: replies } = await db.from('engineering_action_reply')
@@ -46,6 +51,7 @@ export async function GET(req: NextRequest) {
 
   const li = (s: string) => `<li>${s}</li>`
   let sent = 0
+  const stampIds: string[] = []   // actions actually emailed this run → reset their weekly clock
   for (const [email, b] of people) {
     if (!b.assigned.length && !b.answers.length) continue
     const assignedRows = b.assigned.slice(0, 25).map((a: any) =>
@@ -62,10 +68,22 @@ export async function GET(req: NextRequest) {
           sec(`Open actions assigned to you (${b.assigned.length})`, assignedRows) +
           sec(`New answers on actions you raised (${b.answers.length})`, answerRows) +
           `<p><a href="${appUrl}/engineering-actions">Open the Engineering Action Register →</a></p>` +
-          `<p style="color:#6b7280;font-size:13px">Daily while you have anything outstanding. Please clear or reply in the register.</p>`,
+          `<p style="color:#6b7280;font-size:13px">Each open action is re-sent about once a week until you clear or reply to it in the register.</p>`,
       })
       sent++
+      for (const a of b.assigned) if (a.id) stampIds.push(a.id)
     } catch (e) { console.warn('eng-action digest failed for', email, e) }
   }
-  return NextResponse.json({ recipients: sent, openActions: open?.length ?? 0, newAnswers: replies?.length ?? 0 })
+
+  // Reset the weekly clock on every action we just emailed, so it isn't re-sent for ~7 days.
+  // Wrapped: last_digest_emailed_at doesn't exist until migration 040 is applied — until then this
+  // no-ops and the digest keeps its old daily cadence.
+  let stamped = 0
+  if (stampIds.length) {
+    const { error } = await db.from('engineering_action').update({ last_digest_emailed_at: nowIso }).in('id', stampIds)
+    if (error) console.warn('eng-action digest: could not stamp last_digest_emailed_at (migration 040 not applied?)', error.message)
+    else stamped = stampIds.length
+  }
+
+  return NextResponse.json({ recipients: sent, dueActions: open.length, stamped, newAnswers: replies?.length ?? 0 })
 }
