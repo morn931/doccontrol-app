@@ -107,14 +107,24 @@ type Col = { x: number; y: number; w: number }
 
 async function pageOneWords(pdfBytes: ArrayBuffer | Uint8Array): Promise<{ str: string; x: number; y: number; w: number }[]> {
   const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const data = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes)
-  const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise
-  try {
-    const page = await doc.getPage(1)
-    const tc = await page.getTextContent()
-    return (tc.items as any[]).filter(i => typeof i.str === 'string')
-      .map(i => ({ str: i.str, x: i.transform[4], y: i.transform[5], w: i.width }))
-  } finally { await doc.destroy() }
+  const src = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes)
+  // pdf.js TRANSFERS/detaches the `data` buffer it's given. Hand it a fresh COPY each time so
+  // (a) the caller's bytes survive for the subsequent pdf-lib load, and (b) a retry can reuse
+  // the source. This was silently breaking title-block placement (the load after this saw an
+  // empty buffer, or the whole detect threw → every signature fell back to the appended sheet).
+  const load = async (opts: any) => {
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(src), isEvalSupported: false, verbosity: 0, ...opts }).promise
+    try {
+      const page = await doc.getPage(1)
+      const tc = await page.getTextContent()
+      return (tc.items as any[]).filter(i => typeof i.str === 'string')
+        .map(i => ({ str: i.str, x: i.transform[4], y: i.transform[5], w: i.width }))
+    } finally { await doc.destroy() }
+  }
+  // Serverless-safe first (no system-font lookups / FontFace — Vercel has neither, which made
+  // the previous `useSystemFonts:true` throw). Fall back to the most permissive options.
+  try { return await load({ useSystemFonts: false, disableFontFace: true }) }
+  catch { return await load({}) }
 }
 
 /** Locate the PREPARED/CHECKED/APPROVED columns on the cover page. Returns null if the
