@@ -46,28 +46,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const dv = (b.document_versions ?? [])[0]
   if (!dv?.central_file_url) return NextResponse.json({ error: 'No source file on this batch.' }, { status: 400 })
 
-  // ── Convert native → PDF, append the approval block, store in Signed/ ────────
+  // ── Convert native → PDF, store a CLEAN base + the initial sign-off PDF in Signed/ ──
   let pdfUrl: string
+  let baseUrl: string
   try {
     const item = await resolveDriveItemByUrl(dv.central_file_url)
     if (!item?.driveId) return NextResponse.json({ error: 'Could not locate the source file in SharePoint.' }, { status: 404 })
     // Word/Excel → convert to PDF; a file that's already a PDF is used as-is
     // (Graph's ?format=pdf rejects PDF input with 406 InputFormatNotSupported).
     const ext = (item.name?.split('.').pop() || '').toLowerCase()
-    const nativePdf = ext === 'pdf'
+    const nativeRaw = ext === 'pdf'
       ? await getDriveItemContentBytes(item.driveId, item.id)
       : await getDriveItemContentBytes(item.driveId, item.id, 'pdf')
+    const nativePdf = nativeRaw instanceof Uint8Array ? nativeRaw : new Uint8Array(nativeRaw)
     // If the cover has a Prepared/Checked/Approved title block, sign there (no appended page).
     // Only documents WITHOUT that block get the appended approval block as a fallback.
     const hasTitleBlock = await findTitleBlockColumns(nativePdf).catch(() => null)
     let bytes: Uint8Array
     if (hasTitleBlock) {
-      bytes = nativePdf instanceof Uint8Array ? nativePdf : new Uint8Array(nativePdf)
+      bytes = nativePdf
     } else {
       ({ bytes } = await appendSignoffBlock(nativePdf, signatories.map((s: any) => ({ name: s.name, role: s.role })),
         { title: dv.doc_name ?? dv.file_name, reference: b.internal_ref ?? undefined }))
     }
     const safe = String(b.internal_ref ?? b.id).replace(/[^A-Za-z0-9._-]/g, '_')
+    // The clean base (no signatures) — every future stamp/reposition rebuilds from this.
+    const baseUp = await uploadBytesToLibraryFolder(`Signed/base/${safe}.pdf`, nativePdf, 'application/pdf')
+    baseUrl = baseUp.webUrl
     const up = await uploadBytesToLibraryFolder(`Signed/${safe}.pdf`, bytes, 'application/pdf')
     pdfUrl = up.webUrl
   } catch (e: any) {
@@ -76,7 +81,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const now = new Date().toISOString()
   await db.from('batches').update({
-    status: 'signoff_in_progress', signoff_pdf_url: pdfUrl, signoff_started_at: now, updated_at: now,
+    status: 'signoff_in_progress', signoff_pdf_url: pdfUrl, signoff_base_url: baseUrl, signoff_started_at: now, updated_at: now,
   }).eq('id', id)
 
   // Replace any prior (declined) chain, then create the new one.

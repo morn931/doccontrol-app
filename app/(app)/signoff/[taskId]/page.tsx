@@ -2,7 +2,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, PenLine, XCircle, Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ArrowUp, ArrowDown, ArrowRight, Move, PenLine, XCircle, Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react'
 
 export default function SignoffPage({ params }: { params: Promise<{ taskId: string }> }) {
   const { taskId } = use(params)
@@ -14,6 +14,9 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
   const [done, setDone] = useState<'signed' | 'declined' | null>(null)
   const [showDecline, setShowDecline] = useState(false)
   const [declineReason, setDeclineReason] = useState('')
+  const [pdfV, setPdfV] = useState(0)          // cache-buster to re-render the iframe after a move
+  const [moving, setMoving] = useState(false)
+  const [step, setStep] = useState(12)         // nudge distance in PDF points
 
   useEffect(() => { load() }, [taskId])
   async function load() {
@@ -29,8 +32,22 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
       const res = await fetch(`/api/signoff/${taskId}/sign`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to sign'); return }
-      setDone('signed')
+      await load(); setPdfV(v => v + 1); setDone('signed')
     } catch (e: any) { setError(e.message ?? 'Unexpected error') } finally { setSigning(false) }
+  }
+
+  // Move a signed signature. PDF y increases UPWARD, so ↑ = +dy. Re-stamps server-side and
+  // cache-busts the viewer so the change shows immediately.
+  async function nudge(dx: number, dy: number) {
+    setMoving(true); setError('')
+    try {
+      const res = await fetch(`/api/signoff/${taskId}/place`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dx, dy }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not move the signature.'); return }
+      setPdfV(v => v + 1)
+    } catch (e: any) { setError(e.message ?? 'Could not move the signature.') } finally { setMoving(false) }
   }
 
   async function handleDecline() {
@@ -56,7 +73,10 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
       <CheckCircle2 className={`h-10 w-10 mx-auto ${done === 'signed' ? 'text-emerald-500' : 'text-red-500'}`} />
       <h1 className="text-lg font-bold text-slate-900">{done === 'signed' ? 'Signed — thank you' : 'Declined'}</h1>
       <p className="text-sm text-slate-500">{done === 'signed' ? 'Your signature has been applied and the next signatory (if any) has been notified.' : 'The document controller has been notified to correct and re-send it.'}</p>
-      <Link href="/signoffs" className="btn-primary inline-flex mt-2">Back to my sign-offs</Link>
+      <div className="flex flex-wrap gap-2 justify-center pt-1">
+        {done === 'signed' && <button onClick={() => setDone(null)} className="btn-secondary inline-flex"><Move className="h-4 w-4" /> Adjust signature position</button>}
+        <Link href="/signoffs" className="btn-primary inline-flex">Back to my sign-offs</Link>
+      </div>
     </div>
   )
 
@@ -78,8 +98,37 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
 
       {/* PDF viewer */}
       <div className="card overflow-hidden">
-        <iframe src={`/api/signoff/${taskId}/file`} className="w-full" style={{ height: '70vh' }} title="Sign-off document" />
+        <iframe src={`/api/signoff/${taskId}/file?v=${pdfV}`} className="w-full" style={{ height: '70vh' }} title="Sign-off document" />
       </div>
+
+      {isMine && task.status === 'signed' && (
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Move className="h-4 w-4 text-teal-600" /> Move my signature</div>
+          <p className="text-xs text-slate-500">Your signature is placed automatically in the sign-off block. If it needs adjusting, nudge it — the document above updates each time you move it.</p>
+          <div className="flex items-center gap-6">
+            <div className="grid grid-cols-3 gap-1 w-max">
+              <span />
+              <button onClick={() => nudge(0, step)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowUp className="h-4 w-4" /></button>
+              <span />
+              <button onClick={() => nudge(-step, 0)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowLeft className="h-4 w-4" /></button>
+              <span />
+              <button onClick={() => nudge(step, 0)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowRight className="h-4 w-4" /></button>
+              <span />
+              <button onClick={() => nudge(0, -step)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowDown className="h-4 w-4" /></button>
+              <span />
+            </div>
+            <div className="text-xs text-slate-600 space-y-1">
+              <label className="block font-medium">Step size</label>
+              <select value={step} onChange={e => setStep(Number(e.target.value))} className="input py-1 text-xs">
+                <option value={6}>Fine (6 pt)</option>
+                <option value={12}>Medium (12 pt)</option>
+                <option value={36}>Coarse (36 pt)</option>
+              </select>
+              {moving && <span className="flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> updating…</span>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {!hasSignature && isMine && (
         <div className="card p-3 bg-amber-50 border-amber-200 text-sm text-amber-800 flex items-start gap-2">

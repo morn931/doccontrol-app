@@ -198,3 +198,82 @@ export function pngFromDataUrl(image: string | null | undefined): Uint8Array | n
   const b64 = image.includes(',') ? image.split(',')[1] : image
   try { return new Uint8Array(Buffer.from(b64, 'base64')) } catch { return null }
 }
+
+// ── Movable signatures — placement + non-destructive rebuild ─────────────────
+// A signature's placement is a box in PDF points (origin bottom-left), on a 1-based page.
+// The signed PDF is always REBUILT from the clean base (optionally + the appended block), so
+// moving a signature never stacks or smears earlier stamps.
+
+export type Placement = { page: number; x: number; y: number; w: number; h: number }
+export type StampSpec = Placement & { png?: Uint8Array | null; typedName?: string; dateStr?: string | null }
+
+/** The default box for a signatory: the title-block column matching their role (page 1), or —
+ *  when there's no title block — their row on the appended approval page (basePageCount + 1). */
+export function defaultPlacement(
+  roleLabel: string | null | undefined,
+  blockRow: number,
+  cols: Record<string, Col> | null,
+  basePageCount: number,
+): Placement {
+  const rl = (roleLabel || '').toLowerCase()
+  const key = ROLE_TO_COL.find(([frag]) => rl.includes(frag))?.[1] ?? null
+  const col = key && cols ? cols[key] : null
+  if (col) {
+    const w = 66, h = 22
+    return { page: 1, x: col.x + col.w / 2 - w / 2, y: col.y + 30, w, h }
+  }
+  const g = rowGeom(blockRow)                 // appended page is added after the base
+  return { page: basePageCount + 1, x: g.sigX, y: g.sigY, w: g.sigW, h: g.sigH }
+}
+
+/** Rebuild the signed PDF from the clean base: optionally append the approval block (when the
+ *  document has no title block), then stamp every placement. Deterministic and repeatable. */
+export async function rebuildSignedPdf(
+  baseBytes: ArrayBuffer | Uint8Array,
+  opts: {
+    appendSignatories?: SignatoryRow[] | null
+    appendMeta?: { title?: string; reference?: string }
+    stamps: StampSpec[]
+  },
+): Promise<Uint8Array> {
+  let bytes: ArrayBuffer | Uint8Array = baseBytes
+  if (opts.appendSignatories?.length) {
+    ({ bytes } = await appendSignoffBlock(baseBytes, opts.appendSignatories, opts.appendMeta ?? {}))
+  }
+  const doc = await PDFDocument.load(bytes)
+  const font = await doc.embedFont(StandardFonts.Helvetica)
+  const pages = doc.getPages()
+  const ink = rgb(0.09, 0.11, 0.16)
+  for (const s of opts.stamps) {
+    const page = pages[Math.min(Math.max(s.page, 1), pages.length) - 1]
+    if (!page) continue
+    if (s.png?.byteLength) {
+      try {
+        const img = await doc.embedPng(s.png)
+        const scale = Math.min(s.w / img.width, s.h / img.height)
+        const w = img.width * scale, h = img.height * scale
+        page.drawImage(img, { x: s.x + (s.w - w) / 2, y: s.y + (s.h - h) / 2, width: w, height: h })
+      } catch {
+        if (s.typedName) page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - 5, size: 10, font, color: ink })
+      }
+    } else if (s.typedName) {
+      page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - 5, size: 10, font, color: ink })
+    }
+    if (s.dateStr) page.drawText(s.dateStr, { x: s.x, y: s.y - 10, size: 8, font, color: ink })
+  }
+  return doc.save()
+}
+
+// Page count of a PDF (for the appended-page index).
+export async function pageCountOf(pdfBytes: ArrayBuffer | Uint8Array): Promise<number> {
+  const doc = await PDFDocument.load(pdfBytes)
+  return doc.getPageCount()
+}
+
+// Width/height (points) of a given 1-based page — used to clamp a reposition to the page.
+export async function pageSizeOf(pdfBytes: ArrayBuffer | Uint8Array, page1: number): Promise<{ w: number; h: number }> {
+  const doc = await PDFDocument.load(pdfBytes)
+  const pages = doc.getPages()
+  const p = pages[Math.min(Math.max(page1, 1), pages.length) - 1] ?? pages[0]
+  return { w: p.getWidth(), h: p.getHeight() }
+}

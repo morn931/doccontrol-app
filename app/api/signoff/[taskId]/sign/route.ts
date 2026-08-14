@@ -6,8 +6,9 @@
  */
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getFileBytesByUrl, putFileBytesByUrl } from '@/lib/services/graph'
-import { stampSignature, stampOnTitleBlock, pngFromDataUrl } from '@/lib/signoff-pdf'
+import { getFileBytesByUrl } from '@/lib/services/graph'
+import { findTitleBlockColumns, defaultPlacement, pageCountOf } from '@/lib/signoff-pdf'
+import { rebuildBatchSignedPdf } from '@/lib/signoff-rebuild'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { splitEmails } from '@/lib/utils/emails'
 
@@ -31,7 +32,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ taskId
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user?.email) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
-  const { data: profile } = await supabase.from('users').select('full_name').eq('auth_user_id', user.id).maybeSingle()
 
   const { taskId } = await params
   const db = createServiceClient()
@@ -50,31 +50,31 @@ export async function POST(_req: Request, { params }: { params: Promise<{ taskId
   const earlierOpen = (siblings ?? []).filter((s: any) => s.sequence_number < t.sequence_number && !['signed', 'declined'].includes(s.status))
   if (earlierOpen.length) return NextResponse.json({ error: 'An earlier signatory has not signed yet.' }, { status: 400 })
 
-  const { data: batch } = await db.from('batches').select('id, internal_ref, signoff_pdf_url, document_versions(doc_name, file_name)').eq('id', t.batch_id).single()
+  const { data: batch } = await db.from('batches').select('id, internal_ref, signoff_pdf_url, signoff_base_url, document_versions(doc_name, file_name)').eq('id', t.batch_id).single()
   const b = batch as any
   if (!b?.signoff_pdf_url) return NextResponse.json({ error: 'No sign-off PDF on this batch.' }, { status: 400 })
 
-  // ── Stamp the signature into the PDF and write it back ───────────────────────
-  // Prefer the cover-page title block (in the column matching this signatory's role, above
-  // the name); fall back to the appended approval block if the doc has no title block.
+  // ── Record the signature + its default placement, then rebuild the signed PDF ──
+  // The signature is placed in the title-block column matching the role (above the name), or —
+  // if the cover has no title block — on the appended approval sheet. It's stamped by rebuilding
+  // from the clean base, so it stays movable afterwards (nothing is baked in irreversibly).
+  const now = new Date().toISOString()
   try {
-    const current = await getFileBytesByUrl(b.signoff_pdf_url)
-    const img = await signatureImageFor(user.email)
-    const png = pngFromDataUrl(img)
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const typedName = profile?.full_name ?? user.email
-
-    const cover = await stampOnTitleBlock(current, { roleLabel: t.role_label, dateStr, signaturePng: png, typedName })
-    const stamped = cover.placed
-      ? cover.bytes
-      : await stampSignature(current, { blockRow: t.block_row ?? (t.sequence_number - 1), dateStr, signaturePng: png, typedName })
-    await putFileBytesByUrl(b.signoff_pdf_url, stamped)
+    const img = await signatureImageFor(user.email)   // the signer's stored signature (data-URL PNG)
+    const baseUrl = b.signoff_base_url || b.signoff_pdf_url
+    const base = await getFileBytesByUrl(baseUrl)
+    const cols = await findTitleBlockColumns(base).catch(() => null)
+    const basePageCount = await pageCountOf(base).catch(() => 1)
+    const pl = defaultPlacement(t.role_label, t.block_row ?? (t.sequence_number - 1), cols, basePageCount)
+    await db.from('signoff_tasks').update({
+      status: 'signed', signed_at: now, updated_at: now, signature_data: img ?? null,
+      place_page: pl.page, place_x: pl.x, place_y: pl.y, place_w: pl.w, place_h: pl.h,
+    }).eq('id', taskId)
+    const rb = await rebuildBatchSignedPdf(db, t.batch_id)
+    if (!rb.ok) return NextResponse.json({ error: rb.error ?? 'Could not stamp the signature.' }, { status: 502 })
   } catch (e: any) {
     return NextResponse.json({ error: `Could not stamp the signature: ${e?.message ?? e}` }, { status: 502 })
   }
-
-  const now = new Date().toISOString()
-  await db.from('signoff_tasks').update({ status: 'signed', signed_at: now, updated_at: now }).eq('id', taskId)
 
   // Advance: activate + email the next pending signatory, or finish the batch.
   const next = (siblings ?? [])
