@@ -81,7 +81,7 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
   )
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4">
       <Link href="/signoffs" className="btn-secondary text-xs py-1.5 px-3 w-fit"><ArrowLeft className="h-3.5 w-3.5" /> My Sign-offs</Link>
 
       <div className="card p-5">
@@ -96,77 +96,81 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
         </div>
       </div>
 
-      {/* PDF viewer */}
-      <div className="card overflow-hidden">
-        <iframe src={`/api/signoff/${taskId}/file?v=${pdfV}`} className="w-full" style={{ height: '70vh' }} title="Sign-off document" />
+      {/* PDF fills the width; the sign-off actions sit in a column beside it on wide screens. */}
+      <div className="flex flex-col xl:flex-row gap-4 items-start">
+        <div className="card overflow-hidden flex-1 min-w-0 w-full">
+          <iframe src={`/api/signoff/${taskId}/file?v=${pdfV}`} className="w-full" style={{ height: '84vh' }} title="Sign-off document" />
+        </div>
+
+        <div className="w-full xl:w-[380px] shrink-0 space-y-4">
+          {error && <div className="card p-3 bg-red-50 border-red-200 text-sm text-red-700">{error}</div>}
+
+          {!hasSignature && isMine && (
+            <div className="card p-3 bg-amber-50 border-amber-200 text-sm text-amber-800 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>You have no saved signature — your typed name will be used. Set up a signature in your <a className="underline" href="https://coreflow.build/settings/signature" target="_blank" rel="noopener noreferrer">Coreflow profile</a> for a proper signature image.</span>
+            </div>
+          )}
+
+          {canSign ? (
+            !showDecline ? (
+              <div className="card p-4 space-y-3">
+                <button onClick={handleSign} disabled={signing} className="btn-primary w-full justify-center py-3 text-base">
+                  {signing ? <><Loader2 className="h-5 w-5 animate-spin" /> Signing…</> : <><PenLine className="h-5 w-5" /> Apply my signature</>}
+                </button>
+                <button onClick={() => setShowDecline(true)} disabled={signing} className="btn-danger w-full justify-center"><XCircle className="h-4 w-4" /> Decline</button>
+              </div>
+            ) : (
+              <div className="card p-4 space-y-2">
+                <label className="label">Reason for declining <span className="text-red-500">*</span></label>
+                <textarea value={declineReason} onChange={e => setDeclineReason(e.target.value)} rows={4} className="input resize-none" placeholder="e.g. Section 3 still references the old revision — please correct before sign-off." />
+                <div className="flex gap-3">
+                  <button onClick={handleDecline} disabled={signing} className="btn-danger flex-1 justify-center">{signing ? 'Submitting…' : 'Confirm decline'}</button>
+                  <button onClick={() => { setShowDecline(false); setError('') }} className="btn-secondary justify-center px-5">Back</button>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="card p-4 text-sm text-slate-500 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {!isMine ? 'This signature is assigned to someone else.'
+                : waitingOn ? 'Waiting for an earlier signatory to sign first — you\'ll be emailed when it\'s your turn.'
+                : task.status === 'signed' ? 'You have already signed this document.'
+                : 'This document is no longer awaiting your signature.'}
+              {batch?.id && <Link href={`/batches/${batch.id}`} className="ml-auto btn-secondary text-xs py-1 px-2.5"><ExternalLink className="h-3.5 w-3.5" /> Batch</Link>}
+            </div>
+          )}
+
+          {isMine && task.status === 'signed' && (
+            <div className="card p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Move className="h-4 w-4 text-teal-600" /> Move my signature</div>
+              <p className="text-xs text-slate-500">Your signature is placed automatically in the sign-off block. If it needs adjusting, nudge it — the document updates each time you move it.</p>
+              <div className="flex items-center gap-6">
+                <div className="grid grid-cols-3 gap-1 w-max">
+                  <span />
+                  <button onClick={() => nudge(0, step)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowUp className="h-4 w-4" /></button>
+                  <span />
+                  <button onClick={() => nudge(-step, 0)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowLeft className="h-4 w-4" /></button>
+                  <span />
+                  <button onClick={() => nudge(step, 0)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowRight className="h-4 w-4" /></button>
+                  <span />
+                  <button onClick={() => nudge(0, -step)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowDown className="h-4 w-4" /></button>
+                  <span />
+                </div>
+                <div className="text-xs text-slate-600 space-y-1">
+                  <label className="block font-medium">Step size</label>
+                  <select value={step} onChange={e => setStep(Number(e.target.value))} className="input py-1 text-xs">
+                    <option value={6}>Fine (6 pt)</option>
+                    <option value={12}>Medium (12 pt)</option>
+                    <option value={36}>Coarse (36 pt)</option>
+                  </select>
+                  {moving && <span className="flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> updating…</span>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-
-      {isMine && task.status === 'signed' && (
-        <div className="card p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Move className="h-4 w-4 text-teal-600" /> Move my signature</div>
-          <p className="text-xs text-slate-500">Your signature is placed automatically in the sign-off block. If it needs adjusting, nudge it — the document above updates each time you move it.</p>
-          <div className="flex items-center gap-6">
-            <div className="grid grid-cols-3 gap-1 w-max">
-              <span />
-              <button onClick={() => nudge(0, step)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowUp className="h-4 w-4" /></button>
-              <span />
-              <button onClick={() => nudge(-step, 0)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowLeft className="h-4 w-4" /></button>
-              <span />
-              <button onClick={() => nudge(step, 0)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowRight className="h-4 w-4" /></button>
-              <span />
-              <button onClick={() => nudge(0, -step)} disabled={moving} className="btn-secondary p-2 justify-center"><ArrowDown className="h-4 w-4" /></button>
-              <span />
-            </div>
-            <div className="text-xs text-slate-600 space-y-1">
-              <label className="block font-medium">Step size</label>
-              <select value={step} onChange={e => setStep(Number(e.target.value))} className="input py-1 text-xs">
-                <option value={6}>Fine (6 pt)</option>
-                <option value={12}>Medium (12 pt)</option>
-                <option value={36}>Coarse (36 pt)</option>
-              </select>
-              {moving && <span className="flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> updating…</span>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!hasSignature && isMine && (
-        <div className="card p-3 bg-amber-50 border-amber-200 text-sm text-amber-800 flex items-start gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>You have no saved signature — your typed name will be used. Set up a signature in your <a className="underline" href="https://coreflow.build/settings/signature" target="_blank" rel="noopener noreferrer">Coreflow profile</a> for a proper signature image.</span>
-        </div>
-      )}
-
-      {error && <div className="card p-3 bg-red-50 border-red-200 text-sm text-red-700">{error}</div>}
-
-      {canSign ? (
-        !showDecline ? (
-          <div className="flex gap-3">
-            <button onClick={handleSign} disabled={signing} className="btn-primary flex-1 justify-center py-3 text-base">
-              {signing ? <><Loader2 className="h-5 w-5 animate-spin" /> Signing…</> : <><PenLine className="h-5 w-5" /> Apply my signature</>}
-            </button>
-            <button onClick={() => setShowDecline(true)} disabled={signing} className="btn-danger justify-center px-5"><XCircle className="h-4 w-4" /> Decline</button>
-          </div>
-        ) : (
-          <div className="card p-4 space-y-2">
-            <label className="label">Reason for declining <span className="text-red-500">*</span></label>
-            <textarea value={declineReason} onChange={e => setDeclineReason(e.target.value)} rows={3} className="input resize-none" placeholder="e.g. Section 3 still references the old revision — please correct before sign-off." />
-            <div className="flex gap-3">
-              <button onClick={handleDecline} disabled={signing} className="btn-danger flex-1 justify-center">{signing ? 'Submitting…' : 'Confirm decline'}</button>
-              <button onClick={() => { setShowDecline(false); setError('') }} className="btn-secondary justify-center px-5">Back</button>
-            </div>
-          </div>
-        )
-      ) : (
-        <div className="card p-4 text-sm text-slate-500 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {!isMine ? 'This signature is assigned to someone else.'
-            : waitingOn ? 'Waiting for an earlier signatory to sign first — you\'ll be emailed when it\'s your turn.'
-            : task.status === 'signed' ? 'You have already signed this document.'
-            : 'This document is no longer awaiting your signature.'}
-          {batch?.id && <Link href={`/batches/${batch.id}`} className="ml-auto btn-secondary text-xs py-1 px-2.5"><ExternalLink className="h-3.5 w-3.5" /> Batch</Link>}
-        </div>
-      )}
     </div>
   )
 }
