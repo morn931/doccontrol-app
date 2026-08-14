@@ -30,7 +30,7 @@ const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-
 // Every nav destination — the ACTIVE item is the LONGEST href that matches the current
 // path, so /documents/requests no longer also lights up /documents ("Document Search").
 const NAV_HREFS = [
-  '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/batches', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
+  '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/batches', '/internal', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
   '/mddr', '/reporting', '/aconex-review', '/aconex-issue', '/rfi', '/cddl', '/sddr',
   '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
 ]
@@ -78,6 +78,7 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
 
         {/* Permission-gated nav */}
         {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}
+        {(dev || navPerms.batches)      && <NavLink href="/internal"     label="Internal Tracker" icon={ICON_SURFACE('engineering-tracker')} />}
         {(dev || navPerms.reviews)      && <NavLink href="/reviews"      label="My Reviews"       icon={ICON_SURFACE('review-approvals')} />}
         {(dev || navPerms.signoffs)     && <NavLink href="/signoffs"     label="My Sign-offs"     icon={ICON_SURFACE('review-approvals')} />}
         {(dev || navPerms.engineeringActions) && <NavLink href="/engineering-actions" label="Engineering Actions" icon={ICON_SURFACE('engineering-tracker')} />}

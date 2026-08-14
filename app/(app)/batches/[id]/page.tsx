@@ -444,7 +444,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 }
               </button>
             )}
-            {batch.source === 'internal_review' && ['review_complete','signoff_declined'].includes(batch.status) && (
+            {['internal', 'internal_review'].includes(batch.source) && ['review_complete','signoff_declined'].includes(batch.status) && (
               <button onClick={() => { setSignoffError(''); setShowSignoff(true) }} className="btn-primary text-sm">
                 <PenLine className="h-4 w-4" /> {batch.status === 'signoff_declined' ? 'Re-send for sign-off' : 'Send for sign-off'}
               </button>
@@ -654,7 +654,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       )}
 
       {/* Sign-off status — the signature chain for an internal-review document */}
-      {batch.source === 'internal_review' && (batch.signoff_tasks?.length ?? 0) > 0 && (
+      {['internal', 'internal_review'].includes(batch.source) && (batch.signoff_tasks?.length ?? 0) > 0 && (
         <div className="card">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
             <PenLine className="h-4 w-4 text-slate-500" />

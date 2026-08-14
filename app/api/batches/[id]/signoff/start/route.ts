@@ -39,7 +39,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .eq('id', id).single()
   const b = batch as any
   if (!b) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
-  if (b.source !== 'internal_review') return NextResponse.json({ error: 'Sign-off applies to internal-review documents only.' }, { status: 400 })
+  // Sign-off is available for any INTERNAL document, whichever intake path it came in on
+  // ('internal' = engineering drawing-request path, 'internal_review' = internal-review path).
+  if (!['internal', 'internal_review'].includes(b.source)) return NextResponse.json({ error: 'Sign-off applies to internal documents only.' }, { status: 400 })
   if (!['review_complete', 'signoff_declined'].includes(b.status))
     return NextResponse.json({ error: `This batch is not ready for sign-off (status: ${b.status}).` }, { status: 400 })
 
