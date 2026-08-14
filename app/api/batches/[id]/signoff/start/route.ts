@@ -42,7 +42,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Sign-off is available for any INTERNAL document, whichever intake path it came in on
   // ('internal' = engineering drawing-request path, 'internal_review' = internal-review path).
   if (!['internal', 'internal_review'].includes(b.source)) return NextResponse.json({ error: 'Sign-off applies to internal documents only.' }, { status: 400 })
-  if (!['review_complete', 'signoff_declined'].includes(b.status))
+  // review_complete / signoff_declined are the normal entry points; transmittal_generated is
+  // allowed too so a DC who returned an internal doc to the engineer can still route it to
+  // sign-off afterwards (the two internal outcomes aren't mutually exclusive).
+  if (!['review_complete', 'signoff_declined', 'transmittal_generated'].includes(b.status))
     return NextResponse.json({ error: `This batch is not ready for sign-off (status: ${b.status}).` }, { status: 400 })
 
   const dv = (b.document_versions ?? [])[0]

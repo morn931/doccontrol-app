@@ -444,7 +444,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 }
               </button>
             )}
-            {['internal', 'internal_review'].includes(batch.source) && ['review_complete','signoff_declined'].includes(batch.status) && (
+            {['internal', 'internal_review'].includes(batch.source) && ['review_complete','signoff_declined','transmittal_generated'].includes(batch.status) && (
               <button onClick={() => { setSignoffError(''); setShowSignoff(true) }} className="btn-primary text-sm">
                 <PenLine className="h-4 w-4" /> {batch.status === 'signoff_declined' ? 'Re-send for sign-off' : 'Send for sign-off'}
               </button>

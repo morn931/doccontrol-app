@@ -24,7 +24,7 @@ function computeStage(b: any, nameBy: Record<string, string>) {
   const now = Date.now()
 
   if (st === 'signed') return { key: 'signed', label: 'Signed — ready to issue', holder: 'Document Control', action: 'Issue to Aconex' }
-  if (st === 'transmittal_generated') return { key: 'issued', label: 'Returned to engineer', holder: '—', action: 'Done' }
+  if (st === 'transmittal_generated') return { key: 'issued', label: 'Returned to engineer', holder: 'Document Control', action: 'Send for sign-off' }
   if (st === 'signoff_declined') {
     const dec = sts.find((t: any) => t.status === 'declined')
     return { key: 'declined', label: 'Sign-off declined', holder: 'Document Control', note: dec?.decline_reason ?? null, action: 'Correct & re-send' }
