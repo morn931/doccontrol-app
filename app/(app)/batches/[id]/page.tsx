@@ -57,6 +57,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [signatories, setSignatories]   = useState<{ role: string; name: string; email: string }[]>([{ role: 'Prepared', name: '', email: '' }])
   const [startingSignoff, setStartingSignoff] = useState(false)
   const [signoffError, setSignoffError] = useState('')
+  const [resettingSignoff, setResettingSignoff] = useState(false)
   const [officeDoc, setOfficeDoc] = useState<{ id: string; name: string } | null>(null)
   // Amend-outcome (Doc Control): correct a reviewer's submitted code after the fact.
   const [amendTaskId, setAmendTaskId] = useState<string | null>(null)
@@ -190,6 +191,25 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       setSignoffError(e.message ?? 'Unexpected error')
     } finally {
       setStartingSignoff(false)
+    }
+  }
+
+  // Un-do a sign-off so it can be sent again (discards any signatures already applied).
+  async function handleResetSignoff() {
+    const signed = batch?.status === 'signed'
+    if (!window.confirm(signed
+      ? 'This document is fully signed. Reset the sign-off? The current signature(s) will be cleared and you can send it for signing again.'
+      : 'Reset the sign-off? Any signatures already applied will be cleared and the document returns to "review complete" so you can send it again.')) return
+    setResettingSignoff(true); setSignoffError('')
+    try {
+      const res = await fetch(`/api/batches/${id}/signoff/reset`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setSignoffError(data.error ?? 'Failed to reset sign-off'); return }
+      loadBatch()
+    } catch (e: any) {
+      setSignoffError(e.message ?? 'Unexpected error')
+    } finally {
+      setResettingSignoff(false)
     }
   }
 
@@ -447,6 +467,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             {['internal', 'internal_review'].includes(batch.source) && ['review_complete','signoff_declined','transmittal_generated'].includes(batch.status) && (
               <button onClick={() => { setSignoffError(''); setShowSignoff(true) }} className="btn-primary text-sm">
                 <PenLine className="h-4 w-4" /> {batch.status === 'signoff_declined' ? 'Re-send for sign-off' : 'Send for sign-off'}
+              </button>
+            )}
+            {['internal', 'internal_review'].includes(batch.source) && ['signoff_in_progress','signed','signoff_declined'].includes(batch.status) && (
+              <button onClick={handleResetSignoff} disabled={resettingSignoff} className="btn-secondary text-sm">
+                <RotateCw className="h-4 w-4" /> {resettingSignoff ? 'Resetting…' : 'Reset sign-off'}
               </button>
             )}
           </div>
