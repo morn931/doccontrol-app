@@ -328,7 +328,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
 
   async function flattenBytes(): Promise<Uint8Array | null> {
     if (!pdfBytesRef.current) return null
-    const { PDFDocument } = await import('pdf-lib')
+    const { PDFDocument, degrees } = await import('pdf-lib')
     // ignoreEncryption: vendors often "lock" a PDF with a permissions/owner-password
     // restriction (Adobe "restrict editing") after e-signing. Without this flag pdf-lib
     // throws on load and Save fails; with it we can still stamp our appearance on top.
@@ -343,8 +343,17 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
       const fw = fab.getWidth?.() ?? fab.width ?? 1, fh = fab.getHeight?.() ?? fab.height ?? 1
       const mult = Math.max(1, Math.min(2, MAX_DIM / fw, MAX_DIM / fh))
       const png = await doc.embedPng(fab.toDataURL({ format: 'png', multiplier: mult }))
-      const { width, height } = pages[i].getSize()
-      pages[i].drawImage(png, { x: 0, y: 0, width, height })
+      // The fabric overlay is captured in DISPLAY space (PDF.js applies the page's /Rotate),
+      // but pdf-lib draws in the page's UNrotated user space. On a rotated page (landscape
+      // drawings are usually /Rotate 90 or 270) drawing at {0,0,width,height} makes the baked
+      // mark-ups appear turned 90°. Counter the page rotation so the overlay lands upright.
+      const page = pages[i]
+      const { width, height } = page.getSize()   // unrotated media box
+      const angle = ((page.getRotation().angle % 360) + 360) % 360
+      if (angle === 90)       page.drawImage(png, { x: width, y: 0,      width: height, height: width, rotate: degrees(90) })
+      else if (angle === 180) page.drawImage(png, { x: width, y: height, width,         height,        rotate: degrees(180) })
+      else if (angle === 270) page.drawImage(png, { x: 0,     y: height, width: height, height: width, rotate: degrees(270) })
+      else                    page.drawImage(png, { x: 0,     y: 0,      width,         height })
     }
     return await doc.save()
   }
