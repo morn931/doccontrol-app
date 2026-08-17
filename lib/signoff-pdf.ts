@@ -219,8 +219,8 @@ export function defaultPlacement(
   const key = ROLE_TO_COL.find(([frag]) => rl.includes(frag))?.[1] ?? null
   const col = key && cols ? cols[key] : null
   if (col) {
-    const w = 66, h = 22
-    return { page: 1, x: col.x + col.w / 2 - w / 2, y: col.y + 30, w, h }
+    const w = 104, h = 40   // signature box — sits in the title-block column above the name
+    return { page: 1, x: col.x + col.w / 2 - w / 2, y: col.y + 26, w, h }
   }
   const g = rowGeom(blockRow)                 // appended page is added after the base
   return { page: basePageCount + 1, x: g.sigX, y: g.sigY, w: g.sigW, h: g.sigH }
