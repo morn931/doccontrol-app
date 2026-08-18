@@ -12,15 +12,17 @@
  * Metadata (discipline/type/number/title) comes authoritatively from the request line the
  * engineer already filled — no AI classification needed for internal documents.
  *
- * A route handler (not a server action) so large drawing files aren't capped by the
- * server-action body limit.
+ * The drawing file itself is uploaded straight to SharePoint by the browser first (via
+ * POST /api/documents/internal-submit/start-upload, which validates + hands back a direct
+ * upload URL). This route FINALISES from JSON — it receives the SharePoint URL, not the file
+ * bytes — so a big PDF never hits Vercel's ~4.5 MB request-body cap (which returned a plaintext
+ * 413 "Request Entity Too Large" that the browser choked on: "Unexpected token 'R', 'Request En'…").
  */
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import { parseDocumentFileName } from '@/lib/utils/document-number-parser'
-import { uploadBytesToLibrary } from '@/lib/services/graph'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { splitEmails } from '@/lib/utils/emails'
 
@@ -53,16 +55,19 @@ export async function POST(req: Request) {
   if (!can(perms, FK.ACTION_SUBMIT_INTERNAL_DRAWING, role))
     return NextResponse.json({ error: 'Not authorised to submit an internal drawing.' }, { status: 403 })
 
-  const form = await req.formData()
-  const file = form.get('file') as File | null
-  const lineId = String(form.get('lineId') ?? '')
-  const newRevision = String(form.get('newRevision') ?? '') === '1'
-  // A re-issue can legitimately come back at the SAME revision label (common from Aconex).
-  // The UI asks the operator to confirm, then re-submits with this flag set.
-  const confirmSameRevision = String(form.get('confirmSameRevision') ?? '') === '1'
-  const recommendedReviewers = parseRecs(form.get('recommendedReviewers'))
+  // The browser already uploaded the file straight to SharePoint (start-upload); we finalise
+  // from JSON — the file's SharePoint URL + name, never the bytes.
+  const body = await req.json().catch(() => null)
+  const lineId = String(body?.lineId ?? '')
+  const fileName = String(body?.fileName ?? '')
+  const spFileUrl = String(body?.spFileUrl ?? '')
+  const newRevision = body?.newRevision === true || body?.newRevision === '1'
+  // A re-issue can legitimately come back at the SAME revision label (common from Aconex);
+  // start-upload already got the operator's confirm before the file was uploaded.
+  const confirmSameRevision = body?.confirmSameRevision === true || body?.confirmSameRevision === '1'
+  const recommendedReviewers = parseRecs(body?.recommendedReviewers)
   if (!lineId) return NextResponse.json({ error: 'Missing request line.' }, { status: 400 })
-  if (!file || file.size === 0) return NextResponse.json({ error: 'Choose a drawing file to upload.' }, { status: 400 })
+  if (!fileName || !spFileUrl) return NextResponse.json({ error: 'Upload did not complete — please try again.' }, { status: 400 })
 
   const svc = createServiceClient()
 
@@ -84,7 +89,7 @@ export async function POST(req: Request) {
     .select('id, package_id').eq('id', line.request_id).single()
 
   // ─── Confirm the file's number against the allocated number ──────────────
-  const parsed = parseDocumentFileName(file.name)
+  const parsed = parseDocumentFileName(fileName)
   if (norm(parsed.normalizedDocumentNumber) !== norm(line.rdmc_document_number)) {
     return NextResponse.json({
       error: `The file's number (${parsed.displayDocumentNumber}) does not match the allocated number (${line.rdmc_document_number}). Rename the file to ${line.rdmc_document_number}_${line.revision ?? 'A'}.pdf and try again.`,
@@ -107,15 +112,8 @@ export async function POST(req: Request) {
       }, { status: 409 })
   }
 
-  // ─── Store the review copy in SharePoint ─────────────────────────────────
-  let centralUrl: string
-  try {
-    const bytes = await file.arrayBuffer()
-    const up = await uploadBytesToLibrary(file.name, bytes, file.type || 'application/pdf')
-    centralUrl = up.webUrl
-  } catch (e: any) {
-    return NextResponse.json({ error: `Upload to SharePoint failed: ${e?.message ?? e}` }, { status: 502 })
-  }
+  // ─── Review copy already in SharePoint (uploaded by the browser in start-upload) ─
+  const centralUrl = spFileUrl
 
   // ─── Create batch (source='internal') + document + version, link the line ─
   const { data: batch, error: be } = await svc.from('batches').insert({
@@ -151,7 +149,7 @@ export async function POST(req: Request) {
   const { data: dv, error: ve } = await svc.from('document_versions').insert({
     document_id:        doc.id,
     batch_id:           batch.id,
-    file_name:          file.name,
+    file_name:          fileName,
     revision,
     revision_sort:      parsed.revisionSort ?? revision,
     central_file_url:   centralUrl,
@@ -172,7 +170,7 @@ export async function POST(req: Request) {
   await svc.from('audit_events').insert({
     entity_type: 'batch', entity_id: batch.id, event_type: 'internal_drawing_submitted',
     actor_user_id: profile?.id ?? null, actor_email: profile?.email ?? null,
-    event_data: { rdmc: line.rdmc_document_number, revision, fileName: file.name, requestId: line.request_id },
+    event_data: { rdmc: line.rdmc_document_number, revision, fileName, requestId: line.request_id },
   })
 
   // Notify the Document Controller that an internal drawing is ready to assign — include the

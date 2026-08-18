@@ -6,6 +6,10 @@ import EmailPicker, { type EmailEntry } from '@/components/email-picker'
 
 type Rec = EmailEntry
 
+// Graph upload-session chunk size — a multiple of 320 KiB, as Graph requires for all but the
+// final chunk. The browser PUTs these straight to SharePoint (no Vercel 4.5 MB body cap).
+const CHUNK = 5 * 1024 * 1024 - (5 * 1024 * 1024) % (320 * 1024)
+
 /**
  * The internal-engineering document-submission area: drag or browse the drawing to
  * submit it for review against an already-allocated RDMC number, and (internal only)
@@ -24,6 +28,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
   const [file, setFile] = useState<File | null>(null)
   const [drag, setDrag] = useState(false)
   const [msg, setMsg] = useState<{ type: 'err' | 'ok'; text: string } | null>(null)
+  const [progress, setProgress] = useState('')
   const [pending, start] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -53,29 +58,59 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
   function submit(confirmSameRevision = false) {
     if (!file) { setMsg({ type: 'err', text: 'Choose a drawing file first.' }); return }
     if (!recs.length) { setMsg({ type: 'err', text: 'Select at least one reviewer before submitting.' }); return }
-    const fd = new FormData()
-    fd.set('file', file)
-    fd.set('lineId', lineId)
-    if (isNewRev) fd.set('newRevision', '1')
-    if (confirmSameRevision) fd.set('confirmSameRevision', '1')
-    if (recs.length) fd.set('recommendedReviewers', JSON.stringify(recs))
+    const theFile = file
     start(async () => {
       try {
-        const res = await fetch('/api/documents/internal-submit', { method: 'POST', body: fd })
-        const data = await res.json()
-        if (!res.ok) {
-          // Same-revision re-issue → ask once, then re-submit with the confirm flag.
-          if (data.needsConfirm === 'sameRevision' && !confirmSameRevision) {
-            if (typeof window !== 'undefined' && window.confirm(data.error)) { submit(true); return }
+        // 1) Validate the number/revision and get a direct SharePoint upload URL — the file
+        //    never passes through Vercel, so big PDFs don't hit the 4.5 MB request-body cap.
+        setMsg(null); setProgress('Checking number…')
+        const startRes = await fetch('/api/documents/internal-submit/start-upload', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lineId, fileName: theFile.name, newRevision: isNewRev, confirmSameRevision }),
+        })
+        const sd = await startRes.json()
+        if (!startRes.ok) {
+          if (sd.needsConfirm === 'sameRevision' && !confirmSameRevision) {
+            setProgress('')
+            if (typeof window !== 'undefined' && window.confirm(sd.error)) { submit(true); return }
             setMsg({ type: 'err', text: 'Cancelled — no new revision submitted.' }); return
           }
-          setMsg({ type: 'err', text: data.error ?? 'Submission failed.' }); return
+          setProgress(''); setMsg({ type: 'err', text: sd.error ?? 'Submission failed.' }); return
         }
+
+        // 2) Upload the file straight to SharePoint in chunks.
+        const bytes = new Uint8Array(await theFile.arrayBuffer())
+        let uploaded: { webUrl?: string; name?: string } | null = null
+        for (let pos = 0; pos < bytes.length; pos += CHUNK) {
+          const part = bytes.slice(pos, pos + CHUNK)
+          setProgress(`Uploading… ${Math.round(((pos + part.length) / bytes.length) * 100)}%`)
+          const r = await fetch(sd.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Range': `bytes ${pos}-${pos + part.length - 1}/${bytes.length}` },
+            body: part as unknown as BodyInit,
+          })
+          if (!r.ok && r.status !== 202) throw new Error(`Upload failed (${r.status})`)
+          if (r.status === 200 || r.status === 201) uploaded = await r.json()
+        }
+        if (!uploaded?.webUrl) throw new Error('Upload did not complete — please try again.')
+
+        // 3) Finalise — create the internal batch/document/version from the SharePoint URL.
+        setProgress('Submitting…')
+        const res = await fetch('/api/documents/internal-submit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lineId, fileName: uploaded.name ?? theFile.name, spFileUrl: uploaded.webUrl,
+            newRevision: isNewRev, confirmSameRevision, recommendedReviewers: recs,
+          }),
+        })
+        const data = await res.json()
+        setProgress('')
+        if (!res.ok) { setMsg({ type: 'err', text: data.error ?? 'Submission failed.' }); return }
         setMsg({ type: 'ok', text: `Submitted for review as ${data.docNumber} (Rev ${data.revision}). It's now an internal batch awaiting reviewer assignment.` })
         setFile(null); setRecs([])
         router.refresh()
       } catch (e: any) {
-        setMsg({ type: 'err', text: e?.message ?? 'Network error.' })
+        setProgress(''); setMsg({ type: 'err', text: e?.message ?? 'Network error.' })
       }
     })
   }
@@ -142,7 +177,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
           disabled={pending || !file || !recs.length}
           className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition disabled:opacity-40 ${isNewRev ? 'bg-amber-700 hover:bg-amber-800' : 'bg-teal-700 hover:bg-teal-800'}`}
         >
-          {pending ? 'Submitting…' : isNewRev ? 'Submit new revision' : 'Submit for review'}
+          {pending ? (progress || 'Submitting…') : isNewRev ? 'Submit new revision' : 'Submit for review'}
         </button>
       </div>
     </div>
