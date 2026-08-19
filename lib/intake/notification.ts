@@ -10,7 +10,7 @@
 import type { AiReview } from './ai-review'
 
 const CF = {
-  navy: '#0b2a5b', navySub: '#b7cbee', ink: '#1f2937', muted: '#6b7280', line: '#e5e7eb',
+  navy: '#0b2a5b', navySub: '#b7cbee', teal: '#0e7c86', ink: '#1f2937', muted: '#6b7280', line: '#e5e7eb',
   green: '#157a3a', greenBg: '#eef7f0', greenLine: '#c3e3cd',
   red: '#b02a2a', redBg: '#fdeeee', redLine: '#f0c9c9',
   blue: '#1d4ed8', blueBg: '#e9eefc',
@@ -103,8 +103,14 @@ function docCard(fileName: string, r: AiReview | null): string {
 export function buildNotificationEmail(
   packageCode: string, packageName: string, vendorName: string,
   results: { fileName: string; review: AiReview | null }[],
+  batchUrl?: string,
 ): string {
   const cards = results.map((r) => docCard(r.fileName, r.review)).join('')
+  const button = batchUrl
+    ? `<div style="text-align:center;padding:6px 0 16px">
+        <a href="${esc(batchUrl)}" style="display:inline-block;background:${CF.teal};color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:12px 26px;border-radius:8px">Open batch to review &amp; route &rarr;</a>
+       </div>`
+    : ''
   return `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:680px;margin:0 auto;color:${CF.ink};border:1px solid ${CF.line};border-radius:10px;overflow:hidden">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CF.navy}"><tr><td style="padding:18px 20px">
       <div style="font-size:12px;letter-spacing:.10em;color:${CF.navySub};text-transform:uppercase">CoreDocs &middot; Vendor Document Pre-Review</div>
@@ -113,8 +119,9 @@ export function buildNotificationEmail(
     </td></tr></table>
     <div style="background:#ffffff;padding:16px">
       ${cards}
+      ${button}
       <div style="font-size:13px;color:${CF.muted};padding:10px 4px 0;border-top:1px solid ${CF.line};margin-top:4px">
-        The AI check is advisory — open the batch in CoreDocs to review, then reject or send for review.
+        The AI check is advisory — open the batch in CoreDocs to review the documents, then reject or send for review.
       </div>
     </div>
   </div>`

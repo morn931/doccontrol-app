@@ -20,6 +20,7 @@ import { buildNotificationEmail } from './notification'
 import { parseDocumentFileName } from '@/lib/utils/document-number-parser'
 
 const GROUP_WINDOW_MS = 60_000 // files dropped within 60s of each other form one batch
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 
 export interface PollSummary {
   vendorsPolled: number
@@ -158,7 +159,7 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
       await sendEmail({
         to: controllerEmail.split(/[;,]/).map((s) => s.trim()).filter(Boolean),
         subject: `New vendor upload — ${packageCode} — ${files.length} document(s)${anyMismatch ? ' — ⚠ AI flagged a mismatch' : ''}`,
-        htmlBody: buildNotificationEmail(packageCode, pkg?.package_name ?? packageCode, pkg?.vendors?.name ?? '', results),
+        htmlBody: buildNotificationEmail(packageCode, pkg?.package_name ?? packageCode, pkg?.vendors?.name ?? '', results, `${APP_URL}/batches/${batch.id}`),
       })
     } catch (e: any) { summary.errors.push(`notify ${packageCode}: ${e?.message}`) }
   }
