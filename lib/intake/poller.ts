@@ -157,8 +157,10 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
       else summary.errors.push(`ai ${f.name}: ${out.error}`)
     } catch (e: any) { summary.errors.push(`ai ${f.name}: ${e?.message}`) }
 
-    // 3. document_version row (carrying the AI classification + the check report)
-    const { error: dvErr } = await db.from('document_versions').insert({
+    // 3. document_version row (carrying the AI classification + the check report). Upsert on the
+    //    stable driveItem id so a re-poll of the same physical file updates rather than collides
+    //    (the ledger already prevents normal re-ingestion; this is belt-and-braces).
+    const { error: dvErr } = await db.from('document_versions').upsert({
       batch_id: batch.id,
       file_name: f.name,
       revision,
@@ -176,7 +178,7 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
       ai_review: review ?? null,
       status: 'uploaded',
       is_latest: true,
-    })
+    }, { onConflict: 'doc_unique_id', ignoreDuplicates: false })
     if (dvErr) summary.errors.push(`dv ${f.name}: ${dvErr.message}`)
 
     // 4. ledger — never ingest this drop-off file again
