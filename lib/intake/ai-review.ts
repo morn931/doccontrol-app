@@ -147,9 +147,11 @@ export async function reviewVendorDocument(opts: {
     const client = new Anthropic(opts.apiKey ? { apiKey: opts.apiKey } : undefined)
     const res = await client.messages.parse({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000, // headroom so thinking never crowds out the structured JSON
       system: SYSTEM,
-      output_config: { effort: 'medium', format: zodOutputFormat(ReviewSchema) },
+      // 'low' effort: this is title-block extraction + a field compare, not deep reasoning —
+      // keeps it fast (~15s) and stops thinking from consuming the output budget.
+      output_config: { effort: 'low', format: zodOutputFormat(ReviewSchema) },
       messages: [
         {
           role: 'user',
