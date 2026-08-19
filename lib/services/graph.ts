@@ -484,11 +484,23 @@ export async function copyFileToVendorReturn(
     if (!res.done) throw new Error(`Return copy failed after replacing existing file: ${fileName}`)
   }
 
-  if (res.webUrl) return { webUrl: res.webUrl }
-  // Fallback: confirm the file by name in the destination library.
-  const find = await graphFetch(`/drives/${destDriveId}/root:/${encodeURIComponent(fileName)}?$select=webUrl`)
-  if (find.ok) return { webUrl: (await find.json()).webUrl ?? '' }
-  return { webUrl: '' }
+  // Copy done. Fetch the destination item once — to return its URL and to clear the routing
+  // status column. A Graph copy can leave the item at the vendor list's "Awaiting Routing"
+  // default; normally-delivered files carry a blank status, so match that. Best-effort: vendor
+  // lists without an OverallStatus column simply no-op.
+  let webUrl = res.webUrl
+  const meta = await graphFetch(`/drives/${destDriveId}/root:/${encodeURIComponent(fileName)}?$select=id,webUrl`)
+  if (meta.ok) {
+    const j = await meta.json()
+    if (!webUrl) webUrl = j.webUrl ?? ''
+    try {
+      await graphFetch(`/drives/${destDriveId}/items/${j.id}/listItem/fields`, {
+        method: 'PATCH',
+        body: JSON.stringify({ OverallStatus: null }),
+      })
+    } catch { /* column absent on this vendor's list — ignore */ }
+  }
+  return { webUrl }
 }
 
 /**
