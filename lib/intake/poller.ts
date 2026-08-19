@@ -89,7 +89,7 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
     status: 'intake_received',
     file_count: files.length,
     received_at: new Date().toISOString(),
-    source: 'poller',
+    source: 'vendor', // a vendor intake — the "ingested by the poller" origin is in the audit event
   }).select().single()
   if (batchErr || !batch) throw new Error(`create batch: ${batchErr?.message}`)
 
