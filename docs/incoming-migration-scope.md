@@ -75,12 +75,36 @@ inactive, then retire.** (Low risk; not on the live app path.)
 - `la_run_batch_markup_summary` (triggers) → `la_summarise_markups` (HTTP). The app captures
   mark-ups natively (`document_markups`). **VERIFY, then retire.**
 
-## E. DOCUMENT REGISTER / MDDR — VERIFY before touching (some may be live)
-- `DocumentIndex` (weekly), `IndexMirror`, `DocuemntNumberBreakdown`, `FileLink_FOR_MDDR`,
-  `MDDR_Populate` (daily 04:00), `MDDREXCELIMPORT` (manual). These index documents / populate the
-  MDDR. The app has its own MDDR (`mddr_entries`) and doc-search, but these PA flows may still feed
-  SharePoint lists the app reads. **Map each against the app's current MDDR/search ingestion before
-  retiring — this is the group most likely to still be doing real work.**
+## E. DOCUMENT REGISTER / MDDR — AUDITED 2026-08-19: not a live app dependency
+`DocumentIndex` (weekly), `IndexMirror`, `DocuemntNumberBreakdown`, `FileLink_FOR_MDDR`,
+`MDDR_Populate` (daily 04:00), `MDDREXCELIMPORT` (manual). All operate **only on the old system's
+SharePoint lists** on the PMC site (a Master/MDDR list, a search-built "Document Index" list, an
+ImportSources list, FileLink columns). **None call the app.**
+
+**Audit vs the app's live MDDR/doc-search ingestion — the app is independent:**
+- **MDDR master register** ← CDDL/SDDR/MDDR **register workbooks**, nightly via
+  `scripts/refresh-registers.ts` (fed by CoreCost's `cddl_sync.py`/`sddr_sync.py`) + `lib/mddr/import.ts`.
+  **Not** the SharePoint Master list that `MDDR_Populate` maintains.
+- **Progress / status** ← the app's own review engine (`review_tasks`) via the **`mddr-sync`** cron
+  (`lib/mddr/sync.ts` → Rules of Credit). Fully in-app.
+- **Doc-search completeness** ← **`eng2-sync`** cron (reads the ENG2 libraries **directly** via Graph)
+  + `sharepoint-sync` (Approval List). Independent of the PA index.
+- Confirmed: **no live route/lib/cron reads the PA-maintained index/master lists** (only a manual
+  script does — next line).
+
+**The one real prerequisite — `DocumentIndex`.** `scripts/import-docindex.py` (manual, occasional,
+not a cron) reads the PA **"Document Index"** list to TOP UP Document Search with docs that are
+**not** in the register workbooks and **not** in ENG2 — early works (K038), SHERQ, QC,
+plans/procedures, specs/datasheets, often on other SharePoint sites. Already-imported rows persist,
+but retiring `DocumentIndex` removes the source for *future* such docs. **Before retiring it: either
+confirm the app's own search ingestion already covers those sites/sectors, or build an in-app Graph
+`/search/query` equivalent (a few days).** `sp-resolve.ts` also repairs links that originated here —
+that's downstream consumption of stored data, not a live read.
+
+**Disposition:** `MDDR_Populate`, `DocuemntNumberBreakdown`, `IndexMirror`, `MDDREXCELIMPORT`,
+`FileLink_FOR_MDDR` maintain the old SharePoint register the app no longer reads → **retire once
+confirmed nothing else consumes those SharePoint lists**. `DocumentIndex` → **replace its
+Document-Search top-up first**, then retire.
 
 ## F. NOT CoreDocs — other modules (out of scope for this migration)
 On Power Automate but belonging to other systems; note they exist but don't touch them here:
@@ -106,8 +130,9 @@ The outgoing side (C) is done. To finish CoreDocs' independence:
    `la-intake-core-sa` once parity holds. **Do not disable before parity.** _(S, gated)_
 7. **T7 — Retire the legacy side-flows** (B, D, and any of C not covered) after confirming they're
    inactive. _(S)_
-8. **T8 — Audit group E (register/MDDR)** against the app's current ingestion **before** retiring
-   anything there. _(M — investigation)_
+8. **T8 — Group E (register/MDDR): AUDITED ✓ (2026-08-19).** Not a live app dependency (see group E).
+   Remaining work: **replace the `DocumentIndex` → `import-docindex.py` Document-Search top-up** (confirm
+   app search covers those sites, or build an in-app Graph `/search/query`), then retire the six flows. _(S–M)_
 
 ## Decisions / confirmations needed from Morné + Liezl
 1. **Trigger:** cron poll (recommended) vs Graph change-notifications.
