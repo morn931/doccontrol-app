@@ -439,29 +439,52 @@ export async function copyFileToVendorReturn(
   const destSiteId  = await getSiteId(destSiteUrl)
   const destDriveId = await getLibraryDriveId(destSiteId, destLibraryName)
 
-  const copyRes = await graphFetch(`/drives/${src.driveId}/items/${src.id}/copy`, {
-    method: 'POST',
-    body: JSON.stringify({
-      parentReference: { driveId: destDriveId, id: 'root' },
-      name: fileName,
-      '@microsoft.graph.conflictBehavior': 'replace',
-    }),
-  })
-  if (!copyRes.ok && copyRes.status !== 202) {
-    throw new Error(`Return copy failed (${copyRes.status}): ${(await copyRes.text()).slice(0, 200)}`)
+  // One copy attempt. Returns {conflict:true} when Graph's async copy fails with
+  // nameAlreadyExists — because the async copy action IGNORES conflictBehavior:'replace'
+  // and errors when the target exists (commonly a stale prior return). The caller then
+  // deletes the stale target and retries, so the current reviewed copy always wins.
+  const attemptCopy = async (): Promise<{ done: boolean; webUrl: string; conflict: boolean }> => {
+    const copyRes = await graphFetch(`/drives/${src.driveId}/items/${src.id}/copy`, {
+      method: 'POST',
+      body: JSON.stringify({
+        parentReference: { driveId: destDriveId, id: 'root' },
+        name: fileName,
+        '@microsoft.graph.conflictBehavior': 'replace',
+      }),
+    })
+    if (!copyRes.ok && copyRes.status !== 202) {
+      throw new Error(`Return copy failed (${copyRes.status}): ${(await copyRes.text()).slice(0, 200)}`)
+    }
+    const monitorUrl = copyRes.headers.get('Location')
+    if (monitorUrl) {
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 2000))
+        const poll = await fetch(monitorUrl)
+        const pd = await poll.json().catch(() => ({} as any))
+        if (pd.status === 'completed') return { done: true, webUrl: pd.resourceLocation ?? '', conflict: false }
+        if (pd.status === 'failed') {
+          const msg = JSON.stringify(pd.error ?? pd)
+          if (/nameAlreadyExists/i.test(msg)) return { done: false, webUrl: '', conflict: true }
+          throw new Error(`Return copy operation failed: ${msg.slice(0, 200)}`)
+        }
+      }
+    }
+    return { done: true, webUrl: '', conflict: false }   // no monitor → treat as complete
   }
 
-  // Async copy — poll the monitor URL until it completes.
-  const monitorUrl = copyRes.headers.get('Location')
-  if (monitorUrl) {
-    for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 2000))
-      const poll = await fetch(monitorUrl)
-      const pd = await poll.json().catch(() => ({} as any))
-      if (pd.status === 'completed') return { webUrl: pd.resourceLocation ?? '' }
-      if (pd.status === 'failed') throw new Error(`Return copy operation failed: ${JSON.stringify(pd).slice(0, 200)}`)
+  let res = await attemptCopy()
+  if (!res.done && res.conflict) {
+    // Delete the existing (often stale) target, then copy the current reviewed copy in its place.
+    const ex = await graphFetch(`/drives/${destDriveId}/root:/${encodeURIComponent(fileName)}?$select=id`)
+    if (ex.ok) {
+      const id = (await ex.json()).id
+      await graphFetch(`/drives/${destDriveId}/items/${id}`, { method: 'DELETE' })
     }
+    res = await attemptCopy()
+    if (!res.done) throw new Error(`Return copy failed after replacing existing file: ${fileName}`)
   }
+
+  if (res.webUrl) return { webUrl: res.webUrl }
   // Fallback: confirm the file by name in the destination library.
   const find = await graphFetch(`/drives/${destDriveId}/root:/${encodeURIComponent(fileName)}?$select=webUrl`)
   if (find.ok) return { webUrl: (await find.json()).webUrl ?? '' }
