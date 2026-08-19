@@ -420,6 +420,55 @@ export async function copyFileToDocControl(
 }
 
 /**
+ * Return a reviewed document to the vendor's OWN return library (e.g. "TO VENDOR" on the
+ * K137 site), addressed by the reviewed copy's full central SharePoint URL. Cross-drive
+ * server-side copy (source driveItem → the destination library drive on the vendor site),
+ * polling the async Graph copy monitor. This is the in-app replacement for the legacy
+ * Power Automate "Approver Picks" return flow — so new-app batches actually deliver their
+ * files. conflictBehavior 'replace' so a re-run overwrites rather than duplicating.
+ */
+export async function copyFileToVendorReturn(
+  sourceFileUrl:   string,
+  destSiteUrl:     string,
+  destLibraryName: string,
+  fileName:        string,
+): Promise<{ webUrl: string }> {
+  const src = await resolveDriveItemByUrl(sourceFileUrl)
+  if (!src?.id || !src.driveId) throw new Error(`Return source not found in SharePoint: ${sourceFileUrl}`)
+
+  const destSiteId  = await getSiteId(destSiteUrl)
+  const destDriveId = await getLibraryDriveId(destSiteId, destLibraryName)
+
+  const copyRes = await graphFetch(`/drives/${src.driveId}/items/${src.id}/copy`, {
+    method: 'POST',
+    body: JSON.stringify({
+      parentReference: { driveId: destDriveId, id: 'root' },
+      name: fileName,
+      '@microsoft.graph.conflictBehavior': 'replace',
+    }),
+  })
+  if (!copyRes.ok && copyRes.status !== 202) {
+    throw new Error(`Return copy failed (${copyRes.status}): ${(await copyRes.text()).slice(0, 200)}`)
+  }
+
+  // Async copy — poll the monitor URL until it completes.
+  const monitorUrl = copyRes.headers.get('Location')
+  if (monitorUrl) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 2000))
+      const poll = await fetch(monitorUrl)
+      const pd = await poll.json().catch(() => ({} as any))
+      if (pd.status === 'completed') return { webUrl: pd.resourceLocation ?? '' }
+      if (pd.status === 'failed') throw new Error(`Return copy operation failed: ${JSON.stringify(pd).slice(0, 200)}`)
+    }
+  }
+  // Fallback: confirm the file by name in the destination library.
+  const find = await graphFetch(`/drives/${destDriveId}/root:/${encodeURIComponent(fileName)}?$select=webUrl`)
+  if (find.ok) return { webUrl: (await find.json()).webUrl ?? '' }
+  return { webUrl: '' }
+}
+
+/**
  * Upload NEW file bytes (from a browser upload) into a document library in the
  * DocumentControl site — used by the internal-engineering driveway so the review
  * copy gets a SharePoint webUrl and the existing review engine (serve + mark-up +

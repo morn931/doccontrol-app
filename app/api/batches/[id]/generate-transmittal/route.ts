@@ -4,10 +4,15 @@ import { getPermissions, can, FK } from '@/lib/permissions'
 import { sendEmail, getFileBytesByUrl, uploadBytesToLibrary, setLibraryItemFields, ENGINEERING_SITE_URL } from '@/lib/services/graph'
 import { disciplineName } from '@/lib/mddr/disciplines'
 import { vendorTransmittalEmail } from '@/lib/services/email-templates'
-import { setApproverPicksReturnRequested } from '@/lib/services/sharepoint-lists'
+import { returnBatchFilesToVendor, type VendorReturnResult } from '@/lib/services/return-to-vendor'
 import { OUTCOME_CODES } from '@/lib/utils/outcome-codes'
 import { logActivity } from '@/lib/activity'
 import { format } from 'date-fns'
+
+// The vendor return now copies files in-app via Graph (poll-per-file), so give the route
+// headroom beyond the default function timeout — matches the other heavy batch routes.
+export const runtime = 'nodejs'
+export const maxDuration = 120
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +22,33 @@ function worstCode(codes: string[]): string {
 }
 function outcomeText(code: string): string {
   return (OUTCOME_CODES as any)[code]?.text ?? code
+}
+
+// Resolve missing document titles from the MDDR register (mddr_entries.document_title),
+// keyed by the base document number, so the transmittal's "Document Title" column shows the
+// real title instead of falling back to the file name (= the document number) when a
+// version's doc_name is null. Best-effort: any lookup failure leaves the existing fallback
+// untouched (returns an empty map), so transmittal generation is never blocked by it.
+async function resolveRegisterTitles(db: any, docVersions: any[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  const needing = docVersions.filter((d: any) => !d.doc_name && d.file_name)
+  if (!needing.length) return map
+  const numberOf = (fileName: string, revision: string | null) => {
+    const base = String(fileName).replace(/\.[^.]+$/, '')             // strip extension
+    return revision ? base.replace(new RegExp(`_${revision}$`, 'i'), '') : base  // strip _<rev>
+  }
+  const byNumber = new Map<string, string>()   // documentNumber → dv.id
+  for (const d of needing) byNumber.set(numberOf(d.file_name, d.revision), d.id)
+  try {
+    const { data } = await db.from('mddr_entries')
+      .select('document_number, document_title')
+      .in('document_number', [...byNumber.keys()])
+    for (const r of data ?? []) {
+      const dvId = byNumber.get(r.document_number)
+      if (dvId && r.document_title) map.set(dvId, r.document_title)
+    }
+  } catch { /* best-effort — leave titles unresolved, fall back to file name as before */ }
+  return map
 }
 
 // Internal reviews (a PPE engineer's drawing, not a client/vendor submission) use a
@@ -376,6 +408,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const capMap = await capturedCommentMap(db, docVersions.map((dv: any) => dv.id))
+  const titleMap = await resolveRegisterTitles(db, docVersions)
 
   const documents: TransmittalDocument[] = docVersions.map((dv: any) => {
     const tasks   = tasksByDv[dv.id] ?? []
@@ -383,7 +416,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const outCode = worstCode(codes) || 'A1'
     const docCaptured = tasks.flatMap((t: any) => capMap[`${dv.id}::${t.reviewer_email}`] ?? [])
     return {
-      fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
+      fileName: dv.file_name, docName: dv.doc_name ?? titleMap.get(dv.id) ?? null, revision: dv.revision,
       discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
       outcomeCode: outCode, markupSummary: docCaptured.join('; '),
       reviewers: tasks.map((t: any) => ({
@@ -484,6 +517,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const capMap = await capturedCommentMap(db, docVersions.map((dv: any) => dv.id))
+  const titleMap = await resolveRegisterTitles(db, docVersions)
 
   const documents: TransmittalDocument[] = docVersions.map((dv: any) => {
     const tasks   = tasksByDv[dv.id] ?? []
@@ -491,7 +525,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const outCode = worstCode(codes) || 'A1'
     const docCaptured = tasks.flatMap((t: any) => capMap[`${dv.id}::${t.reviewer_email}`] ?? [])
     return {
-      fileName: dv.file_name, docName: dv.doc_name, revision: dv.revision,
+      fileName: dv.file_name, docName: dv.doc_name ?? titleMap.get(dv.id) ?? null, revision: dv.revision,
       discipline: dv.discipline, documentType: dv.document_type, topic: dv.topic,
       outcomeCode: outCode, markupSummary: docCaptured.join('; '),
       reviewers: tasks.map((t: any) => ({
@@ -564,33 +598,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     attachments: [{ name: `${transmittalNumber}.pdf`, contentType: 'application/pdf', content: pdfBuffer }],
   })
 
-  // Trigger the existing Logic App return-to-vendor flow.
-  // Awaited before responding — Vercel kills fire-and-forget tasks when response is sent.
-  // A failure here logs a warning but does NOT fail the transmittal response.
+  // Return the reviewed documents to the vendor's own SharePoint library — done IN-APP via
+  // Graph (replaces the legacy Power Automate "Approver Picks" flow, which silently skipped
+  // batches created in the new app, so their files never reached the vendor). Awaited before
+  // responding — Vercel kills fire-and-forget work once the response is sent. A failure is
+  // surfaced in the response + audit, but does NOT fail the transmittal itself.
+  let vendorReturn: VendorReturnResult = { ok: false, total: 0, copied: 0, failed: 0, skipped: 0, errors: [] }
   try {
-    // Look up the authoritative vendor site root URL from the vendor registry.
-    let sourceSiteUrl: string | null = null
-    if (batch.package_id) {
-      const { data: vendorSite } = await db
-        .from('vendor_sites')
-        .select('site_url')
-        .eq('package_id', batch.package_id)
-        .eq('active', true)
-        .single()
-      sourceSiteUrl = vendorSite?.site_url ?? null
-    }
-    // Fall back: strip library path from batch.source_site_url to get site root
-    if (!sourceSiteUrl && (batch as any).source_site_url) {
-      const raw: string = (batch as any).source_site_url
-      const m = raw.match(/^(https:\/\/[^/]+\/sites\/[^/?#]+)/)
-      sourceSiteUrl = m ? m[1] : raw
-    }
-    const returnResult = await setApproverPicksReturnRequested(batch.batch_guid, sourceSiteUrl)
-    if (!returnResult.ok) console.warn('Return-to-vendor trigger warning:', returnResult.error)
-    else console.log('Return-to-vendor: ReturnRequested=true set on Approver Picks item')
+    vendorReturn = await returnBatchFilesToVendor(db, batch)
+    if (vendorReturn.ok) console.log(`Return-to-vendor: copied ${vendorReturn.copied}/${vendorReturn.total} → ${vendorReturn.returnLibrary}`)
+    else console.warn('Return-to-vendor incomplete:', JSON.stringify(vendorReturn))
   } catch (e: any) {
-    console.warn('Return-to-vendor trigger error:', e?.message)
+    console.warn('Return-to-vendor error:', e?.message)
+    vendorReturn.errors.push(e?.message ?? String(e))
   }
+  const returnedAt = vendorReturn.ok ? new Date().toISOString() : null
 
   // Store transmittal record. generated_by is a UUID FK to users(id) — must be the
   // user's id, NOT their email (an email here fails the insert, which was silently
@@ -604,18 +626,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     final_outcome_text: outcomeText(overallCode),
     generated_by: profile?.id ?? null,
     status: 'sent',
+    returned_to_vendor_at: returnedAt,
   })
   if (transmittalErr) console.error('Transmittal record insert failed:', transmittalErr.message)
 
-  await db.from('batches').update({ status:'transmittal_generated', updated_at: new Date().toISOString() }).eq('id', batchId)
+  await db.from('batches').update({
+    status: vendorReturn.ok ? 'returned_to_vendor' : 'transmittal_generated',
+    ...(returnedAt ? { returned_at: returnedAt } : {}),
+    updated_at: new Date().toISOString(),
+  }).eq('id', batchId)
   await db.from('audit_events').insert({
     entity_type:'batch', entity_id:batchId, event_type:'transmittal_generated',
     actor_email: controllerEmail,
-    event_data: { transmittalNumber, overallCode, toEmail, documentCount: documents.length },
+    event_data: {
+      transmittalNumber, overallCode, toEmail, documentCount: documents.length,
+      vendorReturn: { ok: vendorReturn.ok, copied: vendorReturn.copied, total: vendorReturn.total,
+                      failed: vendorReturn.failed, errors: vendorReturn.errors.slice(0, 10) },
+    },
   })
 
   await logActivity({ area: 'transmittals', action: 'transmittal.generate', targetType: 'batch', targetId: batchId, summary: `${transmittalNumber} → ${toEmail} (${overallCode})`, email: controllerEmail })
-  return NextResponse.json({ success: true, transmittalNumber, transmittalDate, toEmail, transmittalData })
+  return NextResponse.json({ success: true, transmittalNumber, transmittalDate, toEmail, transmittalData,
+    vendorReturn: { ok: vendorReturn.ok, copied: vendorReturn.copied, total: vendorReturn.total,
+                    failed: vendorReturn.failed, errors: vendorReturn.errors } })
   } catch (e: any) {
     console.error('POST /generate-transmittal unhandled error:', e)
     return NextResponse.json({ error: `Server error: ${e?.message ?? String(e)}` }, { status: 500 })
