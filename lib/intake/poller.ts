@@ -121,7 +121,7 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
     } catch (e: any) { summary.errors.push(`ai ${f.name}: ${e?.message}`) }
 
     // 3. document_version row (carrying the AI classification + the check report)
-    await db.from('document_versions').insert({
+    const { error: dvErr } = await db.from('document_versions').insert({
       batch_id: batch.id,
       file_name: f.name,
       revision,
@@ -135,11 +135,12 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
       document_type: review?.extracted.document_type ?? null,
       topic: review?.extracted.topic ?? null,
       ai_text: review?.checks.notes ?? null,
-      ai_metadata_source: 'claude',
+      ai_metadata_source: 'ai', // CHECK: 'ai' | 'manually_confirmed' | 'manually_overridden'
       ai_review: review ?? null,
       status: 'uploaded',
       is_latest: true,
     })
+    if (dvErr) summary.errors.push(`dv ${f.name}: ${dvErr.message}`)
 
     // 4. ledger — never ingest this drop-off file again
     await db.from('intake_ingest_ledger').upsert(
