@@ -292,6 +292,54 @@ export async function getDriveItemContentBytes(driveId: string, itemId: string, 
   return res.arrayBuffer()
 }
 
+/** List PDF files in a vendor drop-off library (the "FROM VENDOR" bucket) with the fields the
+ *  in-app intake poller needs: the driveItem id (ledger key + copy/download source), name,
+ *  created time, and the drive id. Sorted oldest-first by creation time. */
+export async function listDropoffPdfs(
+  siteUrl: string, libraryName: string,
+): Promise<{ driveId: string; id: string; name: string; createdDateTime: string; webUrl: string }[]> {
+  const siteId = await getSiteId(siteUrl)
+  const driveId = await getLibraryDriveId(siteId, libraryName)
+  const out: { driveId: string; id: string; name: string; createdDateTime: string; webUrl: string }[] = []
+  let url: string | null = `/sites/${siteId}/drives/${driveId}/root/children?$select=id,name,createdDateTime,file,webUrl&$top=200`
+  for (let i = 0; i < 20 && url; i++) {
+    const r = await graphFetch(url)
+    if (!r.ok) throw new Error(`List drop-off "${libraryName}" failed (${r.status}): ${(await r.text()).slice(0, 150)}`)
+    const j = await r.json()
+    for (const it of (j.value ?? [])) {
+      if (!it.file || !/\.pdf$/i.test(it.name || '')) continue
+      out.push({ driveId, id: it.id, name: it.name, createdDateTime: it.createdDateTime, webUrl: it.webUrl })
+    }
+    url = j['@odata.nextLink'] ? j['@odata.nextLink'].replace('https://graph.microsoft.com/v1.0', '') : null
+  }
+  return out.sort((a, b) => (a.createdDateTime || '').localeCompare(b.createdDateTime || ''))
+}
+
+/** Copy a drop-off driveItem into a DocumentControl package library (cross-drive async copy;
+ *  poll the monitor). Returns the new file's webUrl — the document_versions.central_file_url. */
+export async function copyDriveItemToLibrary(
+  srcDriveId: string, srcItemId: string, destSiteUrl: string, destLibraryName: string, fileName: string,
+): Promise<string> {
+  const destSiteId = await getSiteId(destSiteUrl)
+  const destDriveId = await getLibraryDriveId(destSiteId, destLibraryName)
+  const copyRes = await graphFetch(`/drives/${srcDriveId}/items/${srcItemId}/copy`, {
+    method: 'POST',
+    body: JSON.stringify({ parentReference: { driveId: destDriveId, id: 'root' }, name: fileName, '@microsoft.graph.conflictBehavior': 'replace' }),
+  })
+  if (!copyRes.ok && copyRes.status !== 202) throw new Error(`Copy to "${destLibraryName}" failed (${copyRes.status}): ${(await copyRes.text()).slice(0, 150)}`)
+  const monitor = copyRes.headers.get('Location')
+  if (monitor) {
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      const p = await fetch(monitor); const pd = await p.json().catch(() => ({} as any))
+      if (pd.status === 'completed') break
+      if (pd.status === 'failed') throw new Error(`Copy op failed: ${JSON.stringify(pd.error ?? pd).slice(0, 150)}`)
+    }
+  }
+  const find = await graphFetch(`/drives/${destDriveId}/root:/${encodeURIComponent(fileName)}?$select=webUrl`)
+  return find.ok ? ((await find.json()).webUrl ?? '') : ''
+}
+
 /** Replace a SharePoint file's content in place from a full file URL (simple upload,
  *  fine for the < ~4 MB flattened spec PDFs). SharePoint stays authoritative — this
  *  writes the marked-up copy back so the next reviewer sees prior mark-ups. */
