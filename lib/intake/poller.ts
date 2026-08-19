@@ -63,14 +63,51 @@ async function lookupSddr(db: any, docNumber: string): Promise<SddrExpected | nu
   return null
 }
 
+function esc(s: unknown): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 function reviewLine(fileName: string, r: AiReview | null): string {
-  if (!r) return `<li><b>${fileName}</b> — AI review unavailable</li>`
+  if (!r) return `<li><b>${esc(fileName)}</b> — AI review unavailable</li>`
   const icon = r.overall === 'MISMATCH' ? '❌' : r.overall === 'PASS' ? '✅' : 'ℹ️'
-  const mism = r.validation.filter((v) => !v.match)
-  const detail = mism.length
-    ? '<ul>' + mism.map((v) => `<li>${v.field}: SDDR "${v.expected}" vs document "${v.found}"</li>`).join('') + '</ul>'
-    : (r.overall === 'EXTRACTED' ? '<div style="color:#555">No SDDR on record — extracted only.</div>' : '<div style="color:#555">All checked fields match the SDDR.</div>')
-  return `<li><b>${fileName}</b> — AI Check: ${icon} ${r.overall}${detail}</li>`
+  const x = r.extracted
+
+  // What the AI read (shown for every document, SDDR or not).
+  const extracted = [
+    `<b>Title:</b> ${esc(x.title)}`,
+    `<b>Rev:</b> ${esc(x.revision)}`,
+    `<b>Purpose:</b> ${esc(x.status_purpose)}`,
+    `<b>Type:</b> ${esc(x.document_type)}`,
+    x.discipline ? `<b>Discipline:</b> ${esc(x.discipline)}` : '',
+  ].filter(Boolean).join(' &nbsp;|&nbsp; ')
+
+  const checks = [
+    `TOC: ${r.checks.has_table_of_contents ? 'present' : (r.checks.toc_required_but_missing ? '⚠ missing' : 'n/a')}`,
+    `Template: ${r.checks.appears_correct_template ? 'looks correct' : '⚠ check'}`,
+    r.document_kind === 'drawing' ? `Cover-page label: ${esc(r.checks.cover_page_label)}` : '',
+    r.document_kind === 'drawing' ? `Contents-page label: ${esc(r.checks.toc_page_label)}` : '',
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ')
+
+  // SDDR comparison (only when there is one).
+  let sddr: string
+  if (r.validation.length) {
+    const mism = r.validation.filter((v) => !v.match)
+    sddr = mism.length
+      ? '<div style="color:#b00000;margin-top:4px"><b>SDDR mismatches:</b><ul style="margin:2px 0">'
+        + mism.map((v) => `<li>${esc(v.field)}: SDDR &ldquo;${esc(v.expected)}&rdquo; vs document &ldquo;${esc(v.found)}&rdquo;</li>`).join('')
+        + '</ul></div>'
+      : '<div style="color:#0a7a0a;margin-top:4px">All checked fields match the SDDR.</div>'
+  } else {
+    sddr = '<div style="color:#777;margin-top:4px">No SDDR on record for this vendor — extracted only (no comparison).</div>'
+  }
+
+  return `<li style="margin-bottom:14px">`
+    + `<b>${esc(fileName)}</b> — AI Check: ${icon} <b>${r.overall}</b>`
+    + `<div style="font-size:13px;margin:4px 0">${extracted}</div>`
+    + `<div style="font-size:12px;color:#555">${checks}</div>`
+    + sddr
+    + (r.checks.notes ? `<div style="font-size:12px;color:#555;margin-top:4px"><i>${esc(r.checks.notes)}</i></div>` : '')
+    + `</li>`
 }
 
 async function ingestBatch(db: any, site: any, files: any[], summary: PollSummary) {
