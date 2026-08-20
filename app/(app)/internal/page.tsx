@@ -22,6 +22,9 @@ function computeStage(b: any, nameBy: Record<string, string>) {
   const rts = [...(b.review_tasks ?? [])].sort((a: any, c: any) => a.sequence_number - c.sequence_number)
   const sts = [...(b.signoff_tasks ?? [])].sort((a: any, c: any) => a.sequence_number - c.sequence_number)
   const now = Date.now()
+  // "Sign-off only": a revision returned from Aconex, already reviewed. soReq = an owner asked to
+  // skip review but the DC hasn't flagged it yet.
+  const soReq = !!b.signoff_only_requested_by && !b.signoff_only
 
   if (st === 'signed') return { key: 'signed', label: 'Signed — ready to issue', holder: 'Document Control', action: 'Issue to Aconex' }
   if (st === 'transmittal_generated') return { key: 'issued', label: 'Returned to engineer', holder: 'Document Control', action: 'Send for sign-off' }
@@ -34,14 +37,14 @@ function computeStage(b: any, nameBy: Record<string, string>) {
     if (cur) return { key: 'in_signoff', label: 'In sign-off', holder: displayName(nameBy, cur.signatory_email), holderMeta: cur.role_label ?? null, action: 'Chase signatory' }
     return { key: 'in_signoff', label: 'Sign-off', holder: 'Document Control', action: '—' }
   }
-  if (st === 'review_complete') return { key: 'awaiting_signoff', label: 'Review complete', holder: 'Document Control', action: 'Send for sign-off' }
+  if (st === 'review_complete') return { key: 'awaiting_signoff', label: b.signoff_only ? 'Sign-off only — ready to sign' : 'Review complete', holder: 'Document Control', action: 'Send for sign-off', note: b.signoff_only ? 'Returned from Aconex — review skipped (already reviewed)' : null }
   if (st === 'review_in_progress') {
     const cur = rts.find((t: any) => !OPEN_REVIEW.includes(t.status))
     const overdue = !!(cur?.due_date && new Date(cur.due_date).getTime() < now)
     return { key: 'in_review', label: 'In review', holder: displayName(nameBy, cur?.reviewer_email), holderMeta: cur?.status ?? null, overdue, action: 'Chase reviewer' }
   }
-  if (st === 'review_ready_to_start') return { key: 'setup', label: 'Review not started', holder: 'Document Control', action: 'Start review' }
-  if (st === 'metadata_pending') return { key: 'setup', label: 'Awaiting reviewer assignment', holder: 'Document Control', action: 'Assign reviewers' }
+  if (st === 'review_ready_to_start') return { key: 'setup', label: soReq ? 'Sign-off only requested' : 'Review not started', holder: 'Document Control', action: soReq ? 'Flag sign-off only' : 'Start review', note: soReq ? 'Returned from Aconex — owner asked to skip review' : null }
+  if (st === 'metadata_pending') return { key: 'setup', label: soReq ? 'Sign-off only requested' : 'Awaiting reviewer assignment', holder: 'Document Control', action: soReq ? 'Flag sign-off only' : 'Assign reviewers', note: soReq ? 'Returned from Aconex — owner asked to skip review' : null }
   return { key: 'other', label: st, holder: '—', action: '—' }
 }
 
@@ -53,6 +56,7 @@ export default async function InternalTrackerPage() {
   const db = createServiceClient()
   const { data: batches } = await db.from('batches')
     .select(`id, source, status, internal_ref, updated_at, received_at,
+             signoff_only, signoff_only_requested_by,
              document_versions(file_name, doc_name, revision),
              review_tasks(reviewer_email, sequence_number, status, date_sent, due_date, date_completed),
              signoff_tasks(signatory_email, role_label, sequence_number, status, signed_at, decline_reason)`)
