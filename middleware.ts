@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
     // review-notification emails carry ?next=/reviews/<id>) or the dashboard.
     if (user && pathname === '/login') {
       const next = request.nextUrl.searchParams.get('next')
-      const dest = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
+      const dest = next && next.startsWith('/') && !next.startsWith('//') ? next : '/home'
       return NextResponse.redirect(new URL(dest, request.url))
     }
     return supabaseResponse
