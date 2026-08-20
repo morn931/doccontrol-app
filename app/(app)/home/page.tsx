@@ -1,13 +1,16 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCockpitData, type CockpitBatch } from '@/lib/cockpit'
+import { getTimeAndLeave, type TimeAndLeave } from '@/lib/coretime'
 import Link from 'next/link'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
   ClipboardList, Clock, CheckCircle2, AlertTriangle, FileText, ListChecks,
-  ArrowRight, CalendarClock, ChevronRight,
+  ArrowRight, CalendarClock, ChevronRight, Timer, UserCheck, Plane,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
+
+const CORETIME_URL = 'https://time.coreflow.build'
 
 const SOURCE_LABEL: Record<string, string> = {
   design_review: 'Design review', meeting: 'Meeting', email: 'Email', manual: 'Manual',
@@ -70,6 +73,73 @@ function ProgressBatch({ b }: { b: CockpitBatch }) {
   )
 }
 
+function weekLabel(w: string): string {
+  try { return format(new Date(w + 'T00:00:00'), 'd MMM') } catch { return w }
+}
+
+// Time & Leave — reads CoreTime (shared DB). Fails soft to a "connecting" state
+// when the CoreTime link isn't configured, so the panel never errors.
+function TimeLeavePanel({ tl }: { tl: TimeAndLeave }) {
+  const total = tl.counts.total
+  return (
+    <section className="card overflow-hidden p-0">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-indigo-600"><CalendarClock className="h-4 w-4" /></span>
+        <h2 className="font-semibold text-slate-900">Time &amp; Leave</h2>
+        <span className={`ml-auto rounded-full px-2.5 py-0.5 text-xs font-semibold ${!tl.configured ? 'bg-slate-100 text-slate-400' : total > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-600'}`}>
+          {!tl.configured ? 'Connecting' : total > 0 ? `${total} to clear` : 'All clear'}
+        </span>
+      </div>
+
+      {!tl.configured ? (
+        <div className="px-5 py-8 text-center text-sm text-slate-400">
+          Your timesheets, approvals and leave will land here — the CoreTime link is being switched on.
+        </div>
+      ) : total === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-slate-400">
+          <CheckCircle2 className="mx-auto mb-2 h-9 w-9 opacity-30" />
+          Nothing outstanding — your time&apos;s booked and no approvals are waiting on you.
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {tl.weeks.length > 0 && (
+            <a href={CORETIME_URL} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-slate-50">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-600"><Timer className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-slate-800">Book your own time</div>
+                <div className="mt-0.5 text-xs text-slate-400">
+                  {tl.weeks.length} week{tl.weeks.length !== 1 ? 's' : ''} outstanding · {tl.weeks.map((w) => weekLabel(w.weekStart)).slice(0, 4).join(', ')}
+                </div>
+              </div>
+              <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{tl.weeks.length}</span>
+            </a>
+          )}
+          {tl.approvals.map((a) => (
+            <a key={`${a.memberName}:${a.weekStart}`} href={CORETIME_URL} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-slate-50">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-600"><UserCheck className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-slate-800">Approve {a.memberName}&apos;s timesheet</div>
+                <div className="mt-0.5 text-xs text-slate-400">Week of {weekLabel(a.weekStart)} · {a.hours}h · {a.entries} entr{a.entries !== 1 ? 'ies' : 'y'}</div>
+              </div>
+              <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">Waiting</span>
+            </a>
+          ))}
+          {tl.leave.map((l, i) => (
+            <a key={`leave-${i}`} href={CORETIME_URL} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-slate-50">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600"><Plane className="h-4 w-4" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-slate-800">{l.employeeName} — leave request</div>
+                <div className="mt-0.5 text-xs text-slate-400">{l.days} day{l.days !== 1 ? 's' : ''}{l.leaveType ? ` · ${l.leaveType}` : ''}{l.stage === 'final' ? ' · final sign-off' : ''}</div>
+              </div>
+              <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Approve</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default async function HomePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -78,13 +148,15 @@ export default async function HomePage() {
   const email = profile?.email ?? ''
   const firstName = (profile?.full_name ?? email).split(' ')[0] || 'there'
 
-  const { reviewQueue, inProgress, actions, counts } = await getCockpitData(email)
+  const [cockpit, timeLeave] = await Promise.all([getCockpitData(email), getTimeAndLeave(email)])
+  const { reviewQueue, inProgress, actions, counts } = cockpit
 
   const chips = [
     { show: counts.overdue > 0, n: counts.overdue, label: 'overdue', dot: 'bg-red-500' },
     { show: counts.queueBatches > 0, n: counts.queueBatches, label: 'to start', dot: 'bg-amber-500' },
     { show: counts.inProgressBatches > 0, n: counts.inProgressBatches, label: 'in progress', dot: 'bg-teal-500' },
     { show: counts.actionsOpen > 0, n: counts.actionsOpen, label: 'action items', dot: 'bg-sky-500' },
+    { show: timeLeave.counts.total > 0, n: timeLeave.counts.total, label: 'time & leave', dot: 'bg-indigo-500' },
     { show: counts.queued > 0, n: counts.queued, label: 'queued for later', dot: 'bg-slate-400' },
   ].filter((c) => c.show)
 
@@ -200,17 +272,8 @@ export default async function HomePage() {
             </Link>
           </section>
 
-          {/* Time & Leave — cross-database panel, wired next (CoreTime) */}
-          <section className="card overflow-hidden p-0">
-            <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500"><CalendarClock className="h-4 w-4" /></span>
-              <h2 className="font-semibold text-slate-900">Time &amp; Leave</h2>
-              <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-400">Connecting</span>
-            </div>
-            <div className="px-5 py-8 text-center text-sm text-slate-400">
-              Your timesheets to book, approvals waiting on you and leave requests will land here — wiring the CoreTime link next.
-            </div>
-          </section>
+          {/* Time & Leave — live from CoreTime (shared DB), fail-soft */}
+          <TimeLeavePanel tl={timeLeave} />
         </div>
       </div>
 
