@@ -17,6 +17,7 @@ export interface NavPerms {
   internalReview: boolean
   signoffs:     boolean
   engineeringActions: boolean
+  signoffIntake: boolean
 }
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms; inDrawer?: boolean }
@@ -30,7 +31,7 @@ const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-
 // Every nav destination — the ACTIVE item is the LONGEST href that matches the current
 // path, so /documents/requests no longer also lights up /documents ("Document Search").
 const NAV_HREFS = [
-  '/home', '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/batches', '/internal', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
+  '/home', '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/signoff-intake', '/batches', '/internal', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
   '/mddr', '/reporting', '/aconex-review', '/aconex-issue', '/rfi', '/cddl', '/sddr',
   '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
 ]
@@ -78,6 +79,9 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
 
         {/* Rev 0 Intake — stamp issued vendor documents (DC/admin via matrix) */}
         {(dev || navPerms.rev0) && <NavLink href="/rev0" label="Rev 0 Intake" icon={ICON('documents')} />}
+
+        {/* Sign-off Intake — DC uploads an Aconex-returned (already-reviewed) document straight to sign-off */}
+        {(dev || navPerms.signoffIntake) && <NavLink href="/signoff-intake" label="Sign-off Intake" icon={ICON('documents')} />}
 
         {/* Permission-gated nav */}
         {(dev || navPerms.batches)      && <NavLink href="/batches"      label="Incoming Batches" icon={ICON('documents')} />}
