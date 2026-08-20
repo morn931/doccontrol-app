@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { MessageSquare, Send, ImagePlus, Loader2, Trash2 } from 'lucide-react'
+import { MessageSquare, Send, ImagePlus, Loader2, Trash2, Phone } from 'lucide-react'
 
 type Msg = { id: string; author_email: string; author_name: string | null; body: string | null; image_url: string | null; created_at: string }
 type Person = { email: string; name: string }
@@ -33,9 +33,12 @@ export default function ChatDock({ me, people, canClear }: { me: Person; people:
   const [pending, setPending] = useState(false)
   const [mention, setMention] = useState<{ q: string; start: number } | null>(null)
   const [mIdx, setMIdx] = useState(0)
+  const [callOpen, setCallOpen] = useState(false)
+  const [callSel, setCallSel] = useState<Set<string>>(new Set())
   const streamRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const callRef = useRef<HTMLDivElement>(null)
   const seen = useRef<Set<string>>(new Set())
 
   const append = useCallback((m: Msg) => {
@@ -75,6 +78,33 @@ export default function ChatDock({ me, people, canClear }: { me: Person; people:
   }, [supabase, me.email, me.name, append, load])
 
   useEffect(() => { streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight }) }, [messages.length])
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) { if (callRef.current && !callRef.current.contains(e.target as Node)) setCallOpen(false) }
+    if (callOpen) document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [callOpen])
+
+  // ── Teams voice call ────────────────────────────────────────────────────────
+  // A Teams "call" deep link rings the selected people straight from the caller's
+  // Teams — no meeting to set up, no Graph permission. We also post a note so the
+  // room has a record. (Upgrade path: a Graph onlineMeeting gives a shared join
+  // link everyone clicks — needs OnlineMeetings.ReadWrite.All + a Teams policy.)
+  function toggleCallSel(email: string) {
+    setCallSel((s) => { const n = new Set(s); if (n.has(email)) n.delete(email); else n.add(email); return n })
+  }
+  function selectOnline() {
+    setCallSel(new Set(online.map((p) => p.email).filter((e) => e.toLowerCase() !== me.email.toLowerCase())))
+  }
+  function startCall() {
+    const emails = [...callSel]
+    if (!emails.length) return
+    const url = `https://teams.microsoft.com/l/call/0/0?users=${emails.map(encodeURIComponent).join(',')}&withVideo=false`
+    window.open(url, '_blank', 'noopener')
+    const names = people.filter((p) => callSel.has(p.email)).map((p) => (p.name.split(' ')[0] || p.email)).join(', ')
+    setCallOpen(false); setCallSel(new Set())
+    post(`📞 Started a Teams voice call with ${names}`)
+  }
 
   // ── @-mention autocomplete ──────────────────────────────────────────────────
   const matches = useMemo(() => {
@@ -159,9 +189,39 @@ export default function ChatDock({ me, people, canClear }: { me: Person; people:
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-teal-50 text-teal-600"><MessageSquare className="h-4 w-4" /></span>
         <h2 className="font-semibold text-slate-900">Engineering Room</h2>
         <span className="text-xs text-slate-400">· project-wide</span>
+        <div className="relative ml-3" ref={callRef}>
+          <button type="button" onClick={() => setCallOpen((v) => !v)}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700">
+            <Phone className="h-3.5 w-3.5" /> Voice call
+          </button>
+          {callOpen && (
+            <div className="absolute left-0 top-8 z-40 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+              <div className="flex items-center justify-between px-1 pb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Call in Teams</span>
+                {online.length > 1 && <button type="button" onClick={selectOnline} className="text-[11px] font-semibold text-teal-700 hover:text-teal-900">Everyone online</button>}
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {people.length === 0 ? (
+                  <div className="px-2 py-2 text-xs text-slate-400">No colleagues to call.</div>
+                ) : people.map((p) => (
+                  <label key={p.email} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                    <input type="checkbox" checked={callSel.has(p.email)} onChange={() => toggleCallSel(p.email)} className="h-3.5 w-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: colorFor(p.email) }}>{initials(p.name || p.email)}</span>
+                    <span className="min-w-0 truncate text-slate-700">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+              <button type="button" onClick={startCall} disabled={callSel.size === 0}
+                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-40">
+                <Phone className="h-4 w-4" /> {callSel.size ? `Call ${callSel.size} in Teams` : 'Pick people'}
+              </button>
+              <p className="mt-1 px-1 text-[10px] leading-snug text-slate-400">Opens Microsoft Teams and rings the people you pick — a voice call, nothing to schedule.</p>
+            </div>
+          )}
+        </div>
         {canClear && (
           <button type="button" onClick={clearHistory} disabled={clearing}
-            className="ml-3 inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50">
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50">
             {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Clear history
           </button>
         )}
