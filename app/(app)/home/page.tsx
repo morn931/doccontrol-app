@@ -1,11 +1,14 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCockpitData, type CockpitBatch } from '@/lib/cockpit'
 import { getTimeAndLeave, type TimeAndLeave } from '@/lib/coretime'
+import { getRoutedToMe, getRoutedByMeCount } from '@/lib/routing'
+import RoutedRow from './routed-row'
+import RouteButton, { type Reviewer } from './route-button'
 import Link from 'next/link'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
   ClipboardList, Clock, CheckCircle2, AlertTriangle, FileText, ListChecks,
-  ArrowRight, CalendarClock, ChevronRight, Timer, UserCheck, Plane,
+  ArrowRight, CalendarClock, ChevronRight, Timer, UserCheck, Plane, CornerUpRight,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +38,7 @@ function docDotClass(status: string): string {
 }
 
 // A batch row in the "Reviews in Progress" panel — expandable to per-document status.
-function ProgressBatch({ b }: { b: CockpitBatch }) {
+function ProgressBatch({ b, reviewers }: { b: CockpitBatch; reviewers: Reviewer[] }) {
   const pct = b.docCount ? Math.round((b.reviewedCount / b.docCount) * 100) : 0
   return (
     <details className="group border-b border-slate-50 last:border-0 open:bg-slate-50/40">
@@ -62,12 +65,18 @@ function ProgressBatch({ b }: { b: CockpitBatch }) {
             <span className="ml-auto shrink-0 text-slate-400">
               {d.status === 'completed' ? 'reviewed' : d.status === 'in_progress' ? 'in review' : d.status}
             </span>
+            <RouteButton kind="doc" documentVersionId={d.versionId} documentNumber={d.label}
+              packageCode={b.packageName} reviewers={reviewers} />
           </div>
         ))}
-        <Link href={`/reviews/${b.firstTaskId}`}
-          className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900">
-          Open review workspace <ArrowRight className="h-3 w-3" />
-        </Link>
+        <div className="mt-1.5 flex items-center justify-between gap-3">
+          <Link href={`/reviews/${b.firstTaskId}`}
+            className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900">
+            Open review workspace <ArrowRight className="h-3 w-3" />
+          </Link>
+          <RouteButton kind="batch" batchId={b.key} packageCode={b.packageName}
+            reviewers={reviewers} label="Route entire batch" />
+        </div>
       </div>
     </details>
   )
@@ -148,11 +157,21 @@ export default async function HomePage() {
   const email = profile?.email ?? ''
   const firstName = (profile?.full_name ?? email).split(' ')[0] || 'there'
 
-  const [cockpit, timeLeave] = await Promise.all([getCockpitData(email), getTimeAndLeave(email)])
+  const [cockpit, timeLeave, routed, , reviewersRes] = await Promise.all([
+    getCockpitData(email),
+    getTimeAndLeave(email),
+    getRoutedToMe(email),
+    getRoutedByMeCount(email),
+    db.from('users').select('email, full_name').eq('active', true).order('full_name').limit(1000),
+  ])
   const { reviewQueue, inProgress, actions, counts } = cockpit
+  const reviewers: Reviewer[] = (reviewersRes.data ?? [])
+    .map((u) => ({ email: (u.email as string) ?? '', name: (u.full_name as string) || (u.email as string) || '' }))
+    .filter((u) => u.email && u.email.toLowerCase() !== email.toLowerCase())
 
   const chips = [
     { show: counts.overdue > 0, n: counts.overdue, label: 'overdue', dot: 'bg-red-500' },
+    { show: routed.count > 0, n: routed.count, label: 'routed to you', dot: 'bg-violet-500' },
     { show: counts.queueBatches > 0, n: counts.queueBatches, label: 'to start', dot: 'bg-amber-500' },
     { show: counts.inProgressBatches > 0, n: counts.inProgressBatches, label: 'in progress', dot: 'bg-teal-500' },
     { show: counts.actionsOpen > 0, n: counts.actionsOpen, label: 'action items', dot: 'bg-sky-500' },
@@ -183,6 +202,20 @@ export default async function HomePage() {
       <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr]">
         {/* ================= LEFT — review work ================= */}
         <div className="space-y-5">
+          {/* Routed to you — incoming hand-offs from colleagues */}
+          {routed.count > 0 && (
+            <section className="card overflow-hidden p-0 ring-1 ring-violet-200">
+              <div className="flex items-center gap-2 border-b border-slate-100 bg-violet-50/50 px-5 py-3.5">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-100 text-violet-600"><CornerUpRight className="h-4 w-4" /></span>
+                <h2 className="font-semibold text-slate-900">Routed to you</h2>
+                <span className="ml-auto rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700">{routed.count} new</span>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {routed.items.map((it) => <RoutedRow key={it.id} item={it} />)}
+              </div>
+            </section>
+          )}
+
           {/* Review Queue */}
           <section className="card overflow-hidden p-0">
             <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
@@ -230,7 +263,7 @@ export default async function HomePage() {
             {inProgress.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-slate-400">Nothing in progress. Start a batch from your queue above.</div>
             ) : (
-              <div>{inProgress.map((b) => <ProgressBatch key={b.key} b={b} />)}</div>
+              <div>{inProgress.map((b) => <ProgressBatch key={b.key} b={b} reviewers={reviewers} />)}</div>
             )}
           </section>
         </div>
@@ -280,7 +313,7 @@ export default async function HomePage() {
       {/* roadmap note — the panels still to come, so the page reads as a plan in motion */}
       <p className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
         <AlertTriangle className="h-3.5 w-3.5" />
-        Coming next on this page: route documents to other reviewers · in-screen notifications · meeting prep · live engineering chat.
+        Coming next on this page: in-screen notifications · meeting prep · live engineering chat.
       </p>
     </div>
   )

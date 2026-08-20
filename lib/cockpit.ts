@@ -15,6 +15,7 @@ import { ACTIONABLE_REVIEW_STATUSES } from '@/lib/utils/review-status'
 
 export type CockpitDoc = {
   taskId: string
+  versionId: string | null
   label: string
   revision: string | null
   status: string
@@ -139,6 +140,7 @@ export async function getCockpitData(email: string): Promise<CockpitData> {
         const dv = t.document_versions
         return {
           taskId: t.id,
+          versionId: (t.document_version_id as string) ?? dv?.id ?? null,
           label: dv?.documents?.normalized_document_number ?? dv?.file_name ?? 'Document',
           revision: dv?.revision ?? null,
           status: t.status,
