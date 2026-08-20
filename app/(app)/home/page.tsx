@@ -3,6 +3,7 @@ import { getCockpitData, type CockpitBatch } from '@/lib/cockpit'
 import { getTimeAndLeave, type TimeAndLeave } from '@/lib/coretime'
 import { getRoutedToMe, getRoutedByMeCount } from '@/lib/routing'
 import { getUpcomingMeetings, type MeetingItem } from '@/lib/meetings'
+import { isChatAdmin } from '@/lib/chat-perms'
 import type { CockpitAction } from '@/lib/cockpit'
 import RoutedRow from './routed-row'
 import RouteButton, { type Reviewer } from './route-button'
@@ -386,7 +387,7 @@ export default async function HomePage() {
       </div>
 
       {/* Engineering Room — project-wide live chat */}
-      <ChatDock me={{ email, name: profile?.full_name ?? email }} />
+      <ChatDock me={{ email, name: profile?.full_name ?? email }} people={reviewers} canClear={isChatAdmin(email)} />
     </div>
   )
 }
