@@ -2,13 +2,16 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getCockpitData, type CockpitBatch } from '@/lib/cockpit'
 import { getTimeAndLeave, type TimeAndLeave } from '@/lib/coretime'
 import { getRoutedToMe, getRoutedByMeCount } from '@/lib/routing'
+import { getUpcomingMeetings, type MeetingItem } from '@/lib/meetings'
+import type { CockpitAction } from '@/lib/cockpit'
 import RoutedRow from './routed-row'
 import RouteButton, { type Reviewer } from './route-button'
 import Link from 'next/link'
-import { format, formatDistanceToNow, isPast } from 'date-fns'
+import { format, formatDistanceToNow, isPast, isToday, isTomorrow } from 'date-fns'
 import {
   ClipboardList, Clock, CheckCircle2, AlertTriangle, FileText, ListChecks,
   ArrowRight, CalendarClock, ChevronRight, Timer, UserCheck, Plane, CornerUpRight,
+  CalendarDays, Video, Users, Sparkles,
 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -86,6 +89,72 @@ function weekLabel(w: string): string {
   try { return format(new Date(w + 'T00:00:00'), 'd MMM') } catch { return w }
 }
 
+// "Tomorrow · 10:00" / "Today · 14:30" / "Fri · 09:00" — day-only meetings drop the time.
+function whenLabel(m: MeetingItem): string {
+  if (!m.start) return ''
+  const d = new Date(m.start.length <= 10 ? m.start + 'T00:00:00' : m.start)
+  const day = isToday(d) ? 'Today' : isTomorrow(d) ? 'Tomorrow' : format(d, 'EEE d MMM')
+  return m.allDay ? day : `${day} · ${format(d, 'HH:mm')}`
+}
+
+function relevantCount(m: MeetingItem, actions: CockpitAction[]): number {
+  if (!m.packageHint) return 0
+  const h = m.packageHint.toUpperCase()
+  return actions.filter((a) => (a.documentNumber ?? '').toUpperCase().includes(h) || (a.title ?? '').toUpperCase().includes(h)).length
+}
+
+function MeetingPrepPanel({ meetings, graphAuthorised, actions }: {
+  meetings: MeetingItem[]; graphAuthorised: boolean; actions: CockpitAction[]
+}) {
+  return (
+    <section className="card overflow-hidden p-0">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-teal-50 text-teal-600"><CalendarDays className="h-4 w-4" /></span>
+        <h2 className="font-semibold text-slate-900">Meeting Prep <span className="font-normal text-slate-400">· next 48h</span></h2>
+        <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500">{meetings.length}</span>
+      </div>
+      {meetings.length === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-slate-400">
+          {graphAuthorised
+            ? 'No meetings in the next 48 hours.'
+            : 'Calendar not connected yet — ask an admin to grant CoreDocs “Calendars.Read” so your Outlook meetings show here.'}
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-50">
+          {meetings.map((m) => {
+            const rel = relevantCount(m, actions)
+            return (
+              <div key={m.id} className="px-5 py-3.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-teal-700">
+                  <Clock className="h-3.5 w-3.5" /> {whenLabel(m)}
+                  {m.category && <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-500">{m.category}</span>}
+                  {m.packageHint && <span className="rounded bg-navy-50 px-1.5 py-0.5 font-mono text-navy-600">{m.packageHint}</span>}
+                  <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-slate-300">{m.source === 'outlook' ? 'Outlook' : 'CoreMeeting'}</span>
+                </div>
+                <div className="mt-1 truncate text-sm font-semibold text-slate-800">{m.title}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                  {m.organizer && <span>{m.organizer}</span>}
+                  {m.attendeeCount > 0 && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{m.attendeeCount}</span>}
+                  {m.joinUrl && (
+                    <a href={m.joinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-900">
+                      <Video className="h-3 w-3" /> Join
+                    </a>
+                  )}
+                </div>
+                {rel > 0 && (
+                  <Link href="/engineering-actions" className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 hover:border-sky-300">
+                    <Sparkles className="h-3 w-3" /> {rel} of your open item{rel !== 1 ? 's' : ''} relate — prep before this
+                  </Link>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 // Time & Leave — reads CoreTime (shared DB). Fails soft to a "connecting" state
 // when the CoreTime link isn't configured, so the panel never errors.
 function TimeLeavePanel({ tl }: { tl: TimeAndLeave }) {
@@ -157,12 +226,13 @@ export default async function HomePage() {
   const email = profile?.email ?? ''
   const firstName = (profile?.full_name ?? email).split(' ')[0] || 'there'
 
-  const [cockpit, timeLeave, routed, , reviewersRes] = await Promise.all([
+  const [cockpit, timeLeave, routed, , reviewersRes, meetingsData] = await Promise.all([
     getCockpitData(email),
     getTimeAndLeave(email),
     getRoutedToMe(email),
     getRoutedByMeCount(email),
     db.from('users').select('email, full_name').eq('active', true).order('full_name').limit(1000),
+    getUpcomingMeetings(email),
   ])
   const { reviewQueue, inProgress, actions, counts } = cockpit
   const reviewers: Reviewer[] = (reviewersRes.data ?? [])
@@ -175,6 +245,7 @@ export default async function HomePage() {
     { show: counts.queueBatches > 0, n: counts.queueBatches, label: 'to start', dot: 'bg-amber-500' },
     { show: counts.inProgressBatches > 0, n: counts.inProgressBatches, label: 'in progress', dot: 'bg-teal-500' },
     { show: counts.actionsOpen > 0, n: counts.actionsOpen, label: 'action items', dot: 'bg-sky-500' },
+    { show: meetingsData.meetings.length > 0, n: meetingsData.meetings.length, label: 'meetings in 48h', dot: 'bg-cyan-500' },
     { show: timeLeave.counts.total > 0, n: timeLeave.counts.total, label: 'time & leave', dot: 'bg-indigo-500' },
     { show: counts.queued > 0, n: counts.queued, label: 'queued for later', dot: 'bg-slate-400' },
   ].filter((c) => c.show)
@@ -305,6 +376,9 @@ export default async function HomePage() {
             </Link>
           </section>
 
+          {/* Meeting Prep — next 48h from Outlook (Graph) + CoreMeeting, fail-soft */}
+          <MeetingPrepPanel meetings={meetingsData.meetings} graphAuthorised={meetingsData.graphAuthorised} actions={actions} />
+
           {/* Time & Leave — live from CoreTime (shared DB), fail-soft */}
           <TimeLeavePanel tl={timeLeave} />
         </div>
@@ -313,7 +387,7 @@ export default async function HomePage() {
       {/* roadmap note — the panels still to come, so the page reads as a plan in motion */}
       <p className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
         <AlertTriangle className="h-3.5 w-3.5" />
-        Coming next on this page: in-screen notifications · meeting prep · live engineering chat.
+        Coming next on this page: live engineering chat.
       </p>
     </div>
   )
