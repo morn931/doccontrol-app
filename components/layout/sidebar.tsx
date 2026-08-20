@@ -30,7 +30,7 @@ const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-
 // Every nav destination — the ACTIVE item is the LONGEST href that matches the current
 // path, so /documents/requests no longer also lights up /documents ("Document Search").
 const NAV_HREFS = [
-  '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/batches', '/internal', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
+  '/home', '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/batches', '/internal', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
   '/mddr', '/reporting', '/aconex-review', '/aconex-issue', '/rfi', '/cddl', '/sddr',
   '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
 ]
@@ -63,7 +63,10 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
       : "hidden lg:flex w-52 shrink-0 flex-col gap-0.5 rounded-xl border border-slate-200 bg-white py-4 px-2 shadow-sm self-start"}>
       <nav className="flex flex-col gap-0.5">
 
-        {/* Dashboard — universal */}
+        {/* My Actions — the personal engineer cockpit (the landing page) */}
+        <NavLink href="/home" label="My Actions" icon={ICON_SURFACE('review-approvals')} />
+
+        {/* Dashboard — the Document Control overview (KPIs) */}
         <NavLink href="/dashboard" label="Dashboard" icon={ICON('dashboard')} />
 
         {/* Document Requests — the origination step, kept right under Dashboard */}
