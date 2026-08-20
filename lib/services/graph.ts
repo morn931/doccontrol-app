@@ -54,6 +54,30 @@ export async function graphFetch(path: string, options: RequestInit = {}): Promi
   })
 }
 
+// Create an instant "meet now" Teams meeting for the organizer and return its join
+// URL — no calendar entry, no scheduling (feels like a quick call), but it IS a real
+// meeting object, so Teams can transcribe it and the transcript is retrievable via
+// Graph. App-only — requires OnlineMeetings.ReadWrite.All (admin-consented) AND a
+// Teams application access policy authorising this app to create meetings for the
+// user (New-CsApplicationAccessPolicy). Throws if either is missing (caller falls back).
+export async function createOnlineMeeting(organizerUpn: string, subject: string): Promise<{ joinUrl: string; id: string }> {
+  const now = new Date()
+  const end = new Date(now.getTime() + 60 * 60 * 1000)
+  const res = await graphFetch(`/users/${encodeURIComponent(organizerUpn)}/onlineMeetings`, {
+    method: 'POST',
+    body: JSON.stringify({
+      startDateTime: now.toISOString(),
+      endDateTime: end.toISOString(),
+      subject,
+      lobbyBypassSettings: { scope: 'organization', isDialInBypassEnabled: true },
+      allowedPresenters: 'everyone',
+    }),
+  })
+  if (!res.ok) throw new Error(`onlineMeeting create failed (${res.status}): ${await res.text()}`)
+  const j = await res.json()
+  return { joinUrl: j.joinWebUrl as string, id: j.id as string }
+}
+
 /**
  * Get a cached app-only access token scoped to SharePoint REST API.
  * Required for /_api/* endpoints — Graph tokens (graph.microsoft.com) won't work there.

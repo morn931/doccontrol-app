@@ -13,10 +13,16 @@ function initials(s: string) { return s.split(/[\s@.]+/).filter(Boolean).map((w)
 function timeOf(iso: string) { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
 
 function renderBody(text: string) {
-  return text.split(/(@[\w.-]+)/g).map((part, i) =>
-    part.startsWith('@')
-      ? <span key={i} className="rounded bg-teal-50 px-1 font-semibold text-teal-700">{part}</span>
-      : <span key={i}>{part}</span>)
+  return text.split(/(@[\w.-]+|https?:\/\/[^\s]+)/g).map((part, i) => {
+    if (part.startsWith('@')) return <span key={i} className="rounded bg-teal-50 px-1 font-semibold text-teal-700">{part}</span>
+    if (/^https?:\/\//.test(part)) {
+      const teams = part.includes('teams.microsoft.com')
+      return <a key={i} href={part} target="_blank" rel="noreferrer"
+        className={teams ? 'ml-1 inline-flex items-center gap-1 rounded-full bg-teal-500 px-2 py-0.5 text-xs font-semibold text-white hover:bg-teal-600' : 'underline'}>
+        {teams ? 'Join the call ↗' : part}</a>
+    }
+    return <span key={i}>{part}</span>
+  })
 }
 
 // The project-wide live "Engineering Room". Live via Supabase Realtime (+ 20s
@@ -85,25 +91,42 @@ export default function ChatDock({ me, people, canClear }: { me: Person; people:
     return () => document.removeEventListener('mousedown', onDoc)
   }, [callOpen])
 
-  // ── Teams voice call ────────────────────────────────────────────────────────
-  // A Teams "call" deep link rings the selected people straight from the caller's
-  // Teams — no meeting to set up, no Graph permission. We also post a note so the
-  // room has a record. (Upgrade path: a Graph onlineMeeting gives a shared join
-  // link everyone clicks — needs OnlineMeetings.ReadWrite.All + a Teams policy.)
+  // ── Talk now ────────────────────────────────────────────────────────────────
+  // Preferred: mint an instant Teams meet-now MEETING (no scheduling) → drop a Join
+  // link in the room + ping the picked people. It's a real meeting, so Teams can
+  // transcribe it and the transcript is retrievable via Graph → knowledge base.
+  // Fallback (until the Graph grant + Teams policy are in place): a Teams call deep
+  // link that rings the picked people — so "Talk now" always works.
+  const myFirst = me.name.split(' ')[0] || me.email
   function toggleCallSel(email: string) {
     setCallSel((s) => { const n = new Set(s); if (n.has(email)) n.delete(email); else n.add(email); return n })
   }
   function selectOnline() {
     setCallSel(new Set(online.map((p) => p.email).filter((e) => e.toLowerCase() !== me.email.toLowerCase())))
   }
-  function startCall() {
+  async function startTalk() {
     const emails = [...callSel]
-    if (!emails.length) return
-    const url = `https://teams.microsoft.com/l/call/0/0?users=${emails.map(encodeURIComponent).join(',')}&withVideo=false`
-    window.open(url, '_blank', 'noopener')
-    const names = people.filter((p) => callSel.has(p.email)).map((p) => (p.name.split(' ')[0] || p.email)).join(', ')
     setCallOpen(false); setCallSel(new Set())
-    post(`📞 Started a Teams voice call with ${names}`)
+    // 1) Try the transcribable meet-now meeting.
+    try {
+      const r = await fetch('/api/chat/talk-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invite: emails }) })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok && d.joinUrl) {
+        window.open(d.joinUrl, '_blank', 'noopener')
+        await post(`📞 ${myFirst} started a call — ${d.joinUrl}`)
+        return
+      }
+    } catch { /* fall through to the deep-link fallback */ }
+    // 2) Fallback — ring the picked people via a Teams call deep link.
+    if (emails.length) {
+      const url = `https://teams.microsoft.com/l/call/0/0?users=${emails.map(encodeURIComponent).join(',')}&withVideo=false`
+      window.open(url, '_blank', 'noopener')
+      const names = people.filter((p) => emails.includes(p.email)).map((p) => (p.name.split(' ')[0] || p.email)).join(', ')
+      await post(`📞 ${myFirst} started a Teams call with ${names}`)
+    } else {
+      window.open('https://teams.microsoft.com/l/meeting/new?subject=Engineering%20Room%20quick%20call', '_blank', 'noopener')
+      await post(`📞 ${myFirst} started a call`)
+    }
   }
 
   // ── @-mention autocomplete ──────────────────────────────────────────────────
@@ -191,19 +214,17 @@ export default function ChatDock({ me, people, canClear }: { me: Person; people:
         <span className="text-xs text-slate-400">· project-wide</span>
         <div className="relative ml-3" ref={callRef}>
           <button type="button" onClick={() => setCallOpen((v) => !v)}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-700">
-            <Phone className="h-3.5 w-3.5" /> Voice call
+            className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-700 hover:border-teal-300 hover:bg-teal-100">
+            <Phone className="h-3.5 w-3.5" /> Talk now
           </button>
           {callOpen && (
             <div className="absolute left-0 top-8 z-40 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
               <div className="flex items-center justify-between px-1 pb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Call in Teams</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Talk now</span>
                 {online.length > 1 && <button type="button" onClick={selectOnline} className="text-[11px] font-semibold text-teal-700 hover:text-teal-900">Everyone online</button>}
               </div>
-              <div className="max-h-48 overflow-y-auto">
-                {people.length === 0 ? (
-                  <div className="px-2 py-2 text-xs text-slate-400">No colleagues to call.</div>
-                ) : people.map((p) => (
+              <div className="max-h-44 overflow-y-auto">
+                {people.map((p) => (
                   <label key={p.email} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
                     <input type="checkbox" checked={callSel.has(p.email)} onChange={() => toggleCallSel(p.email)} className="h-3.5 w-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
                     <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: colorFor(p.email) }}>{initials(p.name || p.email)}</span>
@@ -211,11 +232,11 @@ export default function ChatDock({ me, people, canClear }: { me: Person; people:
                   </label>
                 ))}
               </div>
-              <button type="button" onClick={startCall} disabled={callSel.size === 0}
-                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-40">
-                <Phone className="h-4 w-4" /> {callSel.size ? `Call ${callSel.size} in Teams` : 'Pick people'}
+              <button type="button" onClick={startTalk}
+                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">
+                <Phone className="h-4 w-4" /> {callSel.size ? `Start call & ping ${callSel.size}` : 'Start call'}
               </button>
-              <p className="mt-1 px-1 text-[10px] leading-snug text-slate-400">Opens Microsoft Teams and rings the people you pick — a voice call, nothing to schedule.</p>
+              <p className="mt-1 px-1 text-[10px] leading-snug text-slate-400">Starts a Teams call and drops a Join link in the room. Tick people to ping them too — no meeting to schedule.</p>
             </div>
           )}
         </div>
