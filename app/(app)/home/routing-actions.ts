@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { markRoutingNotificationRead } from '@/lib/notifications'
 import { revalidatePath } from 'next/cache'
 
 async function me() {
@@ -71,6 +72,7 @@ export async function respondRouting(id: string, status: 'accepted' | 'done' | '
     await db.from('document_routing').update({
       status, responded_at: new Date().toISOString(), responded_by_email: who.email,
     }).eq('id', id)
+    await markRoutingNotificationRead(who.email, id)
     revalidatePath('/home')
     return { ok: true }
   } catch (e) {

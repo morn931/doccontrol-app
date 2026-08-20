@@ -1,6 +1,7 @@
 import type { UserRole } from '@/lib/types/database'
 import { GuideButton } from '@/components/guide-button'
 import { BackButton } from '@/components/layout/back-button'
+import { NotificationBell } from '@/components/layout/notification-bell'
 
 const COREFLOW_URL = process.env.NEXT_PUBLIC_COREFLOW_URL || 'https://coreflow.build'
 
@@ -47,6 +48,7 @@ export function Header({ userName, role }: HeaderProps) {
         <div className="flex h-full shrink-0 items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/coreflow/logo/ppe-logo.png" alt="PPE Technologies" className="hidden h-full w-auto shrink-0 object-contain sm:block" />
+          <NotificationBell />
           <GuideButton />
           <div className="hidden sm:flex flex-col items-end gap-0.5">
             <span className="text-sm font-medium text-[#0B3563] leading-tight">{userName}</span>
