@@ -66,10 +66,16 @@ function findingsBox(title: string, items: string[], kind: 'good' | 'bad'): stri
     </div></td>`
 }
 
-function docCard(fileName: string, r: AiReview | null): string {
+function docCard(fileName: string, r: AiReview | null, fileUrl?: string | null): string {
+  // The file name is the direct "open the document" link (like the old Power Automate email):
+  // links to the DocumentControl copy where it exists, else the vendor drop-off file itself.
+  const nameLabel = esc(fileName.replace(/\.pdf$/i, ''))
+  const nameEl = fileUrl
+    ? `<a href="${esc(fileUrl)}" style="color:${CF.teal};text-decoration:none">${nameLabel}&nbsp;&#8599;</a>`
+    : nameLabel
   if (!r) {
     return `<div style="border:1px solid ${CF.line};border-radius:10px;padding:14px;margin:0 0 14px">
-      <div style="font-weight:700;color:${CF.navy};font-size:17px">${esc(fileName)}</div>
+      <div style="font-weight:700;color:${CF.navy};font-size:17px">${nameEl}</div>
       <div style="color:${CF.muted};font-size:15px;margin-top:4px">AI review unavailable for this document.</div></div>`
   }
   const x = r.extracted
@@ -82,7 +88,7 @@ function docCard(fileName: string, r: AiReview | null): string {
     <div style="padding:14px 16px;border-bottom:1px solid ${CF.line};background:#fbfcfe">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
         <td valign="top">
-          <div style="font-size:17px;font-weight:700;color:${CF.navy};letter-spacing:.01em">${esc(fileName.replace(/\.pdf$/i, ''))}</div>
+          <div style="font-size:17px;font-weight:700;color:${CF.navy};letter-spacing:.01em">${nameEl}</div>
           <div style="font-size:15px;color:${CF.ink};margin-top:4px">${esc(x.title)}</div>
         </td>
         <td valign="top" align="right" style="white-space:nowrap;padding-left:10px">${overallPill(r.overall)}</td>
@@ -102,10 +108,10 @@ function docCard(fileName: string, r: AiReview | null): string {
 
 export function buildNotificationEmail(
   packageCode: string, packageName: string, vendorName: string,
-  results: { fileName: string; review: AiReview | null }[],
+  results: { fileName: string; review: AiReview | null; fileUrl?: string | null }[],
   batchUrl?: string,
 ): string {
-  const cards = results.map((r) => docCard(r.fileName, r.review)).join('')
+  const cards = results.map((r) => docCard(r.fileName, r.review, r.fileUrl)).join('')
   const button = batchUrl
     ? `<div style="text-align:center;padding:6px 0 16px">
         <a href="${esc(batchUrl)}" style="display:inline-block;background:${CF.teal};color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:12px 26px;border-radius:8px">Open batch to review &amp; route &rarr;</a>

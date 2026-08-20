@@ -86,7 +86,7 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
   }).select().single()
   if (batchErr || !batch) throw new Error(`create batch: ${batchErr?.message}`)
 
-  const results: { fileName: string; review: AiReview | null }[] = []
+  const results: { fileName: string; review: AiReview | null; fileUrl?: string | null }[] = []
 
   for (const f of files) {
     const parsed = parseDocumentFileName(f.name)
@@ -142,7 +142,9 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
       { package_code: packageCode, drive_item_id: f.id, file_name: f.name, batch_id: batch.id },
       { onConflict: 'drive_item_id', ignoreDuplicates: true },
     )
-    results.push({ fileName: f.name, review })
+    // the file-name link in the email opens the doc directly: DocumentControl copy if we made
+    // one, else the vendor drop-off file itself (extraction-only vendors have no central copy).
+    results.push({ fileName: f.name, review, fileUrl: centralUrl ?? f.webUrl ?? null })
   }
 
   await db.from('batches').update({ status: 'metadata_pending', updated_at: new Date().toISOString() }).eq('id', batch.id)
