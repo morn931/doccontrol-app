@@ -6,10 +6,11 @@ import { getUpcomingMeetings, type MeetingItem } from '@/lib/meetings'
 import type { CockpitAction } from '@/lib/cockpit'
 import RoutedRow from './routed-row'
 import RouteButton, { type Reviewer } from './route-button'
+import ChatDock from './chat-dock'
 import Link from 'next/link'
 import { format, formatDistanceToNow, isPast, isToday, isTomorrow } from 'date-fns'
 import {
-  ClipboardList, Clock, CheckCircle2, AlertTriangle, FileText, ListChecks,
+  ClipboardList, Clock, CheckCircle2, FileText, ListChecks,
   ArrowRight, CalendarClock, ChevronRight, Timer, UserCheck, Plane, CornerUpRight,
   CalendarDays, Video, Users, Sparkles,
 } from 'lucide-react'
@@ -384,11 +385,8 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {/* roadmap note — the panels still to come, so the page reads as a plan in motion */}
-      <p className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-        <AlertTriangle className="h-3.5 w-3.5" />
-        Coming next on this page: live engineering chat.
-      </p>
+      {/* Engineering Room — project-wide live chat */}
+      <ChatDock me={{ email, name: profile?.full_name ?? email }} />
     </div>
   )
 }
