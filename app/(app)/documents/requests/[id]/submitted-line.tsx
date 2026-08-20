@@ -33,7 +33,7 @@ export default function SubmittedLine({ lineId, rdmc, revision, packageId, canSu
             onClick={() => setOpen((v) => !v)}
             className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 transition hover:bg-amber-100"
           >
-            {open ? 'Cancel' : (canSignoffOnly && !canSubmit ? '+ Upload Aconex revision' : '+ New revision')}
+            {open ? 'Cancel' : (canSignoffOnly ? '+ Upload Aconex revision' : '+ New revision')}
           </button>
         )}
       </div>
