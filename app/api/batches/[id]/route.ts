@@ -17,6 +17,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       reject_bucket_deleted, reject_source_deleted, reject_picks_closed,
       reject_vendor_notified, reject_cleanup_error, sp_approver_picks_id,
       recommended_reviewers,
+      signoff_only, signoff_only_reason, signoff_only_requested_by, signoff_only_requested_at,
+      signoff_only_approved_by, signoff_only_approved_at,
       signoff_pdf_url, signoff_started_at, signed_at,
       signoff_tasks(id, signatory_email, signatory_name, role_label, sequence_number, status, signed_at, decline_reason),
       vendors(id, name, code, primary_contact_email),
@@ -45,13 +47,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // Whether the viewer may amend a submitted outcome (Doc-Control-gated, same as issuing a
   // transmittal) — drives the "Amend" control on the Review Sequence.
   let viewerCanAmend = false
+  let viewerCanSignoffOnly = false
   try {
     const { data: me } = await db.from('users').select('role').eq('auth_user_id', user.id).single()
     const perms = await getPermissions(supabase)
     viewerCanAmend = can(perms, FK.ACTION_GENERATE_TRANSMITTAL, (me?.role ?? 'reviewer') as any)
+    viewerCanSignoffOnly = can(perms, FK.ACTION_APPROVE_SIGNOFF_ONLY, (me?.role ?? 'reviewer') as any)
   } catch { /* default false */ }
 
-  return NextResponse.json({ ...data, engineer_email: engineerEmail, viewer_can_amend: viewerCanAmend })
+  return NextResponse.json({ ...data, engineer_email: engineerEmail, viewer_can_amend: viewerCanAmend, viewer_can_signoff_only: viewerCanSignoffOnly })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -58,6 +58,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [startingSignoff, setStartingSignoff] = useState(false)
   const [signoffError, setSignoffError] = useState('')
   const [resettingSignoff, setResettingSignoff] = useState(false)
+  const [signoffOnlyBusy, setSignoffOnlyBusy] = useState(false)
   const [officeDoc, setOfficeDoc] = useState<{ id: string; name: string } | null>(null)
   // Amend-outcome (Doc Control): correct a reviewer's submitted code after the fact.
   const [amendTaskId, setAmendTaskId] = useState<string | null>(null)
@@ -211,6 +212,28 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setResettingSignoff(false)
     }
+  }
+
+  // DC flags an owner's sign-off-only request straight to sign-off (skips review), or clears it.
+  async function approveSignoffOnly() {
+    if (!window.confirm('Send this document straight to sign-off, skipping the review cycle? Use this only for a revision that was already reviewed on Aconex.')) return
+    setSignoffOnlyBusy(true); setSignoffError('')
+    try {
+      const res = await fetch(`/api/batches/${id}/signoff-only/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const data = await res.json()
+      if (!res.ok) { setSignoffError(data.error ?? 'Could not flag straight to sign-off'); return }
+      loadBatch()
+    } catch (e: any) { setSignoffError(e.message ?? 'Unexpected error') } finally { setSignoffOnlyBusy(false) }
+  }
+  async function clearSignoffOnly() {
+    if (!window.confirm('Clear the sign-off-only request and send this document through the normal review instead?')) return
+    setSignoffOnlyBusy(true); setSignoffError('')
+    try {
+      const res = await fetch(`/api/batches/${id}/signoff-only/clear`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setSignoffError(data.error ?? 'Could not clear the request'); return }
+      loadBatch()
+    } catch (e: any) { setSignoffError(e.message ?? 'Unexpected error') } finally { setSignoffOnlyBusy(false) }
   }
 
   async function handleRetryDoc(dvId: string) {
@@ -469,6 +492,18 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                 <PenLine className="h-4 w-4" /> {batch.status === 'signoff_declined' ? 'Re-send for sign-off' : 'Send for sign-off'}
               </button>
             )}
+            {/* DC acts on an owner's "sign-off only" request (returned from Aconex, already reviewed) */}
+            {['internal', 'internal_review'].includes(batch.source) && batch.signoff_only_requested_by && !batch.signoff_only
+              && ['metadata_pending','review_ready_to_start','review_in_progress'].includes(batch.status) && batch.viewer_can_signoff_only && (
+              <>
+                <button onClick={approveSignoffOnly} disabled={signoffOnlyBusy} className="btn-primary text-sm">
+                  <PenLine className="h-4 w-4" /> {signoffOnlyBusy ? 'Working…' : 'Skip review → sign-off'}
+                </button>
+                <button onClick={clearSignoffOnly} disabled={signoffOnlyBusy} className="btn-secondary text-sm">
+                  Clear request (send to review)
+                </button>
+              </>
+            )}
             {['internal', 'internal_review'].includes(batch.source) && ['signoff_in_progress','signed','signoff_declined'].includes(batch.status) && (
               <button onClick={handleResetSignoff} disabled={resettingSignoff} className="btn-secondary text-sm">
                 <RotateCw className="h-4 w-4" /> {resettingSignoff ? 'Resetting…' : 'Reset sign-off'}
@@ -476,6 +511,16 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             )}
           </div>
         </div>
+
+        {(batch.signoff_only || batch.signoff_only_requested_by) && (
+          <div className={`mt-4 rounded-md border px-3 py-2 text-sm ${batch.signoff_only ? 'border-teal-200 bg-teal-50 text-teal-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+            {batch.signoff_only ? (
+              <><span className="font-semibold">Sign-off only — review skipped.</span> {batch.signoff_only_reason ?? 'Returned from Aconex, already reviewed.'}{batch.signoff_only_approved_by ? ` (flagged by ${batch.signoff_only_approved_by})` : ''}</>
+            ) : (
+              <><span className="font-semibold">Sign-off only requested{batch.signoff_only_requested_by ? ` by ${batch.signoff_only_requested_by}` : ''}.</span> {batch.signoff_only_reason ?? ''} {batch.viewer_can_signoff_only ? 'Use “Skip review → sign-off” above, or clear the request to send it through the normal review.' : 'A Document Controller will flag it straight to sign-off, or send it through review.'}</>
+            )}
+          </div>
+        )}
 
         {batch.comments && (
           <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-teal-800 border border-blue-100">

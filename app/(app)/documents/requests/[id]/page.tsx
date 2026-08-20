@@ -23,6 +23,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
   const perms = await getPermissions(supabase)
   const canAssign = can(perms, FK.ACTION_ASSIGN_DOC_NUMBER, role)
   const canSubmit = can(perms, FK.ACTION_SUBMIT_INTERNAL_DRAWING, role)
+  const canSignoffOnly = can(perms, FK.ACTION_APPROVE_SIGNOFF_ONLY, role)
 
   const { data: req } = await supabase.from('document_number_request').select('*').eq('id', id).single()
   if (!req) notFound()
@@ -137,7 +138,7 @@ export default async function RequestDetail({ params }: { params: Promise<{ id: 
             </div>
             </div>
             {l.rdmc_document_number && (l.linked_document_id ? (
-              <SubmittedLine lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} packageId={req.package_id ?? null} canSubmit={canSubmit} />
+              <SubmittedLine lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} packageId={req.package_id ?? null} canSubmit={canSubmit} canSignoffOnly={canSignoffOnly} />
             ) : canSubmit ? (
               <SubmitDrawing lineId={l.id} rdmc={l.rdmc_document_number} revision={l.revision} packageId={req.package_id ?? null} />
             ) : null)}

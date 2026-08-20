@@ -17,12 +17,15 @@ const CHUNK = 5 * 1024 * 1024 - (5 * 1024 * 1024) % (320 * 1024)
  * (route handler → creates an internal batch + emails the Controller with the picks).
  * The Controller still has the final say on the Assign Reviewers screen.
  */
-export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode = 'first' }: {
+export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode = 'first', canSignoffOnly = false }: {
   lineId: string
   rdmc: string
   revision: string | null
   packageId?: string | null
   mode?: 'first' | 'newRevision'
+  /** The current user may send a returned-from-Aconex revision STRAIGHT to sign-off (DC/admin).
+   *  When false, ticking "sign-off only" raises a request the DC then flags. */
+  canSignoffOnly?: boolean
 }) {
   const isNewRev = mode === 'newRevision'
   const [file, setFile] = useState<File | null>(null)
@@ -37,6 +40,10 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
   // email combobox (EmailPicker) for anyone else.
   const [suggestions, setSuggestions] = useState<{ email: string; name: string; reviewCount: number }[]>([])
   const [recs, setRecs] = useState<Rec[]>([])
+  // A new revision returned from Aconex was already reviewed → the owner can request it go
+  // straight to sign-off (the Document Controller flags it). Only offered on a new revision.
+  const [signoffOnlyReq, setSignoffOnlyReq] = useState(false)
+  const needReviewers = !(isNewRev && signoffOnlyReq)
 
   useEffect(() => {
     const qs = packageId ? `?packageId=${packageId}` : ''
@@ -57,7 +64,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
 
   function submit(confirmSameRevision = false) {
     if (!file) { setMsg({ type: 'err', text: 'Choose a drawing file first.' }); return }
-    if (!recs.length) { setMsg({ type: 'err', text: 'Select at least one reviewer before submitting.' }); return }
+    if (needReviewers && !recs.length) { setMsg({ type: 'err', text: 'Select at least one reviewer before submitting.' }); return }
     const theFile = file
     start(async () => {
       try {
@@ -66,7 +73,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
         setMsg(null); setProgress('Checking number…')
         const startRes = await fetch('/api/documents/internal-submit/start-upload', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lineId, fileName: theFile.name, newRevision: isNewRev, confirmSameRevision }),
+          body: JSON.stringify({ lineId, fileName: theFile.name, newRevision: isNewRev, confirmSameRevision, signoffOnly: isNewRev && signoffOnlyReq && canSignoffOnly }),
         })
         const sd = await startRes.json()
         if (!startRes.ok) {
@@ -101,13 +108,20 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
           body: JSON.stringify({
             lineId, fileName: uploaded.name ?? theFile.name, spFileUrl: uploaded.webUrl,
             newRevision: isNewRev, confirmSameRevision, recommendedReviewers: recs,
+            ...(isNewRev && signoffOnlyReq
+              ? (canSignoffOnly ? { signoffOnly: true } : { requestSignoffOnly: true })
+              : {}),
           }),
         })
         const data = await res.json()
         setProgress('')
         if (!res.ok) { setMsg({ type: 'err', text: data.error ?? 'Submission failed.' }); return }
-        setMsg({ type: 'ok', text: `Submitted for review as ${data.docNumber} (Rev ${data.revision}). It's now an internal batch awaiting reviewer assignment.` })
-        setFile(null); setRecs([])
+        setMsg({ type: 'ok', text: !(isNewRev && signoffOnlyReq)
+          ? `Submitted for review as ${data.docNumber} (Rev ${data.revision}). It's now an internal batch awaiting reviewer assignment.`
+          : canSignoffOnly
+            ? `Sent straight to sign-off as ${data.docNumber} (Rev ${data.revision}) — review skipped (already reviewed on Aconex). Open the batch to request signatures.`
+            : `Submitted as ${data.docNumber} (Rev ${data.revision}) with a request to go straight to sign-off. The Document Controller will send it for signatures, or route it to review.` })
+        setFile(null); setRecs([]); setSignoffOnlyReq(false)
         router.refresh()
       } catch (e: any) {
         setProgress(''); setMsg({ type: 'err', text: e?.message ?? 'Network error.' })
@@ -150,7 +164,20 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
         )}
       </div>
 
+      {isNewRev && (
+        <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-lg border border-amber-300 bg-amber-50/70 p-2.5 text-xs text-amber-900">
+          <input type="checkbox" checked={signoffOnlyReq} onChange={(e) => setSignoffOnlyReq(e.target.checked)} className="mt-0.5 h-3.5 w-3.5" />
+          <span>
+            <span className="font-semibold">Returned from Aconex — {canSignoffOnly ? 'send' : 'request'} straight to sign-off.</span>{' '}
+            The previous revision was already reviewed, so it doesn&apos;t need reviewing again.
+            {canSignoffOnly ? ' It goes directly to signatures — no review cycle.' : ' The Document Controller confirms and sends it for signatures.'}
+            <span className="text-amber-700"> No reviewers needed.</span>
+          </span>
+        </label>
+      )}
+
       {/* Recommend reviewers (internal only) — the Document Controller prefills from these, final say hers */}
+      {needReviewers && (
       <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
         <div className="mb-2 text-xs font-semibold text-slate-700">Reviewers <span className="text-red-600">*</span> <span className="font-normal text-slate-400">— select who must review this before you submit</span></div>
 
@@ -167,6 +194,7 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
 
         <EmailPicker value={recs} onChange={setRecs} placeholder="Select reviewers from the list…" />
       </div>
+      )}
 
       <div className="mt-2 flex items-center justify-between gap-2">
         {msg ? (
@@ -174,10 +202,10 @@ export default function SubmitDrawing({ lineId, rdmc, revision, packageId, mode 
         ) : <span />}
         <button
           onClick={() => submit()}
-          disabled={pending || !file || !recs.length}
+          disabled={pending || !file || (needReviewers && !recs.length)}
           className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition disabled:opacity-40 ${isNewRev ? 'bg-amber-700 hover:bg-amber-800' : 'bg-teal-700 hover:bg-teal-800'}`}
         >
-          {pending ? (progress || 'Submitting…') : isNewRev ? 'Submit new revision' : 'Submit for review'}
+          {pending ? (progress || 'Submitting…') : isNewRev ? (signoffOnlyReq ? (canSignoffOnly ? 'Send to sign-off' : 'Request sign-off only') : 'Submit new revision') : 'Submit for review'}
         </button>
       </div>
     </div>

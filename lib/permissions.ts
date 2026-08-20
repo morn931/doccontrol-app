@@ -21,6 +21,9 @@ export const FK = {
   ACTION_START_INTERNAL_REVIEW: 'action.start_internal_review',
   NAV_SIGNOFFS:                 'nav.signoffs',
   ACTION_START_SIGNOFF:         'action.start_signoff',
+  // DC (or admin) may flag an owner's request, or directly upload an Aconex-returned
+  // revision, straight to sign-off — skipping the review cycle. See migration 046.
+  ACTION_APPROVE_SIGNOFF_ONLY:  'action.approve_signoff_only',
   NAV_ACONEX_ISSUE:         'nav.aconex_issue',
   ACTION_ISSUE_TO_ACONEX:   'action.issue_to_aconex',
   NAV_REV0_INTAKE:          'nav.rev0_intake',

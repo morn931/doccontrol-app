@@ -27,14 +27,19 @@ export async function POST(req: Request) {
     .from('users').select('id, role').eq('auth_user_id', user.id).single()
   const role = (profile?.role ?? 'reviewer') as string
   const perms = await getPermissions(supabase)
-  if (!can(perms, FK.ACTION_SUBMIT_INTERNAL_DRAWING, role))
-    return NextResponse.json({ error: 'Not authorised to submit an internal drawing.' }, { status: 403 })
 
   const body = await req.json().catch(() => null)
   const lineId = String(body?.lineId ?? '')
   const fileName = String(body?.fileName ?? '')
   const newRevision = body?.newRevision === true || body?.newRevision === '1'
   const confirmSameRevision = body?.confirmSameRevision === true || body?.confirmSameRevision === '1'
+  // DC "Sign-off only" upload (Aconex-returned revision → straight to sign-off) is authorised
+  // by ACTION_APPROVE_SIGNOFF_ONLY instead of the engineer's submit permission.
+  const signoffOnly = body?.signoffOnly === true || body?.signoffOnly === '1'
+  const authorised = can(perms, FK.ACTION_SUBMIT_INTERNAL_DRAWING, role)
+    || (signoffOnly && can(perms, FK.ACTION_APPROVE_SIGNOFF_ONLY, role))
+  if (!authorised)
+    return NextResponse.json({ error: 'Not authorised to submit an internal drawing.' }, { status: 403 })
   if (!lineId) return NextResponse.json({ error: 'Missing request line.' }, { status: 400 })
   if (!fileName || /[\\/]|\.\./.test(fileName)) return NextResponse.json({ error: 'Choose a drawing file to upload.' }, { status: 400 })
 

@@ -52,8 +52,6 @@ export async function POST(req: Request) {
     .from('users').select('id, role, email').eq('auth_user_id', user.id).single()
   const role = (profile?.role ?? 'reviewer') as string
   const perms = await getPermissions(supabase)
-  if (!can(perms, FK.ACTION_SUBMIT_INTERNAL_DRAWING, role))
-    return NextResponse.json({ error: 'Not authorised to submit an internal drawing.' }, { status: 403 })
 
   // The browser already uploaded the file straight to SharePoint (start-upload); we finalise
   // from JSON — the file's SharePoint URL + name, never the bytes.
@@ -62,6 +60,19 @@ export async function POST(req: Request) {
   const fileName = String(body?.fileName ?? '')
   const spFileUrl = String(body?.spFileUrl ?? '')
   const newRevision = body?.newRevision === true || body?.newRevision === '1'
+  // "Sign-off only" revision returned from Aconex (already reviewed → skip the review cycle):
+  //   signoffOnly=true         → DC-initiated: lands the revision straight at review_complete.
+  //   requestSignoffOnly=true  → owner-requested: stays in the queue, badged, for the DC to flag.
+  const signoffOnly = body?.signoffOnly === true || body?.signoffOnly === '1'
+  const requestSignoffOnly = body?.requestSignoffOnly === true || body?.requestSignoffOnly === '1'
+  const signoffOnlyReason = String(body?.signoffOnlyReason ?? '').trim()
+    || 'Returned from Aconex for revision — already reviewed.'
+  const canApproveSignoffOnly = can(perms, FK.ACTION_APPROVE_SIGNOFF_ONLY, role)
+  if (!can(perms, FK.ACTION_SUBMIT_INTERNAL_DRAWING, role) && !(signoffOnly && canApproveSignoffOnly))
+    return NextResponse.json({ error: 'Not authorised to submit an internal drawing.' }, { status: 403 })
+  // A DC-initiated sign-off-only upload requires the flag permission even if they also hold submit.
+  if (signoffOnly && !canApproveSignoffOnly)
+    return NextResponse.json({ error: 'Not authorised to send a document straight to sign-off.' }, { status: 403 })
   // A re-issue can legitimately come back at the SAME revision label (common from Aconex);
   // start-upload already got the operator's confirm before the file was uploaded.
   const confirmSameRevision = body?.confirmSameRevision === true || body?.confirmSameRevision === '1'
@@ -84,6 +95,10 @@ export async function POST(req: Request) {
   const existingDocId: string | null = line.linked_document_id ?? null
   if (existingDocId && !newRevision)
     return NextResponse.json({ error: 'A drawing has already been submitted for this line. Use "Submit new revision" to book a newer revision in.' }, { status: 409 })
+  // Skipping review is only safe for a document that already has a revision in CoreDocs (the
+  // premise: it was reviewed before, went to Aconex, and is coming back for a Rev bump).
+  if (signoffOnly && !existingDocId)
+    return NextResponse.json({ error: 'Sign-off-only applies to a document that already has a revision in CoreDocs. This line has none yet — submit it for review first.' }, { status: 400 })
 
   const { data: reqHdr } = await svc.from('document_number_request')
     .select('id, package_id').eq('id', line.request_id).single()
@@ -116,15 +131,24 @@ export async function POST(req: Request) {
   const centralUrl = spFileUrl
 
   // ─── Create batch (source='internal') + document + version, link the line ─
+  const nowIso = new Date().toISOString()
   const { data: batch, error: be } = await svc.from('batches').insert({
     batch_guid:      randomUUID(),
     source:          'internal',
     request_line_id: line.id,
     package_id:      reqHdr?.package_id ?? null,
-    status:          'metadata_pending',
+    // DC sign-off-only upload lands straight at review_complete (the sign-off gate accepts it);
+    // everything else enters review at metadata_pending.
+    status:          signoffOnly ? 'review_complete' : 'metadata_pending',
     file_count:      1,
-    received_at:     new Date().toISOString(),
+    received_at:     nowIso,
     recommended_reviewers: recommendedReviewers.length ? recommendedReviewers : null,
+    signoff_only:              signoffOnly,
+    signoff_only_reason:       (signoffOnly || requestSignoffOnly) ? signoffOnlyReason : null,
+    signoff_only_requested_by: requestSignoffOnly ? (profile?.email ?? null) : null,
+    signoff_only_requested_at: requestSignoffOnly ? nowIso : null,
+    signoff_only_approved_by:  signoffOnly ? (profile?.email ?? null) : null,
+    signoff_only_approved_at:  signoffOnly ? nowIso : null,
   }).select('id').single()
   if (be || !batch) return NextResponse.json({ error: be?.message ?? 'Could not create batch.' }, { status: 500 })
 
@@ -168,34 +192,56 @@ export async function POST(req: Request) {
     .update({ linked_document_id: doc.id, updated_at: new Date().toISOString() }).eq('id', line.id)
 
   await svc.from('audit_events').insert({
-    entity_type: 'batch', entity_id: batch.id, event_type: 'internal_drawing_submitted',
+    entity_type: 'batch', entity_id: batch.id,
+    event_type: signoffOnly ? 'signoff_only_uploaded'
+      : requestSignoffOnly ? 'signoff_only_requested' : 'internal_drawing_submitted',
     actor_user_id: profile?.id ?? null, actor_email: profile?.email ?? null,
-    event_data: { rdmc: line.rdmc_document_number, revision, fileName, requestId: line.request_id },
+    event_data: {
+      rdmc: line.rdmc_document_number, revision, fileName, requestId: line.request_id,
+      ...(signoffOnly || requestSignoffOnly ? { signoffOnly, requestSignoffOnly, reason: signoffOnlyReason } : {}),
+    },
   })
 
-  // Notify the Document Controller that an internal drawing is ready to assign — include the
-  // engineer's recommended reviewers (she prefills from these on Assign Reviewers, final say hers).
-  // Best-effort: never fail the submission on email.
+  // Notify the Document Controller (best-effort — never fail the submission on email).
   try {
     const { data: setting } = await svc.from('system_settings').select('value').eq('key', 'doc_request_controller_email').maybeSingle()
     const controller = splitEmails(setting?.value)
     if (!controller.length) controller.push('mornec@ppetech.co.za')
-    const recsHtml = recommendedReviewers.length
-      ? `<p style="margin:12px 0"><b>Reviewers recommended by the submitter:</b></p>
-         <ul style="padding-left:18px;color:#374151">${recommendedReviewers.map((r) => `<li>${r.name} &lt;${r.email}&gt;</li>`).join('')}</ul>
-         <p style="color:#6b7280;font-size:13px">These will pre-fill the review sequence — you can add or remove reviewers before starting.</p>`
-      : `<p style="color:#6b7280">The submitter did not recommend any reviewers.</p>`
-    await sendMail({
-      to: controller,
-      subject: `Internal drawing submitted for review — ${line.rdmc_document_number} (Rev ${revision})`,
-      htmlBody: brandedEmail({
-        heading: 'Internal drawing ready to assign reviewers',
-        bodyHtml: `<p><b>${profile?.email ?? 'An engineer'}</b> has submitted an internal drawing for review.</p>
-          <p style="margin:12px 0"><b>Document:</b> ${line.rdmc_document_number} (Rev ${revision})<br/>
-          <b>Title:</b> ${title ?? '—'}</p>${recsHtml}`,
-        cta: { href: `${APP_URL}/batches/${batch.id}/assign`, label: 'Assign reviewers →' },
-      }),
-    })
+
+    if (signoffOnly) {
+      // The DC uploaded it herself → it's already Review-complete and ready for sign-off. No nudge.
+    } else if (requestSignoffOnly) {
+      // Owner asked to skip review → tell the DC she can flag it straight to sign-off, or clear it.
+      await sendMail({
+        to: controller,
+        subject: `Sign-off only requested — ${line.rdmc_document_number} (Rev ${revision})`,
+        htmlBody: brandedEmail({
+          heading: 'Sign-off only requested (returned from Aconex)',
+          bodyHtml: `<p><b>${profile?.email ?? 'An engineer'}</b> submitted a new revision and asked to send it <b>straight to sign-off</b> — the previous revision was already reviewed (returned from Aconex).</p>
+            <p style="margin:12px 0"><b>Document:</b> ${line.rdmc_document_number} (Rev ${revision})<br/>
+            <b>Title:</b> ${title ?? '—'}<br/><b>Reason:</b> ${signoffOnlyReason}</p>
+            <p style="color:#6b7280;font-size:13px">Open the batch to flag it straight to sign-off, or clear the request and send it through the normal review.</p>`,
+          cta: { href: `${APP_URL}/batches/${batch.id}`, label: 'Review the request →' },
+        }),
+      })
+    } else {
+      const recsHtml = recommendedReviewers.length
+        ? `<p style="margin:12px 0"><b>Reviewers recommended by the submitter:</b></p>
+           <ul style="padding-left:18px;color:#374151">${recommendedReviewers.map((r) => `<li>${r.name} &lt;${r.email}&gt;</li>`).join('')}</ul>
+           <p style="color:#6b7280;font-size:13px">These will pre-fill the review sequence — you can add or remove reviewers before starting.</p>`
+        : `<p style="color:#6b7280">The submitter did not recommend any reviewers.</p>`
+      await sendMail({
+        to: controller,
+        subject: `Internal drawing submitted for review — ${line.rdmc_document_number} (Rev ${revision})`,
+        htmlBody: brandedEmail({
+          heading: 'Internal drawing ready to assign reviewers',
+          bodyHtml: `<p><b>${profile?.email ?? 'An engineer'}</b> has submitted an internal drawing for review.</p>
+            <p style="margin:12px 0"><b>Document:</b> ${line.rdmc_document_number} (Rev ${revision})<br/>
+            <b>Title:</b> ${title ?? '—'}</p>${recsHtml}`,
+          cta: { href: `${APP_URL}/batches/${batch.id}/assign`, label: 'Assign reviewers →' },
+        }),
+      })
+    }
   } catch {}
 
   return NextResponse.json({
