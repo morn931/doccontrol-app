@@ -340,6 +340,46 @@ Azure OpenAI resource = **`ppeopenai`** (`https://ppeopenai.openai.azure.com`, S
 This file should be updated at the end of each work session with new progress.
 
 ## Changelog (most recent first)
+- **2026-08-21 — Intake-poll race fixed (root cause of split/duplicate K125 batches) + sign-off
+  date/attachment fixes.**
+  - **Split-batch root cause found & fixed**: `/api/cron/intake-poll` fires every minute
+    (`vercel.json`), but a poll of several files can run past that interval (Graph copy + AI
+    review per file). With no lock, an overlapping cron tick re-polled the same vendor before the
+    ledger caught up, and both runs created their own batch for the same physical documents —
+    fragmenting one vendor drop into 2–3 batches, each emailing an incomplete "N documents
+    received" count. Fixed with a compare-and-swap lock on `vendor_sites.polling_started_at`
+    (migration **047**, 5-min stale-lock safety valve matching the cron's own `maxDuration`).
+    Today's real split batches (K125) reconciled by hand — merged the two still-unassigned
+    fragments; left the two already reviewer-assigned fragments alone (real emails had already
+    gone out) rather than silently restructuring an in-flight review.
+  - **"Reviewer attachments missing" — separate, much bigger bug found**: every DocumentControl
+    SharePoint library had been renamed (`"K125  220kV…"` double-space → `"K125 - 220kV…"` dash)
+    but `vendor_sites.documentcontrol_library` was never updated, so the poller's copy-into-
+    DocumentControl step had been silently failing (caught, logged nowhere visible) for **every**
+    active package — not just K125. Corrected the config for 10 packages (E101, E102, E103, E123,
+    E511B, E518B, K108, K110, K125, K137) and backfilled ~15 already-broken K125
+    `document_versions` rows (root-caused live via a direct Graph repro of the copy call — got the
+    real "Library not found" error and the actual current library list). **Still open, needs a
+    human call, not guessed**: **E516B** has no library configured and 3 similarly-named
+    SharePoint libraries exist (which one?); **ICTS**'s configured library no longer exists at
+    all; ~65 older E102 docs (Aug 19 batch) collide with a same-named file already in the
+    destination library dated March 2026 (genuine revision, or a re-import? — didn't want to
+    silently overwrite).
+  - **Transmittal CC always duplicated the controller**: the compose modal pre-filled CC with the
+    controller's own address as a *removable* chip, but the server unconditionally re-added the
+    controller regardless of what the client sent — removing the chip never actually dropped
+    them, leaving it in place (the default) mailed them twice. Server now de-dupes
+    case-insensitively; client no longer offers a fake-removable controller chip (shown as a
+    fixed note instead). Confirmed fixed live by Roelien.
+  - **Sign-off date landing on the printed name**: `lib/signoff-pdf.ts` always drew a signatory's
+    date a fixed 10pt below their (movable) signature box — too tight once a signature sits close
+    to the printed name on some title-block layouts. Widened to 16pt, then went further: migration
+    **048** adds `signoff_tasks.place_date_x/y` so the date can be repositioned **independently**
+    of the signature (`/api/signoff/[taskId]/place` takes `target: 'signature' | 'date'`; the
+    sign-off page has a Signature/Date toggle above the existing nudge arrows). Fully backward
+    compatible — falls back to the old relative offset until a signatory nudges their date for
+    the first time.
+  - **Migrations 047, 048 applied.**
 - **2026-08-04 — Edit-in-window (Word/Excel) via Microsoft SSO — BUILT, awaiting admin consent + first live test.**
   Extends the read-only Office viewer so staff can **edit/mark up the real Word/Excel in-window**
   (Word's own comments/track-changes/ink/pictures — saved into the actual doc). Read-only works
