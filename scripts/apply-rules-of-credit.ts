@@ -4,11 +4,23 @@
  *   · Siemens K125 — from review_outcome_code + revision (computeProgress)
  *   · PPE     K124 — from aconex_doc_status + revision (computeProgressFromStatus),
  *                    RES - Reserved Placeholder docs skipped entirely.
+ *   · PPE     K038 — same PPE path as K124 (Early Works). Added 2026-08-21: K038 had
+ *                    been loaded into the MDDR from the SharePoint Document Index only,
+ *                    so every row had a NULL aconex_doc_status and scored 0 — Early
+ *                    Works read ~0.5% against the CDDL's ~91%. Run
+ *                    `backfill-k038-status.ts` FIRST to carry status/revision across
+ *                    from cddl_doc, then this script scores it on the agreed ladder.
  * Writes progress_percent + progress_milestone + progress_source='rules_of_credit'
  * (the sync guard then leaves these rows alone). Re-runnable after register updates.
  *
- *   npx tsx scripts/apply-rules-of-credit.ts            # dry run (no writes)
- *   npx tsx scripts/apply-rules-of-credit.ts --apply    # write
+ *   npx tsx scripts/apply-rules-of-credit.ts                    # dry run, all packages
+ *   npx tsx scripts/apply-rules-of-credit.ts --apply            # write, all packages
+ *   npx tsx scripts/apply-rules-of-credit.ts K038 --apply       # write ONE package only
+ *
+ * The package filter matters: this script rewrites progress_percent on every row it
+ * touches, and K124/K125 feed the engineering doughnut, the month-end report and the
+ * RDMC client portal. When the intent is to fix one package, name it — do not rewrite
+ * the others as a side effect of an unrelated fix.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -50,16 +62,21 @@ async function fetchPkg(pkg: string): Promise<Row[]> {
 
 async function main() {
   const apply = process.argv.includes('--apply')
+  const only = process.argv.slice(2).filter((a) => !a.startsWith('--')).map((a) => a.toUpperCase())
   let updated = 0, skippedRES = 0, errors = 0
-  for (const pkg of ['K125', 'K124']) {
+  // PPE-authored packages score off aconex_doc_status; Siemens off review outcomes.
+  const PPE_PACKAGES = new Set(['K124', 'K038'])
+  const PACKAGES = ['K125', 'K124', 'K038'].filter((p) => !only.length || only.includes(p))
+  if (only.length) console.log(`(limited to: ${PACKAGES.join(', ') || 'nothing matched'})`)
+  for (const pkg of PACKAGES) {
     const rows = await fetchPkg(pkg)
     const dist: Record<number, number> = {}
     const patches: { id: string; percent: number; milestone: number }[] = []
     for (const r of rows) {
-      if (pkg === 'K124' && isRES(r.aconex_doc_status)) { skippedRES++; continue }
-      const res = pkg === 'K125'
-        ? computeProgress({ hasSubmission: !!r.revision, latestOutcome: r.review_outcome_code, latestRevision: r.revision })
-        : computeProgressFromStatus(r.aconex_doc_status, r.revision)
+      if (PPE_PACKAGES.has(pkg) && isRES(r.aconex_doc_status)) { skippedRES++; continue }
+      const res = PPE_PACKAGES.has(pkg)
+        ? computeProgressFromStatus(r.aconex_doc_status, r.revision)
+        : computeProgress({ hasSubmission: !!r.revision, latestOutcome: r.review_outcome_code, latestRevision: r.revision })
       dist[res.percent] = (dist[res.percent] ?? 0) + 1
       patches.push({ id: r.id, percent: res.percent, milestone: res.milestone })
     }
