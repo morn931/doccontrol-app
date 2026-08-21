@@ -259,7 +259,10 @@ export async function rebuildSignedPdf(
     } else if (s.typedName) {
       page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - 5, size: 10, font, color: ink })
     }
-    if (s.dateStr) page.drawText(s.dateStr, { x: s.x, y: s.y - 10, size: 8, font, color: ink })
+    // 10pt below the box was too tight on title-block layouts where the printed name sits
+    // right above the "Prepared/Checked/Approved By" label — once a signature is repositioned
+    // (movable signatures), the date could land on top of the name instead of under the box.
+    if (s.dateStr) page.drawText(s.dateStr, { x: s.x, y: s.y - 16, size: 8, font, color: ink })
   }
   return doc.save()
 }
