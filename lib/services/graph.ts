@@ -61,9 +61,14 @@ export async function graphFetch(path: string, options: RequestInit = {}): Promi
 // Teams application access policy authorising this app to create meetings for the
 // user (New-CsApplicationAccessPolicy). Throws if either is missing (caller falls back).
 export async function createOnlineMeeting(organizerUpn: string, subject: string): Promise<{ joinUrl: string; id: string }> {
+  // The onlineMeetings endpoint requires the user's OBJECT GUID (not the UPN/email,
+  // unlike calendarView) — resolve it first.
+  const uRes = await graphFetch(`/users/${encodeURIComponent(organizerUpn)}?$select=id`)
+  if (!uRes.ok) throw new Error(`resolve organizer failed (${uRes.status}): ${await uRes.text()}`)
+  const uid = (await uRes.json()).id as string
   const now = new Date()
   const end = new Date(now.getTime() + 60 * 60 * 1000)
-  const res = await graphFetch(`/users/${encodeURIComponent(organizerUpn)}/onlineMeetings`, {
+  const res = await graphFetch(`/users/${uid}/onlineMeetings`, {
     method: 'POST',
     body: JSON.stringify({
       startDateTime: now.toISOString(),
