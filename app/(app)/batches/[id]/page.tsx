@@ -88,6 +88,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [ccEmails, setCcEmails]                           = useState<string[]>([])
   const [newCc, setNewCc]                                 = useState('')
   const [pastEmails, setPastEmails]                       = useState<string[]>([])
+  const [defaultCc, setDefaultCc]                         = useState('')
   const [sending, setSending]                             = useState(false)
   const [transmittalError, setTransmittalError]           = useState('')
   const [destLibrary, setDestLibrary]                     = useState('')
@@ -319,7 +320,11 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       setTransmittalPreview(data.preview)
       setTransmittalSent(null)
       setPastEmails(data.pastEmails ?? [])
-      if (!ccEmails.length && data.defaultCc) setCcEmails([data.defaultCc])
+      // Not added as a removable CC chip — the server always includes it regardless (see
+      // generate-transmittal route), so a chip you could delete here was misleading: deleting it
+      // didn't stop the controller being CC'd, and leaving it in place duplicated them. Shown as
+      // a fixed note instead; this box is only for genuinely additional recipients.
+      setDefaultCc(data.defaultCc ?? '')
     } catch (e: any) {
       setTransmittalError(
         e.name === 'AbortError' ? 'Request timed out after 30s — check Vercel logs' : (e.message ?? 'Unexpected error')
@@ -908,6 +913,9 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             {/* CC */}
             <div className="mb-4">
               <label className="label">CC</label>
+              {defaultCc && (
+                <p className="mb-2 text-xs text-slate-400">Doc Control ({defaultCc}) is always CC'd automatically — add anyone else below.</p>
+              )}
               <div className="flex flex-wrap gap-2 mb-2">
                 {ccEmails.map((email, i) => (
                   <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-teal-700 rounded-full text-sm">

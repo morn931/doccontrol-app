@@ -590,9 +590,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     controllerName, controllerEmail,
   })
 
+  // De-dupe case-insensitively — the CC compose box also offers the controller as a removable
+  // chip, so without this, sending with that chip still in place (the natural default) mailed
+  // the controller twice: once from their own entry, once from this always-on safety add.
+  const ccSeen = new Map<string, string>()
+  for (const e of [controllerEmail, ...ccEmails]) { if (e) ccSeen.set(e.toLowerCase(), e) }
+
   await sendEmail({
     to: toEmail,
-    cc: [controllerEmail, ...ccEmails].filter(Boolean),
+    cc: [...ccSeen.values()],
     subject: `Document Review Transmittal — ${transmittalNumber} — ${packageCode} ${packageName}`,
     htmlBody: emailHtml,
     attachments: [{ name: `${transmittalNumber}.pdf`, contentType: 'application/pdf', content: pdfBuffer }],
