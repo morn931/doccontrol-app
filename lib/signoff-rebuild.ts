@@ -26,7 +26,7 @@ export async function rebuildBatchSignedPdf(db: any, batchId: string): Promise<{
   const basePageCount = await pageCountOf(base).catch(() => 1)
 
   const { data: tasks } = await db.from('signoff_tasks')
-    .select('signatory_name, role_label, block_row, sequence_number, status, signed_at, signature_data, place_page, place_x, place_y, place_w, place_h')
+    .select('signatory_name, role_label, block_row, sequence_number, status, signed_at, signature_data, place_page, place_x, place_y, place_w, place_h, place_date_x, place_date_y')
     .eq('batch_id', batchId).order('sequence_number', { ascending: true })
   const all = (tasks ?? []) as any[]
 
@@ -41,6 +41,8 @@ export async function rebuildBatchSignedPdf(db: any, batchId: string): Promise<{
         png: pngFromDataUrl(t.signature_data),
         typedName: t.signatory_name ?? undefined,
         dateStr: t.signed_at ? String(t.signed_at).slice(0, 10) : null,
+        dateX: t.place_date_x ?? undefined,
+        dateY: t.place_date_y ?? undefined,
       }
     })
 

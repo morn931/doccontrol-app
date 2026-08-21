@@ -205,7 +205,13 @@ export function pngFromDataUrl(image: string | null | undefined): Uint8Array | n
 // moving a signature never stacks or smears earlier stamps.
 
 export type Placement = { page: number; x: number; y: number; w: number; h: number }
-export type StampSpec = Placement & { png?: Uint8Array | null; typedName?: string; dateStr?: string | null }
+export type StampSpec = Placement & {
+  png?: Uint8Array | null; typedName?: string; dateStr?: string | null
+  // Absolute PDF-point position for the date. Optional — when absent, falls back to the
+  // relative offset below the signature box (see rebuildSignedPdf), which is what every
+  // placement had before dates could be positioned independently.
+  dateX?: number; dateY?: number
+}
 
 /** The default box for a signatory: the title-block column matching their role (page 1), or —
  *  when there's no title block — their row on the appended approval page (basePageCount + 1). */
@@ -224,6 +230,14 @@ export function defaultPlacement(
   }
   const g = rowGeom(blockRow)                 // appended page is added after the base
   return { page: basePageCount + 1, x: g.sigX, y: g.sigY, w: g.sigW, h: g.sigH }
+}
+
+/** Where the date sits by default, relative to a signature placement — same spot it's always
+ *  rendered at when no independent date position has been saved yet. Used as the starting point
+ *  the first time a signatory nudges their date (so it starts exactly where it's currently
+ *  showing, not somewhere new). */
+export function defaultDatePos(p: Placement): { x: number; y: number } {
+  return { x: p.x, y: p.y - 16 }
 }
 
 /** Rebuild the signed PDF from the clean base: optionally append the approval block (when the
@@ -259,10 +273,12 @@ export async function rebuildSignedPdf(
     } else if (s.typedName) {
       page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - 5, size: 10, font, color: ink })
     }
-    // 10pt below the box was too tight on title-block layouts where the printed name sits
-    // right above the "Prepared/Checked/Approved By" label — once a signature is repositioned
-    // (movable signatures), the date could land on top of the name instead of under the box.
-    if (s.dateStr) page.drawText(s.dateStr, { x: s.x, y: s.y - 16, size: 8, font, color: ink })
+    // Independent position if the signatory has nudged their date; else the same relative
+    // offset every placement used before dates could be moved on their own (see defaultDatePos).
+    if (s.dateStr) {
+      const dp = s.dateX != null && s.dateY != null ? { x: s.dateX, y: s.dateY } : defaultDatePos(s)
+      page.drawText(s.dateStr, { x: dp.x, y: dp.y, size: 8, font, color: ink })
+    }
   }
   return doc.save()
 }

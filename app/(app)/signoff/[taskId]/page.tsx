@@ -17,6 +17,7 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
   const [pdfV, setPdfV] = useState(0)          // cache-buster to re-render the iframe after a move
   const [moving, setMoving] = useState(false)
   const [step, setStep] = useState(12)         // nudge distance in PDF points
+  const [nudgeTarget, setNudgeTarget] = useState<'signature' | 'date'>('signature')
 
   useEffect(() => { load() }, [taskId])
   async function load() {
@@ -42,10 +43,10 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
     setMoving(true); setError('')
     try {
       const res = await fetch(`/api/signoff/${taskId}/place`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dx, dy }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dx, dy, target: nudgeTarget }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error ?? 'Could not move the signature.'); return }
+      if (!res.ok) { setError(data.error ?? `Could not move the ${nudgeTarget}.`); return }
       setPdfV(v => v + 1)
     } catch (e: any) { setError(e.message ?? 'Could not move the signature.') } finally { setMoving(false) }
   }
@@ -144,7 +145,11 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
           {isMine && task.status === 'signed' && (
             <div className="card p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Move className="h-4 w-4 text-teal-600" /> Move my signature</div>
-              <p className="text-xs text-slate-500">Your signature is placed automatically in the sign-off block. If it needs adjusting, nudge it — the document updates each time you move it.</p>
+              <p className="text-xs text-slate-500">Your signature and date are placed automatically in the sign-off block. If either needs adjusting, pick which one below and nudge it — the document updates each time you move it.</p>
+              <div className="flex gap-1 rounded-lg bg-slate-100 p-1 w-max text-xs font-medium">
+                <button onClick={() => setNudgeTarget('signature')} className={`px-3 py-1 rounded-md ${nudgeTarget === 'signature' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Signature</button>
+                <button onClick={() => setNudgeTarget('date')} className={`px-3 py-1 rounded-md ${nudgeTarget === 'date' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500'}`}>Date</button>
+              </div>
               <div className="flex items-center gap-6">
                 <div className="grid grid-cols-3 gap-1 w-max">
                   <span />
