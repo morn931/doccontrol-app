@@ -169,22 +169,54 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
   summary.batchesCreated++
 }
 
+const LOCK_STALE_MS = 5 * 60_000 // matches the cron's own maxDuration (300s) — a crashed/timed-out
+                                  // run's lock is treated as abandoned and reclaimable after this
+
+/** Atomically claim this vendor site for polling (compare-and-swap on polling_started_at) so an
+ *  overlapping cron tick can't re-poll the same drop-off library while a run is still mid-flight —
+ *  root cause of the 2026-08-21 split-batch incident (a poll of several files can run past the
+ *  1-minute cron interval; without a lock, two overlapping runs both saw the same not-yet-ledgered
+ *  files as "fresh" and each created its own batch for the same physical documents). */
+async function acquireSiteLock(db: any, siteId: string): Promise<boolean> {
+  const staleCutoff = new Date(Date.now() - LOCK_STALE_MS).toISOString()
+  const { data, error } = await db.from('vendor_sites')
+    .update({ polling_started_at: new Date().toISOString() })
+    .eq('id', siteId)
+    .or(`polling_started_at.is.null,polling_started_at.lt.${staleCutoff}`)
+    .select('id')
+  if (error) throw new Error(`acquire lock: ${error.message}`)
+  return !!(data && data.length)
+}
+
+async function releaseSiteLock(db: any, siteId: string): Promise<void> {
+  await db.from('vendor_sites').update({ polling_started_at: null }).eq('id', siteId)
+}
+
 async function pollOneVendor(db: any, site: any, summary: PollSummary) {
   const packageCode: string = site.packages?.package_code ?? ''
   if (!site.site_url || !site.dropoff_library) return
-  const files = await listDropoffPdfs(site.site_url, site.dropoff_library)
-  if (!files.length) return
 
-  const { data: seen } = await db.from('intake_ingest_ledger')
-    .select('drive_item_id').eq('package_code', packageCode).limit(50000)
-  const seenIds = new Set((seen ?? []).map((r: any) => r.drive_item_id))
-  const fresh = files.filter((f) => !seenIds.has(f.id))
-  if (!fresh.length) return
-  summary.newFiles += fresh.length
+  if (!(await acquireSiteLock(db, site.id))) {
+    summary.errors.push(`${packageCode}: skipped — a poll of this vendor is already in progress`)
+    return
+  }
+  try {
+    const files = await listDropoffPdfs(site.site_url, site.dropoff_library)
+    if (!files.length) return
 
-  for (const group of groupByArrival(fresh)) {
-    try { await ingestBatch(db, site, group, summary) }
-    catch (e: any) { summary.errors.push(`${packageCode} batch: ${e?.message}`) }
+    const { data: seen } = await db.from('intake_ingest_ledger')
+      .select('drive_item_id').eq('package_code', packageCode).limit(50000)
+    const seenIds = new Set((seen ?? []).map((r: any) => r.drive_item_id))
+    const fresh = files.filter((f) => !seenIds.has(f.id))
+    if (!fresh.length) return
+    summary.newFiles += fresh.length
+
+    for (const group of groupByArrival(fresh)) {
+      try { await ingestBatch(db, site, group, summary) }
+      catch (e: any) { summary.errors.push(`${packageCode} batch: ${e?.message}`) }
+    }
+  } finally {
+    await releaseSiteLock(db, site.id)
   }
 }
 
@@ -192,7 +224,7 @@ async function pollOneVendor(db: any, site: any, summary: PollSummary) {
 export async function runIntakePoll(db: any): Promise<PollSummary> {
   const summary: PollSummary = { vendorsPolled: 0, newFiles: 0, batchesCreated: 0, errors: [] }
   const { data: sites } = await db.from('vendor_sites')
-    .select('package_id, site_url, dropoff_library, documentcontrol_library, controller_email, packages(package_code, package_name, vendor_id, vendors(name))')
+    .select('id, package_id, site_url, dropoff_library, documentcontrol_library, controller_email, packages(package_code, package_name, vendor_id, vendors(name))')
     .eq('new_intake_enabled', true).eq('active', true)
   for (const site of sites ?? []) {
     summary.vendorsPolled++
