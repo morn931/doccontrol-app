@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { runIntakePoll } from '@/lib/intake/poller'
+import { handleSchemaAlert } from '@/lib/intake/schema-alert'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -26,6 +27,9 @@ export async function GET(req: Request) {
   const db = createServiceClient()
   try {
     const summary = await runIntakePoll(db)
+    // A committed-but-unapplied migration shows up here as a schema error on every vendor — alert
+    // the developers (throttled) instead of silently ingesting nothing. See lib/intake/schema-alert.
+    await handleSchemaAlert(db, summary.errors)
     return NextResponse.json({ ok: true, ...summary })
   } catch (e: any) {
     console.error('intake-poll error:', e)
