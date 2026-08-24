@@ -118,6 +118,9 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">CDDL</p>
             </div>
             <NavLink href="/cddl" label="CDDL Register" icon={ICON_SURFACE('cddl-register')} />
+            {/* TEMPORARY — the K038 carry-over. Remove this entry once the transfer
+                documents have been numbered and pasted into the CDDL. */}
+            <NavLink href="/cddl-carryover" label="CDDL Carry-over" icon={ICON_SURFACE('cddl-register')} />
           </>
         )}
 
