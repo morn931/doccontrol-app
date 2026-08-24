@@ -15,7 +15,9 @@ const SCALE = 1.4
 // canvas dimension exceeds this; normal documents are unaffected.
 const MAX_DIM = 10000
 
-export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase, allowDraftSave = true }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string; allowDraftSave?: boolean }) {
+export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase, allowDraftSave = true, readOnly = false, exposeApi }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string; allowDraftSave?: boolean; readOnly?: boolean; exposeApi?: (api: { jumpTo: (c: any) => void }) => void }) {
+  // readOnly hides the drawing/save toolbar — for the originator viewing the flattened doc and
+  // jumping to reviewer comments. exposeApi hands the parent an imperative jumpTo(comment).
   // endpointBase generalises persistence: review tasks use /api/reviews/<id>,
   // draft site redlines pass /api/redlines/docs/<id> — same GET/POST /markup + /markup/commit contract.
   const apiBase = endpointBase ?? (reviewTaskId ? `/api/reviews/${reviewTaskId}` : null)
@@ -31,6 +33,8 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
   const undoRef = useRef<{ fab: any; obj: any }[]>([])
   const skipHistoryRef = useRef(false)
   const pendingSigRef = useRef<{ sigUrl: string; panelUrl: string } | null>(null)  // armed by "Apply signature" → placed on next click
+  const seqRef = useRef(0)                                        // stable per-mark id counter
+  const noteAskRef = useRef<{ fab: any; obj: any } | null>(null)  // a drawn mark awaiting its one-line note
 
   const [ready, setReady] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -41,6 +45,10 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
   const [fullscreen, setFullscreen] = useState(false)
   const [zoom, setZoom] = useState(1)
   const zoomRef = useRef(1)
+  // Comment checklist: the one-line note prompt + the reviewer's clickable comments panel.
+  const [noteDraft, setNoteDraft] = useState<{ x: number; y: number; value: string } | null>(null)
+  const [panel, setPanel] = useState(false)
+  const [items, setItems] = useState<any[]>([])
 
   // Esc leaves full-screen review mode.
   useEffect(() => {
@@ -86,6 +94,8 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
     ;(async () => {
       const f = await import('fabric'); if (dead) return
       fabricLibRef.current = f; setReady(true)
+      // fabric drops unknown props on toJSON() unless declared — keep our ids/notes across save/resume.
+      f.Object.customProperties = ['cfId', 'cfNote', 'cfAuthorColor']
       if (src) {
         try {
           const res = await fetch(src)
@@ -96,6 +106,10 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
     })()
     return () => { dead = true; fabsRef.current.forEach(fb => fb.dispose?.()) }
   }, [src])
+
+  // Hand an external checklist (the originator's comment-checklist) an imperative jump. jumpTo only
+  // closes over stable refs, so exposing it once the pages exist is enough.
+  useEffect(() => { if (ready) exposeApi?.({ jumpTo }) }, [ready])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
@@ -168,13 +182,28 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
 
   function serialize() {
     const layer: Record<number, any> = {}
-    const comments: { page: number; text: string }[] = []
+    const comments: {
+      id: string; page: number; text: string; kind: string
+      x: number; y: number; pw: number; ph: number; color?: string
+    }[] = []
     fabsRef.current.forEach((fab, i) => {
       const objs = fab.getObjects()
       if (objs.length) layer[i] = fab.toJSON()
+      const dim = pageDimsRef.current[i] ?? { w: 0, h: 0 }
       for (const o of objs) {
-        if ((o.type === 'i-text' || o.type === 'text') && String(o.text ?? '').trim())
-          comments.push({ page: i + 1, text: String(o.text).trim() })
+        const isText = o.type === 'i-text' || o.type === 'text'
+        const text = isText ? String(o.text ?? '').trim() : String(o.cfNote ?? '').trim()
+        if (!text) continue   // an un-noted drawn mark produces no checklist entry (Skip is deliberate)
+        const c = o.getCenterPoint?.() ?? { x: o.left ?? 0, y: o.top ?? 0 }
+        comments.push({
+          id: o.cfId ?? `p${i}-${comments.length}`,
+          page: i + 1, text,
+          kind: isText ? 'text' : o.type,
+          // LOGICAL page space (zoom = 1) — pageDimsRef is kept for exactly this, so the jump
+          // still lands correctly if the render scale (SCALE / MAX_DIM) ever changes.
+          x: Math.round(c.x), y: Math.round(c.y), pw: Math.round(dim.w), ph: Math.round(dim.h),
+          color: o.cfAuthorColor ?? o.stroke ?? o.fill ?? undefined,
+        })
       }
     })
     return { layer, comments }
@@ -188,12 +217,60 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layer, comments }),
     })
     setSaving(false)
-    setStatus(res.ok ? `Saved — ${comments.length} text comment${comments.length !== 1 ? 's' : ''} captured.` : 'Could not save mark-ups.')
+    setItems(comments)   // keep the Comments panel + toolbar count in sync (doesn't force-open the panel)
+    setStatus(res.ok ? `Saved — ${comments.length} comment${comments.length !== 1 ? 's' : ''} captured.` : 'Could not save mark-ups.')
+  }
+
+  function commitNote() {
+    const ask = noteAskRef.current
+    if (ask && noteDraft?.value.trim()) ask.obj.cfNote = noteDraft.value.trim()
+    noteAskRef.current = null; setNoteDraft(null)
+  }
+
+  function refreshPanel() { setItems(serialize().comments); setPanel(true) }
+
+  /** Scroll the viewer (containerRef IS the overflow-auto element) to a mark and flash it. Uses
+   *  bounding rects, not offsetTop, because the container isn't the offsetParent; y/ph keeps the
+   *  jump correct at any zoom (outer.offsetHeight already reflects the current zoom). */
+  function jumpTo(c: any) {
+    const outer = outersRef.current[c.page - 1]
+    const box = containerRef.current
+    if (!outer || !box) return
+    const withinPage = c.ph ? (c.y / c.ph) * outer.offsetHeight : 0
+    const target = box.scrollTop + (outer.getBoundingClientRect().top - box.getBoundingClientRect().top) + withinPage
+    box.scrollTo({ top: Math.max(0, target - box.clientHeight / 3), behavior: 'smooth' })
+    const fab = fabsRef.current[c.page - 1]
+    const obj = fab?.getObjects().find((o: any) => o.cfId === c.id)
+    if (obj) {
+      const original = obj.opacity ?? 1
+      let n = 0
+      const t = setInterval(() => {
+        obj.set('opacity', n % 2 ? original : 0.15); fab.renderAll()
+        if (++n > 5) { clearInterval(t); obj.set('opacity', original); fab.renderAll() }
+      }, 160)
+    }
   }
 
   function wireFab(fab: any) {
     const fabric = fabricLibRef.current
-    fab.on('object:added', (e: any) => { if (skipHistoryRef.current || e.target?._skipHistory) return; undoRef.current.push({ fab, obj: e.target }) })
+    fab.on('object:added', (e: any) => {
+      if (skipHistoryRef.current || e.target?._skipHistory) return
+      const o = e.target
+      if (o && !o.cfId) {
+        o.cfId = `m${Date.now().toString(36)}-${seqRef.current++}`
+        o.cfAuthorColor = colorRef.current
+      }
+      undoRef.current.push({ fab, obj: o })
+      // A pen stroke / shape / highlight carries no words — ask for one line so the originator gets
+      // an actionable checklist entry rather than a bare circle. Text needs no prompt (it IS the note);
+      // images (signatures, pasted pictures) are excluded too.
+      if (o && !o.cfNote && (o.type === 'path' || o.type === 'rect' || o.type === 'ellipse'
+          || o.type === 'line' || o.type === 'group' || o.type === 'triangle')) {
+        const c = o.getCenterPoint?.() ?? { x: o.left ?? 0, y: o.top ?? 0 }
+        noteAskRef.current = { fab, obj: o }
+        setNoteDraft({ x: c.x, y: c.y, value: '' })
+      }
+    })
     fab.on('mouse:down', (opt: any) => {
       if (pendingSigRef.current) {   // "Apply signature" armed → drop it where the user clicked
         const pp = fab.getScenePoint ? fab.getScenePoint(opt.e) : fab.getPointer(opt.e)
@@ -405,6 +482,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
     <div className={fullscreen ? 'fixed inset-0 z-50 flex flex-col gap-2 bg-white p-3' : 'space-y-3'}>
       <div className="card p-3 flex flex-wrap items-center gap-2 sticky top-2 z-10">
         {!src && <><input type="file" accept="application/pdf" onChange={onFile} disabled={!ready} className="text-sm" /><span className="mx-1 h-5 w-px bg-slate-200" /></>}
+        {!readOnly && (<>
         <Btn t="select" label="Select" />
         <Btn t="pen" label="✏ Pen" />
         <Btn t="text" label="T Text" />
@@ -443,6 +521,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
         )}
         <button onClick={flattenDownload} className="px-3 py-1.5 rounded-md text-sm border border-slate-300 hover:bg-slate-50">Download copy</button>
         <span className="mx-1 h-5 w-px bg-slate-200" />
+        </>)}
         <div className="flex items-center rounded-md border border-slate-300 overflow-hidden">
           <button onClick={() => applyZoom(zoomRef.current - 0.2)} title="Zoom out" className="px-2.5 py-1.5 text-sm hover:bg-slate-50">−</button>
           <button onClick={() => applyZoom(1)} title="Reset to 100%" className="px-2 py-1.5 text-sm tabular-nums min-w-[3.25rem] border-x border-slate-300 hover:bg-slate-50">{Math.round(zoom * 100)}%</button>
@@ -455,9 +534,62 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
           className="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-300 hover:bg-slate-50">
           {fullscreen ? '✕ Exit full screen' : '⛶ Full screen'}
         </button>
+        {!readOnly && (
+        <button onClick={() => (panel ? setPanel(false) : refreshPanel())} title="List your comments and jump to each mark"
+          className="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-300 hover:bg-slate-50">
+          💬 Comments{items.length ? ` (${items.length})` : ''}
+        </button>
+        )}
       </div>
       <p className="text-xs text-slate-500">{status}</p>
-      <div ref={containerRef} className={`rounded-lg bg-slate-100 p-6 overflow-auto ${fullscreen ? 'flex-1 min-h-0' : 'max-h-[80vh]'}`} />
+      <div className={`flex gap-3 ${fullscreen ? 'flex-1 min-h-0' : ''}`}>
+        <div ref={containerRef}
+             className={`flex-1 rounded-lg bg-slate-100 p-6 overflow-auto relative ${fullscreen ? 'min-h-0' : 'max-h-[80vh]'}`} />
+        {panel && (
+          <aside className={`w-80 shrink-0 rounded-lg border border-slate-200 bg-white overflow-auto ${fullscreen ? 'min-h-0' : 'max-h-[80vh]'}`}>
+            <div className="sticky top-0 bg-slate-800 text-white px-3 py-2 text-sm font-semibold flex justify-between">
+              <span>Comments {items.length}</span>
+              <button onClick={() => setPanel(false)} className="text-slate-300 hover:text-white">✕</button>
+            </div>
+            {items.length === 0 && <p className="p-3 text-xs text-slate-500">No comments yet. Use T Text, or add a note when you draw.</p>}
+            {Object.entries(items.reduce((a: any, c) => { (a[c.page] ||= []).push(c); return a }, {})).map(([pg, list]: any) => (
+              <div key={pg} className="border-b border-slate-100">
+                <div className="px-3 py-1.5 bg-slate-50 text-xs font-semibold text-slate-600">
+                  Page {pg} <span className="text-slate-400">({list.length})</span>
+                </div>
+                {list.map((c: any) => (
+                  <button key={c.id} onClick={() => jumpTo(c)}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-sky-50 flex gap-2">
+                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: c.color ?? '#64748b' }} />
+                    <span>{c.text}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </aside>
+        )}
+      </div>
+
+      {noteDraft && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/30"
+             onClick={() => { noteAskRef.current = null; setNoteDraft(null) }}>
+          <div className="card p-4 w-[26rem] space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-semibold text-slate-900">What is the comment?</p>
+            <p className="text-xs text-slate-500">One line. It becomes the originator&apos;s checklist entry and jumps back to this mark.</p>
+            <input autoFocus value={noteDraft.value}
+              onChange={e => setNoteDraft({ ...noteDraft, value: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') commitNote(); if (e.key === 'Escape') { noteAskRef.current = null; setNoteDraft(null) } }}
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="e.g. Incorrect Rev" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { noteAskRef.current = null; setNoteDraft(null) }}
+                className="px-3 py-1.5 rounded-md text-sm border border-slate-300">Skip</button>
+              <button onClick={commitNote}
+                className="px-3 py-1.5 rounded-md text-sm font-semibold bg-navy-700 text-white">Add</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

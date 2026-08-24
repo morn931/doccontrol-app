@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect, useRef, use } from 'react'
-import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw, PenLine, Plus } from 'lucide-react'
+import { ArrowLeft, FileText, Users, ExternalLink, AlertCircle, X, XCircle, Download, Loader2, CheckCircle2, Trash2, RotateCw, PenLine, Plus, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
+import CommentChecklist from '@/components/markup/comment-checklist'
 import { format } from 'date-fns'
 import { outcomeColorClass, OUTCOME_CODES } from '@/lib/utils/outcome-codes'
 import type { ReviewOutcomeCode } from '@/lib/types/database'
@@ -59,6 +60,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [signoffError, setSignoffError] = useState('')
   const [resettingSignoff, setResettingSignoff] = useState(false)
   const [signoffOnlyBusy, setSignoffOnlyBusy] = useState(false)
+  const [checklistDv, setChecklistDv] = useState<any>(null)   // document version whose reviewer-comment checklist is open
   const [officeDoc, setOfficeDoc] = useState<{ id: string; name: string } | null>(null)
   // Amend-outcome (Doc Control): correct a reviewer's submitted code after the fact.
   const [amendTaskId, setAmendTaskId] = useState<string | null>(null)
@@ -846,6 +848,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
                             <FileText className="h-3.5 w-3.5" /> View
                           </button>
                         )}
+                        {dv.central_file_url && /\.pdf$/i.test(dv.file_name || dv.central_file_url) && (
+                          <button onClick={() => setChecklistDv(dv)} className="btn-secondary text-xs py-1.5 px-3"
+                            title="Work through the reviewers' comments as a checklist, jumping to each mark">
+                            <MessageSquare className="h-3.5 w-3.5" /> Comments
+                          </button>
+                        )}
                         {dv.central_file_url && (
                           <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3">
                             <ExternalLink className="h-3.5 w-3.5" /> Open
@@ -859,6 +867,21 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           ))}
         </div>
       </div>
+
+      {/* Reviewer-comment checklist (originator works through comments, jumping to each mark) */}
+      {checklistDv && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={() => setChecklistDv(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-[96vw] h-[93vh] p-4 flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-slate-900">Reviewer comments — <span className="font-mono">{checklistDv.file_name}</span></h3>
+              <button onClick={() => setChecklistDv(null)} className="text-slate-400 hover:text-slate-700 text-sm">✕ Close</button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <CommentChecklist documentVersionId={checklistDv.id} fileSrc={`/api/documents/${checklistDv.id}/file`} fileName={checklistDv.file_name} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Transmittal modal */}
       {showTransmittalModal && (

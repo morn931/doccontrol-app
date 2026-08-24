@@ -51,3 +51,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, commentCount: comments.length })
 }
+
+// Originator ticks a comment off the checklist: flip `resolved` on one comment in this reviewer's
+// row. Read-modify-write, which is a lost-update risk only if two people tick the SAME reviewer's
+// list at the same instant — acceptable for a single originator working the checklist.
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+  const { id } = await params
+  const { commentId, resolved } = await req.json()
+  const db = createServiceClient()
+  const task = await taskCtx(db, id)
+  if (!task) return NextResponse.json({ error: 'Review not found' }, { status: 404 })
+  const { data: profile } = await db.from('users').select('email').eq('auth_user_id', user.id).single()
+
+  const { data: row } = await db.from('document_markups')
+    .select('comments')
+    .eq('document_version_id', task.document_version_id)
+    .eq('review_task_id', task.id).maybeSingle()
+  const comments = ((row as any)?.comments ?? []).map((c: any) => c.id === commentId
+    ? { ...c, resolved: !!resolved,
+        resolved_by: resolved ? ((profile as any)?.email ?? user.email) : null,
+        resolved_at: resolved ? new Date().toISOString() : null }
+    : c)
+
+  const { error } = await db.from('document_markups').update({ comments })
+    .eq('document_version_id', task.document_version_id).eq('review_task_id', task.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
