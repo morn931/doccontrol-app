@@ -271,8 +271,17 @@ under a K038 name. Those 16 would have been registered wrong from file names alo
   so it is a register-sync gap, not lost work. Includes a complete run of 15
   `6105AK124-6243-MGAD-*` E-House GAs at Rev A, Issued for Tender. Filter:
   *K124 number, not registered*.
-- **11 K038 documents marked Issued for Use have no file anywhere**; 7 more have a stale
-  `file_link`.
+- **4 K038 documents have no file anywhere** (was 13). Roelien had saved most of them to
+  **ENG2 / SPECIFICATIONS**; `scripts/find-missing-files.ts` LISTS the ENG2 libraries and
+  matches on the document number, and linked 9 — all 9 then read clean and all are in a
+  project border. The remaining four (`GA09-0002`, `ED24-0050`, `HA12-0001`, `JA12-0001`)
+  are not on SharePoint: every ENG2 library plus the K138, DocumentControl and RDMC
+  document-control sites were searched, and each row's `ai_error` says exactly that.
+  ⚠️ **LIST, do not search.** Per-drive search is index-dependent — it returned nothing for
+  two files a listing then found sitting in plain view in INSTRUMENTATION. Graph's
+  tenant-wide `/search/query` refuses app-only credentials outright (400).
+- **7 K038 documents have a stale `file_link`** — the register points at a file SharePoint
+  no longer has.
 - **15 K038 documents are not in a project border**, mostly `ID19` instrument datasheets.
 - **CO-225 and CO-227 both claim `6105AK124-6243-EDST-0002`.**
 
