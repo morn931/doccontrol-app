@@ -271,18 +271,19 @@ under a K038 name. Those 16 would have been registered wrong from file names alo
   so it is a register-sync gap, not lost work. Includes a complete run of 15
   `6105AK124-6243-MGAD-*` E-House GAs at Rev A, Issued for Tender. Filter:
   *K124 number, not registered*.
-- **4 K038 documents have no file anywhere** (was 13). Roelien had saved most of them to
-  **ENG2 / SPECIFICATIONS**; `scripts/find-missing-files.ts` LISTS the ENG2 libraries and
-  matches on the document number, and linked 9 — all 9 then read clean and all are in a
-  project border. The remaining four (`GA09-0002`, `ED24-0050`, `HA12-0001`, `JA12-0001`)
-  are not on SharePoint: every ENG2 library plus the K138, DocumentControl and RDMC
-  document-control sites were searched, and each row's `ai_error` says exactly that.
+- ✅ **Every K038 document now opens** (was 13 with no file, 7 with a stale link). Roelien
+  saved the specifications to **ENG2 / SPECIFICATIONS** and the plans to **PROJECT CONTROLS
+  & GENERAL** on 2026-08-25; `scripts/find-missing-files.ts` lists the ENG2 libraries, matches
+  on document number and writes `file_link` back. All 20 then read clean, 19 of them in a
+  project border. All 199 K038 rows are read.
   ⚠️ **LIST, do not search.** Per-drive search is index-dependent — it returned nothing for
-  two files a listing then found sitting in plain view in INSTRUMENTATION. Graph's
-  tenant-wide `/search/query` refuses app-only credentials outright (400).
-- **7 K038 documents have a stale `file_link`** — the register points at a file SharePoint
-  no longer has.
-- **15 K038 documents are not in a project border**, mostly `ID19` instrument datasheets.
+  two files a listing then found in plain view in INSTRUMENTATION. Graph's tenant-wide
+  `/search/query` refuses app-only credentials outright (400).
+  ⚠️ A stale link is a row that HAS been attempted, so it carries `ai_read_at`. Re-pointing
+  one clears `ai_read_at` as well as `ai_error` — clearing only the error hides the row from
+  both reader modes at once (`--retry` wants an error, a plain run wants a missing timestamp)
+  and it would silently never be re-read.
+- **16 K038 documents are not in a project border**, mostly `ID19` instrument datasheets.
 - **CO-225 and CO-227 both claim `6105AK124-6243-EDST-0002`.**
 
 ## Reporting (menu: **Reporting**, `/reporting`)

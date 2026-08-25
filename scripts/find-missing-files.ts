@@ -123,16 +123,22 @@ async function main() {
   // ONLY the K038 rows. A tender-folder row has no file_link either, but its file sits in the
   // OneDrive transfer folder and opens perfectly well — including those would report 100
   // "missing" documents when 13 are missing.
+  //
+  // A STALE link counts as missing too: the register points at a file SharePoint no longer
+  // has, usually because the document was re-issued under a new revision suffix. Those get
+  // re-pointed at whatever is on the library today. Where several revisions of one document
+  // are present the newest PDF wins, and the hit count is printed so a close call is visible.
   const { data, error } = await db
     .from('cddl_carryover')
     .select('temp_ref,legacy_docno,title,ai_status,ai_error,file_link,source')
     .eq('source', 'k038 highlighted')
-    .is('file_link', null)
     .not('legacy_docno', 'is', null)
+    .or('file_link.is.null,ai_error.ilike.%could not be located%')
     .order('temp_ref')
   if (error) throw new Error(error.message)
   const rows = data ?? []
-  console.log(`${rows.length} K038 document(s) with no file recorded.\n`)
+  const stale = rows.filter((r) => r.file_link).length
+  console.log(`${rows.length} K038 document(s) to place${stale ? ` (${stale} with a stale link)` : ''}.\n`)
 
   const files: File[] = []
   for (const lib of LIBRARIES) {
@@ -148,7 +154,7 @@ async function main() {
     const docNo = String(r.legacy_docno)
     const want = norm(docNo)
     const hits = files.filter((f) => norm(f.name).includes(want))
-    const label = `  ${r.temp_ref}  ${docNo.padEnd(28)} ${String(r.ai_status ?? '').padEnd(18)}`
+    const label = `  ${r.temp_ref}  ${docNo.padEnd(28)} ${(r.file_link ? 'stale link' : 'no link').padEnd(11)}`
     if (!hits.length) {
       console.log(`${label} not here`)
       continue
@@ -161,7 +167,11 @@ async function main() {
     console.log(`${label} FOUND${hits.length > 1 ? ` (${hits.length})` : ''}: ${best.folder}/${best.name}`)
     if (apply) {
       const { error: upErr } = await db.from('cddl_carryover')
-        .update({ file_link: best.webUrl, ai_error: null })
+        // ai_read_at is cleared as well, not just ai_error. A stale-link row HAS been
+        // attempted, so it carries a read timestamp; clearing only the error would hide it
+        // from both reader modes at once — --retry looks for an error, a plain run for a
+        // missing timestamp — and it would silently never be read.
+        .update({ file_link: best.webUrl, ai_error: null, ai_read_at: null })
         .eq('temp_ref', r.temp_ref)
       if (upErr) console.log(`       write failed: ${upErr.message}`)
     }
