@@ -253,11 +253,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ success: true, nextSequenceNotified: nextSeq, reviewers: [...byReviewer.keys()] })
   }
 
-  // No more pending reviewers — check if all tasks for batch are done
+  // No more pending reviewers — check if all tasks for batch are done.
+  // 'overdue' and 'needs_more_review' are LATE/RETURNED-but-still-OPEN states (the
+  // reminder cron flips a past-due task to 'overdue'; it is late, NOT done). They must
+  // count as outstanding here or the batch self-completes while a reviewer is still owed —
+  // the resolution for an unresponsive reviewer is a manager override, not silent auto-complete.
+  // This mirrors the OPEN-task set used everywhere else (reviews/[id]/page.tsx, add-reviewer, etc.).
   const { count: pendingCount } = await db.from('review_tasks')
     .select('*', { count: 'exact', head: true })
     .eq('batch_id', batchId)
-    .in('status', ['pending','sent','opened','in_progress'])
+    .in('status', ['pending','sent','opened','in_progress','overdue','needs_more_review'])
 
   if (pendingCount === 0) {
     // Determine worst-case outcome
