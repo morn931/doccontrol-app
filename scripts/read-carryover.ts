@@ -121,11 +121,42 @@ async function fetchPdf(sourcePath: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer())
 }
 
-type Row = { id: string; temp_ref: string; source_path: string }
+type Row = {
+  id: string
+  temp_ref: string
+  source_path: string
+  /** set on K038 rows — the file is on SharePoint, not in the OneDrive transfer folder */
+  file_link: string | null
+}
+
+/** Bytes for a SharePoint-hosted document, resolved through CoreDocs' own resolver so a
+ *  renamed or moved file still opens. */
+async function fetchSharePointPdf(fileLink: string, ref: string): Promise<{ bytes: Uint8Array; name: string }> {
+  const { resolveOpenUrl } = await import('../lib/services/sp-resolve')
+  const { resolveDriveItemByUrl, getDriveItemContentBytes } = await import('../lib/services/graph')
+  const live = await resolveOpenUrl(fileLink, ref).catch(() => null)
+  const item = await resolveDriveItemByUrl(live || fileLink)
+  if (!item?.driveId) throw new Error('file could not be located on SharePoint')
+  const ext = (item.name.split('.').pop() || '').toLowerCase()
+  const wantPdf = OFFICE.has(ext)
+  if (!wantPdf && ext !== 'pdf') throw new Error(`not a readable format (.${ext})`)
+  const bytes = await getDriveItemContentBytes(item.driveId, item.id, wantPdf ? 'pdf' : undefined)
+  return { bytes: new Uint8Array(bytes), name: item.name }
+}
 
 async function readOne(client: Anthropic, row: Row) {
-  const name = row.source_path.split('/').pop()!
-  let bytes = await fetchPdf(row.source_path)
+  // Two sources, two locations — the reader should not care which, any more than the
+  // register does.
+  let name: string
+  let bytes: Uint8Array
+  if (row.file_link) {
+    const got = await fetchSharePointPdf(row.file_link, row.temp_ref)
+    bytes = got.bytes
+    name = got.name
+  } else {
+    name = row.source_path.split('/').pop()!
+    bytes = await fetchPdf(row.source_path)
+  }
   try {
     bytes = await firstPages(bytes, TITLE_BLOCK_PAGES)
   } catch {
@@ -152,11 +183,16 @@ async function main() {
   const limit = process.argv.includes('--limit') ? Number(process.argv[process.argv.indexOf('--limit') + 1]) : 0
   const retry = process.argv.includes('--retry')
 
-  let q = db.from('cddl_carryover').select('id,temp_ref,source_path').order('temp_ref')
+  let q = db.from('cddl_carryover').select('id,temp_ref,source_path,file_link').order('temp_ref')
   q = retry ? q.not('ai_error', 'is', null) : q.is('ai_read_at', null)
   const { data, error } = await q
   if (error) throw new Error(error.message)
-  const rows = (limit ? (data ?? []).slice(0, limit) : (data ?? [])) as Row[]
+  const all = (limit ? (data ?? []).slice(0, limit) : (data ?? [])) as Row[]
+  // Rows already known to have no file are skipped rather than retried into the same
+  // failure — their ai_error already says why.
+  const rows = all.filter((r) => r.file_link || r.source_path.includes('/'))
+  const skipped = all.length - rows.length
+  if (skipped) console.log(`(skipping ${skipped} row(s) with no file to open)\n`)
   console.log(`${rows.length} document(s) to read${retry ? ' (retrying previous failures)' : ''}\n`)
   if (!rows.length) return
 

@@ -170,7 +170,17 @@ function RowCard({ row, opts, mapped, k124 }: {
             {row.ai_has_border === true && <span className={`${PILL} border-emerald-300 bg-emerald-50 text-emerald-800`}>in border</span>}
           </>
         )}
-        {!row.ai_read_at && <span className={`${PILL} border-neutral-300 bg-neutral-50 text-neutral-500`}>not read yet</span>}
+        {/* "not read yet" means CLAUDE has not opened the file — it does NOT mean the row
+            is empty. A K038 row already carries its title, status, revision and discipline
+            from the K038 CDDL, so labelling it "not read yet" made a populated row
+            advertise itself as blank. Only the missing bit is named. */}
+        {!row.ai_read_at && !row.ai_error && (
+          row.source === "k038 highlighted"
+            ? <span className={`${PILL} border-neutral-300 bg-neutral-50 text-neutral-500`} title="The K038 CDDL metadata is already loaded; the document itself has not been opened to check its border">
+                border not checked
+              </span>
+            : <span className={`${PILL} border-neutral-300 bg-neutral-50 text-neutral-500`}>not read yet</span>
+        )}
         {row.ai_error && <span className={`${PILL} border-rose-300 bg-rose-50 text-rose-700`} title={row.ai_error}>unreadable</span>}
         {row.legacy_docno
           ? <span className={`${PILL} border-slate-300 bg-slate-50 font-mono text-slate-600`}>{row.legacy_docno}</span>
@@ -293,7 +303,11 @@ export default function CarryoverRegister({ d, canEdit, opts, mapped, k124, phas
         <Tile label="Ready to hand over" value={String(d.done)} sub="number and area allocated" tone={d.done ? "text-emerald-700" : undefined} />
         <Tile label="No project border" value={String(d.withoutBorder)} sub="went to tender without one" tone="text-amber-700" />
         <Tile label="Number printed on the document" value={String(d.withPrintedNumber)} sub="read from the title block" />
-        <Tile label="Not yet read" value={String(d.unread + d.failed)} sub={d.failed ? `${d.failed} could not be read` : "reader still running"} />
+        <Tile
+          label="Document not yet opened"
+          value={String(d.unread + d.failed)}
+          sub={d.failed ? `${d.failed} could not be opened` : "border not yet checked"}
+        />
       </div>
 
       {!phase1Read && (
