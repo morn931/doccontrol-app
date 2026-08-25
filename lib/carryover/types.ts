@@ -28,6 +28,11 @@ export type CarryoverRow = {
   id: string
   temp_ref: string
   // provenance
+  /** 'tender folder' | 'k038 highlighted' — which question this row answers */
+  source: string
+  /** for K038 rows: the mddr_entries row that holds the file, and its location */
+  mddr_id: string | null
+  file_link: string | null
   source_path: string
   source_files: string[]
   target_package: string | null

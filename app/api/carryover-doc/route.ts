@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient, createClient } from "@/lib/supabase/server";
+import { resolveOpenUrl } from "@/lib/services/sp-resolve";
+import { resolveDriveItemByUrl, getDriveItemContentBytes } from "@/lib/services/graph";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -15,6 +17,10 @@ export const maxDuration = 60;
 // query string — `?ref=CO-042` is looked up, so the route cannot be pointed at an arbitrary
 // file in the OneDrive by editing a URL.
 
+// The register has TWO kinds of row and their files live in different places:
+//   · tender folder    → a path inside Morné's OneDrive transfer folder
+//   · k038 highlighted → a SharePoint file, reached through mddr_entries.file_link
+// A controller should not have to know which — the CO reference opens either.
 const OWNER = "mornec@ppetech.co.za";
 const FOLDER = "Company Docs/Jarrod add to CDDL K124";
 const OFFICE = new Set(["docx", "doc", "xlsx", "xls", "pptx", "ppt"]);
@@ -53,10 +59,33 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient();
   const { data: row } = await db
     .from("cddl_carryover")
-    .select("temp_ref,source_path,source_files")
+    .select("temp_ref,source_path,source_files,source,file_link,mddr_id")
     .eq("temp_ref", ref)
     .maybeSingle();
   if (!row) return NextResponse.json({ error: "Not in the carry-over register" }, { status: 404 });
+
+  // ── a SharePoint-hosted K038 document ────────────────────────────────────
+  // Resolved through mddr_entries rather than a stored path: the file may be renamed or
+  // moved, and CoreDocs' own resolver keeps up with that.
+  if (row.file_link) {
+    const live = await resolveOpenUrl(String(row.file_link), ref).catch(() => null);
+    const item = await resolveDriveItemByUrl(live || String(row.file_link)).catch(() => null);
+    if (!item?.driveId) {
+      return NextResponse.json({ error: "The file for this document could not be located" }, { status: 404 });
+    }
+    const ext = (item.name.split(".").pop() || "").toLowerCase();
+    const wantPdf = OFFICE.has(ext);
+    const bytes = await getDriveItemContentBytes(item.driveId, item.id, wantPdf ? "pdf" : undefined);
+    const outName = wantPdf ? item.name.replace(/\.[^.]+$/, ".pdf") : item.name;
+    const disp0 = req.nextUrl.searchParams.get("download") === "1" ? "attachment" : "inline";
+    return new NextResponse(Buffer.from(bytes), {
+      headers: {
+        "Content-Type": wantPdf ? "application/pdf" : (INLINE[ext] ?? item.mimeType ?? "application/octet-stream"),
+        "Content-Disposition": `${disp0}; filename="${outName.replace(/"/g, "")}"`,
+        "Cache-Control": "private, max-age=300",
+      },
+    });
+  }
 
   // A requested variant must be one of THIS row's files — never an arbitrary path.
   const files = (row.source_files as string[]) ?? [];

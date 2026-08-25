@@ -43,6 +43,9 @@ function Field({
   onSaved: (f: DecisionField, v: string) => void;
 }) {
   const current = (row[field] as string | null) ?? "";
+  // Where the suggested value came from. Calling the K038 CDDL's own metadata "reader"
+  // would credit Claude with something it never read.
+  const srcLabel = row.source === "k038 highlighted" ? "K038 CDDL" : "reader";
   const [val, setVal] = useState(current);
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -106,7 +109,7 @@ function Field({
           title={aiInList ? "Use what the reader found in the document" : "The reader found this, but it is not one of the standard values"}
           className={`mt-0.5 block max-w-full truncate text-left text-[10px] hover:underline ${aiInList ? "text-sky-700" : "text-amber-700"}`}
         >
-          reader: {ai} <span className={aiInList ? "text-sky-500" : "text-amber-600"}>&mdash; {aiInList ? "use" : "use (off-list)"}</span>
+          {srcLabel}: {ai} <span className={aiInList ? "text-sky-500" : "text-amber-600"}>&mdash; {aiInList ? "use" : "use (off-list)"}</span>
         </button>
       )}
       {err && <span className="mt-0.5 block text-[10px] text-rose-600">{err}</span>}
@@ -172,6 +175,9 @@ function RowCard({ row, opts, mapped, k124 }: {
         {row.legacy_docno
           ? <span className={`${PILL} border-slate-300 bg-slate-50 font-mono text-slate-600`}>{row.legacy_docno}</span>
           : <span className={`${PILL} border-slate-300 bg-slate-50 text-slate-500`}>never numbered</span>}
+        {row.source === "k038 highlighted"
+          ? <span className={`${PILL} border-violet-300 bg-violet-50 text-violet-800`}>K038 → K124</span>
+          : <span className={`${PILL} border-slate-300 bg-slate-50 text-slate-600`}>tender pack</span>}
         <span className="text-[10px] text-slate-400">{row.target_package}</span>
         {ready && <span className={`${PILL} border-emerald-400 bg-emerald-100 text-emerald-800`}>ready</span>}
       </button>
@@ -180,7 +186,7 @@ function RowCard({ row, opts, mapped, k124 }: {
         <div className="border-t border-neutral-200 px-3 py-3">
           {row.ai_summary && (
             <p className="mb-3 rounded border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] text-sky-900">
-              <b>Reader:</b> {row.ai_summary}
+              <b>{row.source === "k038 highlighted" ? "From the K038 CDDL:" : "Reader:"}</b> {row.ai_summary}
               {row.ai_confidence && <span className="text-sky-600"> ({row.ai_confidence} confidence)</span>}
             </p>
           )}
@@ -258,7 +264,7 @@ export default function CarryoverRegister({ d, canEdit, opts, mapped, k124, phas
   phase1Read: boolean;
 }) {
   const [pkg, setPkg] = useState("all");
-  const [show, setShow] = useState<"all" | "todo" | "ready" | "noborder" | "k124missing" | "unread">("all");
+  const [show, setShow] = useState<"all" | "todo" | "ready" | "noborder" | "k124missing" | "unread" | "k038" | "tender">("all");
   const [q, setQ] = useState("");
 
   const rows = useMemo(() => {
@@ -269,6 +275,8 @@ export default function CarryoverRegister({ d, canEdit, opts, mapped, k124, phas
       if (show === "ready" && !isReady(r)) return false;
       if (show === "noborder" && r.ai_has_border !== false) return false;
       if (show === "k124missing" && !(k124[r.temp_ref] && !k124[r.temp_ref]!.inCddl)) return false;
+      if (show === "k038" && r.source !== "k038 highlighted") return false;
+      if (show === "tender" && r.source === "k038 highlighted") return false;
       if (show === "unread" && (r.ai_read_at || r.ai_error)) return false;
       if (needle && !`${r.temp_ref} ${r.ai_title ?? ""} ${r.source_path} ${r.legacy_docno ?? ""} ${r.docno ?? ""}`.toLowerCase().includes(needle)) return false;
       return true;
@@ -314,6 +322,7 @@ export default function CarryoverRegister({ d, canEdit, opts, mapped, k124, phas
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-xs font-semibold text-slate-500">Show:</span>
           {([["all", "Everything"], ["todo", "Still to allocate"], ["ready", "Ready"],
+             ["k038", "K038 → K124"], ["tender", "Tender pack"],
              ["noborder", "No border"], ["k124missing", "K124 number, not registered"],
              ["unread", "Not read yet"]] as const).map(([k, label]) => (
             <button key={k} type="button" className={chip(show === k)} onClick={() => setShow(k)}>{label}</button>
