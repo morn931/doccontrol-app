@@ -201,6 +201,81 @@ The UI "Upload Register" (merge/override) and "Sync Progress" buttons do the sam
 - **Activity IDs**: 4,086 K124 (CDDL) docs now carry Activity IDs (loaded from the updated CDDL,
   515 activities) → P6 export works for K124. Vendor packages populate as their registers add them.
 
+## CDDL Carry-over (menu: **CDDL → CDDL Carry-over**, `/cddl-carryover`) — 2026-08-25
+
+⚠️ **TEMPORARY.** Remove the nav entry in `components/layout/sidebar.tsx` once the transfer
+is done. The table can stay as the record of what was decided.
+
+**Why it exists.** The K138 tender went out in a rush. Documents reached vendors that never
+got a document number, never got a project border, and never reached the CDDL. Some have
+numbers but were never registered. This register brings them back in — a controller opens
+the actual document, sees what is known about it, and records the K124 number and area.
+
+**528 documents from two sources**, and the `source` column says which question a row
+answers, because the two barely overlap (13 documents of 235):
+
+| source | n | the question |
+|---|---|---|
+| `tender folder` | 329 | what physically went to vendors and needs a number and a border |
+| `k038 highlighted` | 199 | which K038 engineering comes across to K124 and claims progress |
+
+### ⚠️ Jarrod's selection is the VISIBLE ROWS, not the highlight
+He hides the rows that are not coming across and **leaves the yellow fill on them**.
+Reading the fill reports **238** where the answer is **212** — it would carry 26 documents
+he had already removed. `scripts/seed_k038_highlighted.py` reads `row_dimensions[r].hidden`
+and says so at the top of the file. It also loads the workbook TWICE: once for styles and
+visibility, once with `data_only=True` for values, because the document number is a formula
+and reads back as `=A142&B142&...` otherwise.
+
+### Three kinds of column, kept apart on purpose
+- **provenance** — where the file is. Scanner-owned, never edited.
+- **`ai_*`** — SUGGESTIONS. Either what Claude read in the document, or (for K038 rows) the
+  K038 CDDL's own metadata. The register labels them **"reader"** or **"K038 CDDL"**
+  accordingly — calling the CDDL's metadata a "reading" would credit Claude with something
+  it never read.
+- **decision fields** — what document control allocates. These map **1:1 onto the real
+  CDDL's 30 export columns**, so a finished row pastes straight into K124.
+
+A suggestion is never written into a decision field. Once merged there is no way to tell an
+extracted document number from an approved one, and an extracted number is exactly what
+nobody should accept unseen. `saveDecision()` enforces the allow-list **server-side**.
+
+### The reader
+`scripts/read-carryover.ts` — its own Claude schema, NOT `lib/intake/ai-review.ts`, because
+this job asks something the vendor gate never does: **is the document in a project border at
+all?** Widening the production schema would have risked live vendor intake for a temporary
+exercise. The prompt forbids inferring a number from the file name and requires an empty
+string over a guess — the file names are the unreliable part here.
+
+It handles both sources: OneDrive files by path, K038 files through `mddr_entries.file_link`
+resolved via `sp-resolve` so a renamed file still opens.
+
+What it found: **tender pack 175 in a border, 147 without** · **K038 164 in a border, 15
+without**. It read a printed number on **232** tender-pack documents where the file names
+offered 159, and **16 filenames disagreed with the document** — one is a K124 drawing filed
+under a K038 name. Those 16 would have been registered wrong from file names alone.
+
+### Scripts and migrations
+- `049_cddl_carryover.sql` — the table · `050_cddl_carryover_source.sql` — `source`,
+  `mddr_id`, `file_link`
+- `scripts/seed_carryover.py` — the tender folder. Asserts every file is attached to a row
+  before writing, so nothing can be silently dropped (384 files → 329 documents).
+- `scripts/seed_k038_highlighted.py` — Jarrod's visible rows
+- `scripts/read-carryover.ts` — `--limit N`, `--retry`; resumable, failures record `ai_error`
+- `/api/carryover-export` — the CDDL's **own 30 headers in its own order**, copied from
+  `app/api/cddl/export/route.ts`. That is a CONTRACT: if the CDDL export changes, this must
+  change with it or the paste lands a column out.
+
+### Open items for document control
+- **41 documents carry a K124 number the CDDL does not have** — but **38 are in the MDDR**,
+  so it is a register-sync gap, not lost work. Includes a complete run of 15
+  `6105AK124-6243-MGAD-*` E-House GAs at Rev A, Issued for Tender. Filter:
+  *K124 number, not registered*.
+- **11 K038 documents marked Issued for Use have no file anywhere**; 7 more have a stale
+  `file_link`.
+- **15 K038 documents are not in a project border**, mostly `ID19` instrument datasheets.
+- **CO-225 and CO-227 both claim `6105AK124-6243-EDST-0002`.**
+
 ## Reporting (menu: **Reporting**, `/reporting`)
 
 Reports computed live off the MDDR. Charts use **recharts**.
