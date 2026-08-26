@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ClipboardList, Plus, MessageSquare, ChevronDown, ChevronRight, X, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -43,6 +44,22 @@ export default function EngineeringActionsRegister({ isManager, canSeeSuggested,
   }
   useEffect(() => { load() }, [])
   useEffect(() => { fetch('/api/engineering-actions?assignees=1').then(r => r.json()).then(d => setUsers(d.users ?? [])).catch(() => {}) }, [])
+
+  // Deep-link from CoreShell's Outstanding Actions ("Open" on an item) —
+  // ?open=<action id> clears whatever filters would otherwise hide it and
+  // expands it directly, instead of landing on a filtered register the
+  // person then has to search through by hand (Liezl, 2026-08-26).
+  const searchParams = useSearchParams()
+  const openId = searchParams.get('open')
+  useEffect(() => {
+    if (!openId || actions.length === 0) return
+    const target = actions.find(a => a.id === openId)
+    if (target) {
+      setStatus('all'); setAssignee(''); setSearch('')
+      setView(target.suggested ? 'suggested' : 'register')
+      setExpanded(openId)
+    }
+  }, [openId, actions])
 
   const suggestedCount = actions.filter(a => a.suggested).length
   // If the last suggested item is cleared while the AI-suggested tab is open, the tab disappears —
