@@ -1,7 +1,35 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseJsClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
+
+// Cross-project write client for the shared Coreflow Supabase project
+// (ssyvxiqlcxfqomdklakr — CoreMeet/CoreShell/CoreTime). Same env vars
+// already used read-only by lib/coretime.ts; reused here to write, so
+// closing/reopening an engineering_action mirrored from a CoreMeet meeting
+// (source='meeting') propagates back to cm_action_item + coreflow_action_item
+// instead of only ever flowing CoreMeet -> here (Liezl, 2026-08-26 — "finish
+// the left out areas").
+function createCoreflowClient() {
+  const url = process.env.CORETIME_SUPABASE_URL
+  const key = process.env.CORETIME_SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return null
+  return createSupabaseJsClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+}
+
+async function cascadeStatusToCoreMeet(sourceRef: string, status: string) {
+  const coreflow = createCoreflowClient()
+  if (!coreflow) return
+  try {
+    const cmStatus = status === 'closed' || status === 'dismissed' ? 'closed' : 'open'
+    await coreflow.from('cm_action_item').update({ status: cmStatus }).eq('id', sourceRef)
+    const rollupStatus = cmStatus === 'closed' ? 'done' : 'open'
+    await coreflow.from('coreflow_action_item').update({ status: rollupStatus }).eq('source_type', 'coremeeting').eq('source_id', sourceRef)
+  } catch {
+    // best-effort — CoreMeet/CoreShell being unreachable must never block the close here
+  }
+}
 
 // Does this user carry the eng_action_manager capability? (engineering_manager / admin /
 // developer by default — migration 036 flag, tunable in role_definitions.)
@@ -41,6 +69,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { data: updated, error } = await db.from('engineering_action').update(patch).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Mirror rows from CoreMeet (source='meeting') sync their status back so a
+  // close/reopen here shows up there too, not just the CoreMeet -> here direction.
+  if (b.status !== undefined && updated?.source === 'meeting' && updated?.source_ref) {
+    await cascadeStatusToCoreMeet(updated.source_ref as string, patch.status)
+  }
+
   // No email — closures show in the register and the daily digest.
   return NextResponse.json({ ok: true, action: updated })
 }
