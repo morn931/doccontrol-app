@@ -1,16 +1,20 @@
-import { WORKING_DAY_HOURS, type CarryoverProgress } from '@/lib/carryover/progress'
+import type { CarryoverProgress } from '@/lib/carryover/progress'
 
-// Progress and pace on the carry-over, for whoever is being asked when it will be done.
+// Where the carry-over stands, for the people doing it.
 //
-// The per-person figures are labelled "recorded activity" everywhere, never "hours
-// worked", and the caveat sits WITH them rather than in a footnote — this table names
-// people, and the header of lib/carryover/progress.ts explains why that distinction
-// matters before anyone quotes a number from it.
+// ⚠️ THIS IS A SCOREBOARD, NOT A TIMESHEET — and that is a deliberate design decision, not
+// an oversight. An earlier version of this strip showed each controller's start and finish
+// times, session count and share of a nine-hour day. Those numbers are derived from WHEN A
+// DECISION WAS SAVED, which cannot see the reading, checking and deciding that happens
+// between saves, and shown per person they read as an audit of someone's hours rather than
+// a measure of the work. They were removed on purpose. If you are tempted to put them
+// back, read the header of lib/carryover/progress.ts first.
+//
+// What is here instead: one number for where the register stands, a target for today that
+// the team sets by their own best day, and a finish date that moves closer when they beat
+// it. Contribution counts are shown as credit — no times, no ranking by effort.
 
-const hrs = (ms: number) => (ms / 3600000).toFixed(1)
 const pct = (n: number, d: number) => (d ? (n / d) * 100 : 0)
-const hhmm = (iso: string) =>
-  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg' })
 const dayLabel = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
 
@@ -18,135 +22,120 @@ export default function ProgressStrip({ p }: { p: CarryoverProgress }) {
   const readyPct = pct(p.ready, p.total)
   const partialPct = pct(p.partial, p.total)
   const maxDay = Math.max(1, ...p.byDay.map((d) => d.decisions))
+  // The target is the team's own best day. It is never zero, so the bar always has
+  // something to fill, and it rises only when they raise it themselves.
+  const target = Math.max(1, p.bestDay)
+  const todayPct = pct(p.today, target)
+  const beatenIt = p.today >= target && p.bestDay > 0
 
   return (
     <div className="mt-4 rounded-xl border border-navy-200 bg-white p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-bold text-navy-800">Progress and pace</h2>
-        <span className="text-xs text-slate-500">
-          Done means a K124 number <b>and</b> an area recorded — the same rule the register marks
-          <span className="mx-1 rounded border border-emerald-400 bg-emerald-100 px-1 text-[10px] font-semibold text-emerald-800">ready</span>
-          by.
-        </span>
+      {/* ── One number, at the top, for anyone who opens the page ── */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="flex items-baseline gap-3">
+            <span className="text-5xl font-bold text-navy-800">{readyPct.toFixed(1)}%</span>
+            <span className="text-sm text-slate-600">
+              <b className="text-navy-800">{p.ready.toLocaleString()}</b> of {p.total.toLocaleString()} ready to export
+            </span>
+          </div>
+          <div className="mt-0.5 text-xs text-slate-500">
+            A document is ready when it has a K124 number <b>and</b> an area — the same rule the register marks
+            <span className="mx-1 rounded border border-emerald-400 bg-emerald-100 px-1 text-[10px] font-semibold text-emerald-800">ready</span>
+            by. <b>{p.remaining.toLocaleString()}</b> to go.
+          </div>
+        </div>
+        {p.projectedFinish && p.remaining > 0 && (
+          <div className="text-right">
+            <div className="text-xs text-slate-500">On this pace, finished by</div>
+            <div className="text-lg font-bold text-navy-800">{dayLabel(p.projectedFinish)}</div>
+            <div className="text-[10px] text-slate-400">beat the target and this date comes forward</div>
+          </div>
+        )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-baseline gap-3">
-        <span className="text-3xl font-bold text-navy-800">{readyPct.toFixed(1)}%</span>
-        <span className="text-sm text-slate-600">
-          <b>{p.ready.toLocaleString()}</b> of {p.total.toLocaleString()} ready to export
-          {p.partial > 0 ? <> · {p.partial} part done</> : null}
-          {' '}· <b>{p.remaining.toLocaleString()}</b> to go
-        </span>
-      </div>
-      <div className="mt-2 flex h-3 w-full overflow-hidden rounded bg-neutral-100">
+      <div className="mt-3 flex h-4 w-full overflow-hidden rounded bg-neutral-100">
         <div style={{ width: `${readyPct}%`, background: '#047857' }} title={`Ready — ${p.ready}`} />
         <div style={{ width: `${partialPct}%`, background: '#B45309' }} title={`Part done — ${p.partial}`} />
       </div>
 
-      {/* Pace and how long is left at it. */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-          <div className="text-xl font-bold text-navy-800">{p.latestDayRate}</div>
-          <div className="text-[11px] font-medium text-slate-700">decisions on the latest active day</div>
-          <div className="text-[10px] text-slate-500">
-            against {p.meanRate.toFixed(0)} a day averaged over {p.byDay.length} active day{p.byDay.length === 1 ? '' : 's'}
+      {/* ── Today's goal ── */}
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <div className={`rounded-lg border p-3 lg:col-span-2 ${beatenIt ? 'border-emerald-300 bg-emerald-50/60' : 'border-navy-200 bg-navy-50/40'}`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-xs font-semibold text-navy-800">Today</span>
+            <span className="text-[11px] text-slate-500">
+              target is your own best day{p.bestDayOn ? ` — ${target} on ${dayLabel(p.bestDayOn)}` : ''}
+            </span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className={`text-3xl font-bold ${beatenIt ? 'text-emerald-700' : 'text-navy-800'}`}>{p.today}</span>
+            <span className="text-sm text-slate-600">of {target}</span>
+            {beatenIt && <span className="rounded border border-emerald-400 bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">best day yet</span>}
+          </div>
+          <div className="mt-2 h-2.5 w-full overflow-hidden rounded bg-white">
+            <div
+              className="h-full rounded"
+              style={{ width: `${Math.min(100, todayPct)}%`, background: beatenIt ? '#047857' : '#1E4E8C' }}
+            />
           </div>
         </div>
+
         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-          <div className="text-xl font-bold text-navy-800">
-            {p.daysAtLatest !== null ? Math.ceil(p.daysAtLatest) : '—'}
-            <span className="ml-1 text-xs font-normal text-slate-500">days</span>
-          </div>
-          <div className="text-[11px] font-medium text-slate-700">to finish, if the latest day&apos;s pace holds</div>
+          <div className="text-xl font-bold text-navy-800">{Math.round(p.meanRate)}</div>
+          <div className="text-[11px] font-medium text-slate-700">a day, on average so far</div>
           <div className="text-[10px] text-slate-500">
-            {p.daysAtMean !== null ? `${Math.ceil(p.daysAtMean)} days at the average pace` : 'no pace recorded yet'}
+            {p.medianGapSec > 0 && <>about {Math.floor(p.medianGapSec / 60)}m {p.medianGapSec % 60}s per document</>}
           </div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-          <div className="text-xl font-bold text-navy-800">
-            {Math.floor(p.medianGapSec / 60)}m {p.medianGapSec % 60}s
-          </div>
-          <div className="text-[11px] font-medium text-slate-700">median between consecutive decisions</div>
-          <div className="text-[10px] text-slate-500">open the drawing, read the title block, decide, record</div>
         </div>
       </div>
 
-      {/* Per person. */}
-      <div className="mt-4">
-        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-          <span className="text-xs font-semibold text-navy-800">Recorded activity, per person</span>
-          <span className="text-[10px] text-slate-500">against a {WORKING_DAY_HOURS}-hour day · times SAST</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr>
-                {['Who', 'Day', 'Decisions', 'First', 'Last', 'Recorded activity', 'of a 9-hour day', 'Sessions'].map((h, i) => (
-                  <th
-                    key={h}
-                    className={`border border-slate-300 bg-navy-800 px-2 py-1 font-semibold text-white ${i === 2 || i >= 5 ? 'text-right' : 'text-left'}`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {p.people.flatMap((person) =>
-                person.days.map((d, di) => {
-                  const share = pct(d.activeMs, WORKING_DAY_HOURS * 3600000)
-                  return (
-                    <tr key={`${person.email}-${d.day}`}>
-                      <td className="border border-slate-200 px-2 py-1 font-medium text-navy-800">
-                        {di === 0 ? person.name : ''}
-                      </td>
-                      <td className="border border-slate-200 px-2 py-1 text-slate-600">{dayLabel(d.day)}</td>
-                      <td className="border border-slate-200 px-2 py-1 text-right font-semibold text-navy-800">{d.decisions}</td>
-                      <td className="border border-slate-200 px-2 py-1 text-slate-600">{hhmm(d.first)}</td>
-                      <td className="border border-slate-200 px-2 py-1 text-slate-600">{hhmm(d.last)}</td>
-                      <td className="border border-slate-200 px-2 py-1 text-right text-slate-700">{hrs(d.activeMs)} h</td>
-                      <td className="border border-slate-200 px-2 py-1 text-right">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="inline-block h-1.5 w-16 overflow-hidden rounded bg-neutral-200 align-middle">
-                            <span className="block h-full rounded bg-navy-500" style={{ width: `${Math.min(100, share)}%` }} />
-                          </span>
-                          <span className="text-slate-600">{share.toFixed(0)}%</span>
-                        </span>
-                      </td>
-                      <td className="border border-slate-200 px-2 py-1 text-right text-slate-600">{d.sessions}</td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+      {/* ── Day by day, and who has contributed ── */}
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
+        {p.byDay.length > 1 && (
+          <div>
+            <div className="mb-1 text-xs font-semibold text-navy-800">Decisions per day</div>
+            <div className="flex items-end gap-2">
+              {p.byDay.map((d) => (
+                <div key={d.day} className="flex flex-col items-center gap-1">
+                  <span className="text-[10px] font-semibold text-navy-800">{d.decisions}</span>
+                  <div
+                    className="w-9 rounded-t"
+                    style={{
+                      height: `${Math.max(4, (d.decisions / maxDay) * 52)}px`,
+                      background: d.decisions === maxDay ? '#047857' : '#1E4E8C',
+                    }}
+                  />
+                  <span className="text-[10px] text-slate-500">{dayLabel(d.day)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {/* The caveat travels WITH the number, because this table names people. */}
-        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-          <b>What &ldquo;recorded activity&rdquo; is.</b> The time bracketed by consecutive saved decisions. It measures{' '}
-          <b>throughput, not diligence</b>, and it is a lower bound: it cannot see the time before the first save of a
-          session — usually the longest part, finding and opening the drawing — nor any document opened, considered and
-          left undecided, which is exactly what the <b>{p.noBorderRemaining} with no project border</b> invite. A low
-          figure may mean the register was worked in short bursts between other duties; on its own it does not mean the
-          work was not done.
+        {p.people.length > 0 && (
+          <div>
+            <div className="mb-1 text-xs font-semibold text-navy-800">Documents placed</div>
+            <div className="flex flex-wrap gap-2">
+              {p.people.map((person) => (
+                <span key={person.email} className="rounded-full border border-navy-200 bg-navy-50 px-2.5 py-1 text-xs text-navy-800">
+                  {person.name} <b>{person.decisions}</b>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── The two things that would move the number fastest ── */}
+      {(p.noBorderRemaining > 0 || p.unreadRemaining > 0) && (
+        <p className="mt-3 border-t border-neutral-200 pt-2 text-[11px] leading-relaxed text-slate-600">
+          <b className="text-navy-800">What is slowing the rest down.</b>{' '}
+          {p.noBorderRemaining > 0 && (
+            <><b>{p.noBorderRemaining}</b> of the {p.remaining.toLocaleString()} left have no project border, so each one is a judgement call rather than a look-up — one agreed rule for those would clear them in a run. </>
+          )}
+          {p.unreadRemaining > 0 && <><b>{p.unreadRemaining}</b> could not be opened by the reader and need the file finding first.</>}
         </p>
-      </div>
-
-      {/* Daily throughput. */}
-      {p.byDay.length > 1 && (
-        <div className="mt-4">
-          <div className="mb-1 text-xs font-semibold text-navy-800">Decisions per day</div>
-          <div className="flex items-end gap-2">
-            {p.byDay.map((d) => (
-              <div key={d.day} className="flex flex-col items-center gap-1">
-                <span className="text-[10px] font-semibold text-navy-800">{d.decisions}</span>
-                <div className="w-10 rounded-t bg-navy-500" style={{ height: `${Math.max(4, (d.decisions / maxDay) * 56)}px` }} />
-                <span className="text-[10px] text-slate-500">{dayLabel(d.day)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
     </div>
   )

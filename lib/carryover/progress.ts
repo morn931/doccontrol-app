@@ -17,7 +17,11 @@ import { isReady, type CarryoverRow } from './types'
 //   · work on this register done through any other surface.
 //
 // It is a fair measure of THROUGHPUT and a poor measure of DILIGENCE. Presented as the
-// latter it will be wrong, and wrong about named people.
+// latter it will be wrong, and wrong about named people. That is why the page shows a
+// SHARED TARGET and a contribution count, and no longer shows per-person start/finish
+// times, session counts or share-of-a-working-day: the point of the strip is to let the
+// people doing the work see where they are, not to let anyone audit their hours. The
+// per-day detail is still computed here for a one-off question; it is not rendered.
 //
 // `updated_at` is deliberately NOT used: the AI reader wrote to every one of the 528 rows
 // when it read the documents, so by that column the register is 100% "touched" and always
@@ -50,7 +54,30 @@ export type CarryoverProgress = {
   daysAtMean: number | null
   noBorderRemaining: number
   unreadRemaining: number
+  /** decisions recorded so far today (SAST) — the number to chase */
+  today: number
+  /** the best single day so far, which is what "today" is measured against */
+  bestDay: number
+  bestDayOn: string | null
+  /** working days to finish at the recent pace, and the date that lands on */
+  projectedFinish: string | null
 }
+
+/** Working days only — the target has to be reachable in the week people actually work. */
+function addWorkingDays(from: Date, n: number): Date {
+  const d = new Date(from)
+  let left = Math.ceil(n)
+  while (left > 0) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    const day = d.getUTCDay()
+    if (day !== 0 && day !== 6) left--
+  }
+  return d
+}
+
+/** Today in SAST — the register is worked in Johannesburg, not UTC. */
+const sastDay = (t: number | Date = new Date()) =>
+  new Date(new Date(t).getTime() + 2 * 3600000).toISOString().slice(0, 10)
 
 const nameOf = (email: string) => {
   const local = String(email ?? '').split('@')[0]
@@ -118,10 +145,22 @@ export function getProgress(rows: CarryoverRow[]): CarryoverProgress {
   const medianGapSec = gaps.length ? Math.round(gaps[Math.floor(gaps.length / 2)] / 1000) : 0
   const remaining = total - ready
 
+  const todayKey = sastDay()
+  const today = decidedRows.filter((r) => sastDay(new Date(r.decided_at as string)) === todayKey).length
+  const best = byDay.reduce<{ day: string; decisions: number } | null>(
+    (a, b) => (!a || b.decisions > a.decisions ? b : a), null)
+  // Pace for the projection: the better of the recent day and the average, so a good day
+  // pulls the finish date IN. That is the whole point — the date is theirs to move.
+  const pace = Math.max(latestDayRate, meanRate)
+  const projectedFinish = pace > 0 && remaining > 0
+    ? addWorkingDays(new Date(), remaining / pace).toISOString().slice(0, 10)
+    : remaining === 0 ? todayKey : null
+
   return {
     total, ready, partial, untouched: total - ready - partial,
     withNumber, withArea, decided: decidedRows.length,
     people, byDay, latestDayRate, meanRate, medianGapSec, remaining,
+    today, bestDay: best?.decisions ?? 0, bestDayOn: best?.day ?? null, projectedFinish,
     daysAtLatest: latestDayRate > 0 ? remaining / latestDayRate : null,
     daysAtMean: meanRate > 0 ? remaining / meanRate : null,
     noBorderRemaining: rows.filter((r) => !isReady(r) && r.ai_has_border === false).length,
