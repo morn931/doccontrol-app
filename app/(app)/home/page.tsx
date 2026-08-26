@@ -258,7 +258,7 @@ export default async function HomePage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">My Actions</h1>
-          <p className="mt-1 text-sm text-slate-500">Everything waiting on you, {firstName} — in one place.</p>
+          <p className="mt-1 text-sm text-slate-500">Everything waiting on you, <span className="font-semibold text-slate-700">{firstName}</span> — in one place.</p>
         </div>
         {chips.length > 0 && (
           <div className="flex flex-wrap gap-2">
