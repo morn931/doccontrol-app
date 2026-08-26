@@ -5,6 +5,8 @@ import { getPermissions, can, FK } from '@/lib/permissions'
 import { getCarryover, getK124Status } from '@/lib/carryover/carryover'
 import { getCarryoverOptions, codeForReaderValue } from '@/lib/carryover/options'
 import CarryoverRegister from './register'
+import ProgressStrip from './progress-strip'
+import { getProgress } from '@/lib/carryover/progress'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -38,6 +40,7 @@ export default async function CarryoverPage() {
   }]))
 
   const notRegistered = Object.values(k124).filter((k) => k && !k.inCddl).length
+  const progress = getProgress(d.rows)
 
   return (
     <div className="p-6">
@@ -60,6 +63,8 @@ export default async function CarryoverPage() {
           <Link href="/cddl" className="text-sm font-medium text-navy-700 hover:underline">← CDDL Register</Link>
         </div>
       </div>
+
+      <ProgressStrip p={progress} />
 
       {notRegistered > 0 && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
