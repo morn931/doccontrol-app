@@ -1,5 +1,6 @@
 'use client'
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { updateCddlDoc, addCddlDoc, retireCddlDoc, setCddlMode } from './actions'
 
 export type CddlRow = {
@@ -80,6 +81,17 @@ export function CddlRegister({ rows, canEdit, mode }: { rows: CddlRow[]; canEdit
 
   const coreflowMaster = mode === 'coreflow_master'
   const editable = canEdit && coreflowMaster
+
+  // Deep-link from CoreShell's Outstanding Actions ("Document submissions" — an
+  // owner's item list links here as ?doc=<docno>). Finds the doc regardless of
+  // which package tab it's on and narrows straight to it (Liezl, 2026-08-26).
+  const searchParams = useSearchParams()
+  const openDoc = searchParams.get('doc')
+  useEffect(() => {
+    if (!openDoc) return
+    const row = rows.find(r => r.docno === openDoc)
+    if (row) { setPkgSel(row.package_code); setQ(row.docno) }
+  }, [openDoc, rows])
 
   const pkgs = useMemo(() => Array.from(new Set(rows.map(r => r.package_code))).sort(), [rows])
   const pkg = pkgs.includes(pkgSel) ? pkgSel : (pkgs[0] ?? 'K124')
