@@ -90,7 +90,11 @@ export default function ProgressStrip({ p }: { p: CarryoverProgress }) {
         </div>
       </div>
 
-      {/* ── Day by day, and who has contributed ── */}
+      {/* ── Day by day ──
+             NO NAMES ANYWHERE ON THIS STRIP. The per-person table went first, then the
+             contribution chips: both put individuals on a page their own team opens, and
+             the register is worked jointly. The daily bars show the same movement without
+             attributing it, which is all anyone needs to see where it stands. */}
       <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
         {p.byDay.length > 1 && (
           <div>
@@ -113,18 +117,6 @@ export default function ProgressStrip({ p }: { p: CarryoverProgress }) {
           </div>
         )}
 
-        {p.people.length > 0 && (
-          <div>
-            <div className="mb-1 text-xs font-semibold text-navy-800">Documents placed</div>
-            <div className="flex flex-wrap gap-2">
-              {p.people.map((person) => (
-                <span key={person.email} className="rounded-full border border-navy-200 bg-navy-50 px-2.5 py-1 text-xs text-navy-800">
-                  {person.name} <b>{person.decisions}</b>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── The two things that would move the number fastest ── */}
