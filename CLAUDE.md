@@ -821,3 +821,30 @@ route is untouched.
   **ABB packages keep their SDDR-reported %.** **RES — Reserved Placeholder** docs are excluded from progress.
 - Result: per-package engineering % read live by CoreReports (separate Supabase, federated). Deploy:
   auto-deploy OFF — `vercel link` (doccontrol-app, morne-s-projects1) then `vercel --prod`. Prod = docs.coreflow.build.
+
+## 2026-08-27 — Intake NULL-central_file_url class CLOSED (self-heal + transmittal pre-flight)
+
+Third strike of the poller's NULL `central_file_url` bug, first vendor-visible one: Siemens'
+transmittals **PPE-TRN-2026-00095/00096** (K125, Roelien) emailed a "your documents are here"
+link while `returnBatchFilesToVendor` found "no stored file to return" — empty TO VENDOR
+bucket, batch page said "Sent". Found via CoreSupport (ticket 6b0f610b; the support runner
+diagnosed the email-before-delivery defect from code alone). Fix (commit `30ddd5e`):
+
+- **Poller self-heal** — `healMissingCentralCopies()` in `lib/intake/poller.ts` runs every
+  poll cycle: NULL-central rows (with `doc_unique_id`, last 60 days) get their DocumentControl
+  copy retried from the drop-off source, 8 per run, source existence-checked. New
+  `PollSummary.healedCentralCopies` field.
+- **Transmittal pre-flight** — `generate-transmittal` now 409s (naming the files) if any batch
+  document has no central file, BEFORE the email is sent. Sending the email first was the
+  incident; a vendor must never receive a link before the files can actually deliver.
+- **Batch page** — red "Transmittal issued but files not delivered" banner + **Retry delivery**
+  button (POSTs the existing idempotent `/api/batches/[id]/return`) whenever status is
+  `transmittal_generated`; the sent-confirmation panel surfaces a failed/partial
+  `vendorReturn` instead of rendering plain success.
+- **E516B config gap closed** (data, not code): `vendor_sites.documentcontrol_library` set to
+  `"E516B  - E-Rooms"` — the library existed on the DocumentControl site all along (double
+  space, same pattern as E511B); it was simply never configured, so every E516B intake was
+  silently skipping its central copy.
+- One-off remediation the same day: 6 K125 docs healed by script; both batches delivered to
+  the K125 TO VENDOR library (verified in Graph), stamped `returned_to_vendor`, audit rows
+  written. Roelien's ticket resolved; no re-send was needed — the original links now work.
