@@ -2,7 +2,7 @@
 import { useState, useEffect, use } from 'react'
 import {
   ArrowLeft, ExternalLink, Send, AlertTriangle, Save, CheckCircle,
-  ChevronDown, ChevronUp, Users, History, FileText, Plus, X
+  ChevronDown, ChevronUp, Users, History, FileText, Plus, X, RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -300,6 +300,21 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
               )}
             </span>
             <div className="flex items-center gap-2 shrink-0">
+              {/* The preview itself is Microsoft's page in a cross-origin iframe — we cannot
+                  see when IT fails (e.g. "A network change was detected."), so the escape
+                  hatches must always be on screen once the frame is mounted. */}
+              {officeUrl && (
+                <>
+                  <button onClick={() => { if (officeDvId) openOfficeViewer(officeDvId) }}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
+                    <RefreshCw className="h-4 w-4" /> Reload preview
+                  </button>
+                  <a href={`/api/documents/${dv.id}/download-url`} target="_blank" rel="noopener noreferrer"
+                     className="inline-flex items-center gap-1.5 rounded-md bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm">
+                    <ExternalLink className="h-4 w-4" /> Open in SharePoint
+                  </a>
+                </>
+              )}
               {officeEditHref && (
                 <a href={officeEditHref} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/90 hover:bg-emerald-500 px-3 py-1.5 text-sm font-medium">
@@ -311,6 +326,14 @@ export default function ReviewWorkspacePage({ params }: { params: Promise<{ id: 
               </button>
             </div>
           </div>
+          {officeUrl && (
+            <p className="text-[11px] text-white/70 mb-2 shrink-0">
+              The preview is served by Microsoft Office for the web. If it shows a Microsoft error
+              (e.g. “A network change was detected.”), use <strong>Reload preview</strong> — or
+              <strong> Open in SharePoint</strong> to read the document in a new tab. Your review comments
+              and outcome are still recorded here.
+            </p>
+          )}
           <div className="flex-1 min-h-0 rounded-lg overflow-hidden bg-white">
             {officeLoading ? (
               <div className="h-full flex items-center justify-center text-slate-400 text-sm">Opening document…</div>
