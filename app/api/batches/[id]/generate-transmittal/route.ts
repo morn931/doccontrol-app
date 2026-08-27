@@ -497,6 +497,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const docVersions = (batch.document_versions as any[]) ?? []
 
+  // Pre-flight: refuse to issue a transmittal whose files cannot be delivered. In the
+  // PPE-TRN-2026-00095/00096 incident the email went out first, the return copy then found
+  // no stored central file, and the failure was invisible — Siemens got a link to an empty
+  // bucket. Fail HERE, before any email, and name the files.
+  const undeliverable = docVersions.filter((dv: any) => !dv.central_file_url)
+  if (undeliverable.length) {
+    return NextResponse.json({
+      error:
+        `Transmittal not sent — ${undeliverable.length} document(s) have no stored central file to deliver: ` +
+        undeliverable.map((d: any) => d.file_name).join(', ') +
+        `. The intake self-heal repairs this within a few minutes; retry then. If it persists, ` +
+        `the package's DocumentControl library is missing or misnamed in vendor sites.`,
+    }, { status: 409 })
+  }
+
   const { data: allTasks } = await db.from('review_tasks')
     .select('document_version_id, reviewer_email, review_outcome_code, comment, sequence_number')
     .eq('batch_id', batchId).eq('status','completed').order('sequence_number',{ascending:true})

@@ -51,6 +51,8 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [rejectPreview, setRejectPreview] = useState<any>(null)   // dry-run manifest before confirm
   const [rejectVendorEmail, setRejectVendorEmail] = useState('')  // controller-confirmed reject recipient
   const [retrying, setRetrying]     = useState(false)
+  const [redelivering, setRedelivering] = useState(false)   // return-to-vendor retry (files, not the email)
+  const [redeliverMsg, setRedeliverMsg] = useState('')
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set())
   const [rejectDocIds, setRejectDocIds] = useState<string[] | null>(null)  // null = whole batch
   const [retryingDoc, setRetryingDoc]   = useState<string | null>(null)
@@ -342,6 +344,22 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
     setShowTransmittalModal(true)
   }
 
+  // Re-run the file delivery for an already-issued transmittal (no new number, no new
+  // email). The batch only reaches 'returned_to_vendor' when every document copies.
+  async function handleRetryDelivery() {
+    setRedelivering(true); setRedeliverMsg('')
+    try {
+      const res = await fetch(`/api/batches/${id}/return`, { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) { setRedeliverMsg(`Delivered ${data.copied}/${data.total} file(s) to ${data.returnLibrary ?? "the vendor's bucket"}.`); await loadBatch() }
+      else setRedeliverMsg(`Delivery still failing — ${data.errors?.[0] ?? data.error ?? 'see the audit log'}`)
+    } catch (e: any) {
+      setRedeliverMsg(e.message ?? 'Unexpected error')
+    } finally {
+      setRedelivering(false)
+    }
+  }
+
   async function handleSendTransmittal() {
     const internal = batch?.source === 'internal'
     if (!toEmail.trim()) { setTransmittalError(internal ? 'Engineer email is required' : 'Vendor email is required'); return }
@@ -424,6 +442,30 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           <ArrowLeft className="h-3.5 w-3.5" /> Batches
         </Link>
       </div>
+
+      {/* Undelivered transmittal — a transmittal email has gone out but the reviewed files did
+          NOT all reach the vendor's bucket (the batch only reaches 'returned_to_vendor' once
+          every file copies). This was silent in the Siemens PPE-TRN-2026-00095/00096 incident:
+          the vendor's link pointed at an empty library and nobody could see it. */}
+      {!isInternal && batch.status === 'transmittal_generated' && (
+        <div className="card p-4 border-red-300 bg-red-50 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-800">
+              Transmittal issued, but the reviewed files have not been delivered to the vendor&apos;s SharePoint bucket.
+            </p>
+            <p className="text-xs text-red-700 mt-0.5">
+              The link the vendor received points at files that are not there. Retry the delivery —
+              it re-copies every document (no new transmittal, no new email) and marks the batch
+              returned once all of them land.
+            </p>
+            {redeliverMsg && <p className="text-xs mt-1.5 font-medium text-red-900">{redeliverMsg}</p>}
+          </div>
+          <button onClick={handleRetryDelivery} disabled={redelivering} className="btn-secondary text-xs py-1.5 px-3 shrink-0">
+            {redelivering ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Delivering…</> : <><RotateCw className="h-3.5 w-3.5" /> Retry delivery</>}
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="card p-6">
@@ -1004,6 +1046,16 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           'bg-red-100 text-red-800'
         return (
           <div ref={transmittalRef} className="card">
+            {/* A sent transmittal whose file delivery failed or was partial is NOT a success —
+                say so on the confirmation itself, not only in the audit log. */}
+            {isSent && transmittalSent?.vendorReturn && !transmittalSent.vendorReturn.ok && (
+              <div className="px-6 py-3 bg-red-50 border-b border-red-200 text-sm text-red-800">
+                <b>Files not delivered:</b> the transmittal email was sent, but only{' '}
+                {transmittalSent.vendorReturn.copied}/{transmittalSent.vendorReturn.total} file(s) reached the
+                vendor&apos;s bucket.{' '}
+                {transmittalSent.vendorReturn.errors?.[0] ?? ''} Use &ldquo;Retry delivery&rdquo; at the top of this page.
+              </div>
+            )}
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">

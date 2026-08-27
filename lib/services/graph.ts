@@ -417,7 +417,7 @@ export async function getFileMetadata(siteUrl: string, serverRelativeUrl: string
  * Each library in SharePoint is a separate "drive" in Graph API.
  * The targetLibraryPath is the library name (e.g. "/K108  Battery Energy Storage System").
  */
-async function getLibraryDriveId(siteId: string, libraryName: string): Promise<string> {
+export async function getLibraryDriveId(siteId: string, libraryName: string): Promise<string> {
   const res = await graphFetch(`/sites/${siteId}/drives`)
   if (!res.ok) throw new Error(`Failed to list drives: ${await res.text()}`)
   const data = await res.json()

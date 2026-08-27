@@ -14,6 +14,7 @@
 import { randomUUID } from 'crypto'
 import {
   listDropoffPdfs, copyDriveItemToLibrary, getDriveItemContentBytes, sendEmail,
+  getSiteId, getLibraryDriveId, graphFetch,
 } from '@/lib/services/graph'
 import { reviewVendorDocument, type SddrExpected, type AiReview } from './ai-review'
 import { buildNotificationEmail } from './notification'
@@ -26,6 +27,7 @@ export interface PollSummary {
   vendorsPolled: number
   newFiles: number
   batchesCreated: number
+  healedCentralCopies: number
   errors: string[]
 }
 
@@ -220,9 +222,61 @@ async function pollOneVendor(db: any, site: any, summary: PollSummary) {
   }
 }
 
+const HEAL_CAP = 8            // central-copy retries per run — the cron is per-minute, so a backlog drains fast
+const HEAL_LOOKBACK_DAYS = 60 // legacy rows without a live drop-off source are a human problem, not a retry loop
+
+/**
+ * Self-heal the intake's one silent failure mode: a document_version left with
+ * central_file_url NULL (Graph hiccup mid-copy, or the package's documentcontrol_library
+ * unset/misnamed at ingest time). A NULL central file means return-to-vendor later finds
+ * nothing to send while the transmittal email still goes out — the Siemens
+ * PPE-TRN-2026-00095/00096 incident. Every poll run retries a bounded batch, newest first,
+ * after checking the drop-off source file still exists.
+ */
+async function healMissingCentralCopies(db: any, summary: PollSummary) {
+  const cutoff = new Date(Date.now() - HEAL_LOOKBACK_DAYS * 86_400_000).toISOString()
+  const { data: broken } = await db.from('document_versions')
+    .select('id, file_name, doc_unique_id, source_site_url')
+    .is('central_file_url', null).not('doc_unique_id', 'is', null)
+    .eq('storage_provider', 'sharepoint').ilike('file_name', '%.pdf')
+    .gte('created_at', cutoff)
+    .order('created_at', { ascending: false }).limit(40)
+  if (!broken?.length) return
+
+  const { data: sites } = await db.from('vendor_sites')
+    .select('site_url, dropoff_library, documentcontrol_library')
+    .eq('active', true).not('documentcontrol_library', 'is', null)
+  const bySite = new Map<string, any>()
+  for (const s of sites ?? []) if (s.site_url) bySite.set(String(s.site_url).replace(/\/+$/, ''), s)
+
+  const driveCache = new Map<string, string>()
+  for (const dv of broken) {
+    if (summary.healedCentralCopies >= HEAL_CAP) break
+    const site = dv.source_site_url ? bySite.get(String(dv.source_site_url).replace(/\/+$/, '')) : null
+    if (!site?.dropoff_library) continue // no configured route back to a source — nothing to heal from
+    try {
+      let driveId = driveCache.get(site.site_url)
+      if (!driveId) {
+        driveId = await getLibraryDriveId(await getSiteId(site.site_url), site.dropoff_library)
+        driveCache.set(site.site_url, driveId)
+      }
+      const probe = await graphFetch(`/drives/${driveId}/items/${dv.doc_unique_id}?$select=id`)
+      if (!probe.ok) { summary.errors.push(`heal ${dv.file_name}: drop-off source gone (${probe.status})`); continue }
+      const url = await copyDriveItemToLibrary(
+        driveId, dv.doc_unique_id, 'https://ppetechcoza.sharepoint.com/sites/DocumentControl',
+        site.documentcontrol_library, dv.file_name,
+      )
+      if (url) {
+        await db.from('document_versions').update({ central_file_url: url }).eq('id', dv.id)
+        summary.healedCentralCopies++
+      }
+    } catch (e: any) { summary.errors.push(`heal ${dv.file_name}: ${e?.message}`) }
+  }
+}
+
 /** Poll every enabled vendor's drop-off library and ingest new documents. */
 export async function runIntakePoll(db: any): Promise<PollSummary> {
-  const summary: PollSummary = { vendorsPolled: 0, newFiles: 0, batchesCreated: 0, errors: [] }
+  const summary: PollSummary = { vendorsPolled: 0, newFiles: 0, batchesCreated: 0, healedCentralCopies: 0, errors: [] }
   const { data: sites } = await db.from('vendor_sites')
     .select('id, package_id, site_url, dropoff_library, documentcontrol_library, controller_email, packages(package_code, package_name, vendor_id, vendors(name))')
     .eq('new_intake_enabled', true).eq('active', true)
@@ -231,5 +285,7 @@ export async function runIntakePoll(db: any): Promise<PollSummary> {
     try { await pollOneVendor(db, site, summary) }
     catch (e: any) { summary.errors.push(`${site.packages?.package_code ?? '?'}: ${e?.message}`) }
   }
+  try { await healMissingCentralCopies(db, summary) }
+  catch (e: any) { summary.errors.push(`heal pass: ${e?.message}`) }
   return summary
 }
