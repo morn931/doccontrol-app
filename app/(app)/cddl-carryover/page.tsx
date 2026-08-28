@@ -76,36 +76,56 @@ export default async function CarryoverPage({ searchParams }: { searchParams: Pr
         </div>
       </div>
 
-      {/* The gate banner. Green and unambiguous: everything below is safe to proceed with.
-          The parked count is stated out loud so nobody thinks finished work was deleted. */}
-      {!showAll && (
+      {/* The banner says what is TRUE OF THIS SCOPE, and the two scopes differ. In
+          'A-released' every visible row carries an engineering decision, so the page says
+          proceed with all of it. In 'B' engineering has ruled on eleven of 329, so it must
+          not say that — claiming it would repeat the confusion this gate exists to end. */}
+      {!showAll && gate.allReleased && (
         <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <b>Everything shown here has been released by engineering — proceed with all of it.</b>{' '}
-          These <b>{gate.releasedTotal}</b> documents are the ones marked <i>&ldquo;proceed with new number&rdquo;</i>,
+          These <b>{gate.visibleTotal}</b> documents are the ones marked <i>&ldquo;proceed with new number&rdquo;</i>,
           so each one gets a K124 number and an area. There is nothing on this page to second-guess.
           <div className="mt-1.5 text-[13px] text-emerald-800">
-            <b>{gate.hidden}</b> other documents are hidden for now because engineering has not ruled on them yet —
-            the instrumentation review has not started, and some documents will keep their K038 number rather than
-            change it. <b>Nothing has been deleted</b>
+            <b>{gate.hidden}</b> other documents are hidden for now because engineering has not ruled on them yet.
+            <b> Nothing has been deleted</b>
             {gate.hiddenButFinished > 0 && (
-              <>, including <b>{gate.hiddenButFinished}</b> you have already completed — those are parked exactly as you
-                left them until engineering confirms, because a few may have to keep their old number</>
-            )}
-            . More will appear here as each discipline is signed off.
+              <>, including <b>{gate.hiddenButFinished}</b> already completed — those are parked exactly as they were
+                left until engineering confirms, because a few may have to keep their old number</>
+            )}.
           </div>
           {isDeveloper && (
             <div className="mt-1.5 text-[11px] text-emerald-700">
-              Developer: released set from <span className="font-mono">{RELEASE_SOURCE}</span>
-              {gate.releasedHeldBackB > 0 && <> · {gate.releasedHeldBackB} released but held back (source B)</>} ·{' '}
+              Developer: scope <b>{gate.scope}</b> · released set from <span className="font-mono">{RELEASE_SOURCE}</span>
+              {gate.releasedOutOfScope > 0 && <> · {gate.releasedOutOfScope} released but out of scope</>} ·{' '}
               <a className="underline" href="?all=1">show all {dAll.rows.length}</a>
             </div>
           )}
         </div>
       )}
-      {showAll && isDeveloper && (
-        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
-          <b>Gate lifted — you are seeing all {dAll.rows.length} documents.</b> Document control sees only the{' '}
-          <b>{gate.releasedTotal}</b> engineering has released. <a className="underline" href="?">back to the released view</a>
+
+      {!showAll && !gate.allReleased && (
+        <div className="mt-4 rounded-lg border border-navy-300 bg-navy-50 px-4 py-3 text-sm text-navy-900">
+          <b>These are the {gate.visibleTotal} tender-folder documents — the &ldquo;B&rdquo; batch.</b>{' '}
+          They came out of the vendor folders rather than the K038 register, and they span{' '}
+          {new Set(gate.rows.map((r) => r.target_package)).size} packages. Work through them the same way: open the
+          document, check what the reader found, record the number and the area.
+          <div className="mt-1.5 text-[13px] text-navy-800">
+            <b>Engineering has not triaged this batch.</b> It has ruled on <b>{gate.visibleReleased}</b> of these{' '}
+            {gate.visibleTotal}; the rest carry no decision yet. So unlike the last batch, <b>not everything here is
+            confirmed</b> — if a document looks as though it should keep its existing number, or you are unsure it
+            belongs in K124 at all, leave it and flag it rather than allocating.
+          </div>
+          <div className="mt-1.5 text-[13px] text-navy-800">
+            The <b>{gate.hidden}</b> documents from the other batch are hidden, not deleted
+            {gate.hiddenButFinished > 0 && <>, including <b>{gate.hiddenButFinished}</b> already completed</>}.
+          </div>
+          {isDeveloper && (
+            <div className="mt-1.5 text-[11px] text-navy-700">
+              Developer: scope <b>{gate.scope}</b>
+              {gate.releasedOutOfScope > 0 && <> · {gate.releasedOutOfScope} released but out of scope</>} ·{' '}
+              <a className="underline" href="?all=1">show all {dAll.rows.length}</a>
+            </div>
+          )}
         </div>
       )}
 
