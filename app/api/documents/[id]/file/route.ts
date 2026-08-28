@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getFileBytesByUrl } from '@/lib/services/graph'
+import { getFileBytesByUrl, getDriveItemMetaByUrl } from '@/lib/services/graph'
 
 // Streams a document version's PDF bytes (fetched from SharePoint via Graph) so the
 // in-app markup editor can load it without ever exposing the SharePoint URL/library
@@ -24,6 +24,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!fileUrl) return NextResponse.json({ error: 'No file URL available' }, { status: 404 })
 
   try {
+    // Vercel caps a function response at ~4.5MB, so a large PDF cannot be piped
+    // through this route AT ALL — a 13.6MB drawing died here with the viewer's
+    // generic "could not load" (Eric's ticket, 2026-08-27). Small files keep
+    // streaming (the SharePoint URL stays hidden); big ones redirect the browser
+    // to Graph's pre-authenticated, short-lived download URL — verified CORS-open
+    // and anonymous-fetchable, no size ceiling.
+    const BIG = 4_000_000
+    const meta = await getDriveItemMetaByUrl(fileUrl)
+    if (meta?.downloadUrl && (meta.size ?? 0) > BIG) {
+      return NextResponse.redirect(meta.downloadUrl, 307)
+    }
+
     const bytes = await getFileBytesByUrl(fileUrl)
     return new NextResponse(bytes, {
       headers: {

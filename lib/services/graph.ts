@@ -162,6 +162,19 @@ export async function resolveDriveItemByUrl(fileUrl: string): Promise<{ id: stri
   return { id: j.id, name: j.name, mimeType: j.file?.mimeType, driveId: j.parentReference?.driveId, webUrl: j.webUrl }
 }
 
+/** Size + pre-authenticated download URL for a file, by its stored SharePoint URL.
+ *  The downloadUrl is Graph's short-lived (~1h) tempauth link: fetchable by a browser
+ *  with no Authorization header, CORS-open, no size ceiling — the escape hatch for
+ *  files too big to pipe through a Vercel function response (~4.5MB cap). */
+export async function getDriveItemMetaByUrl(
+  fileUrl: string,
+): Promise<{ size?: number; downloadUrl?: string } | null> {
+  const res = await graphFetch(`/shares/${shareId(fileUrl)}/driveItem`)
+  if (!res.ok) return null
+  const j = await res.json()
+  return { size: typeof j.size === 'number' ? j.size : undefined, downloadUrl: j['@microsoft.graph.downloadUrl'] }
+}
+
 /** Result of a delete attempt. Idempotent by design: a file that is already gone is a
  *  SUCCESS ('already_gone'), never an error — so reject cleanup can be retried safely. */
 export type DeleteResult = { ok: boolean; status: 'deleted' | 'already_gone' | 'error'; detail?: string }
