@@ -95,7 +95,8 @@ export default async function CarryoverPage({ searchParams }: { searchParams: Pr
           </div>
           {isDeveloper && (
             <div className="mt-1.5 text-[11px] text-emerald-700">
-              Developer: released set from <span className="font-mono">{RELEASE_SOURCE}</span> ·{' '}
+              Developer: released set from <span className="font-mono">{RELEASE_SOURCE}</span>
+              {gate.releasedHeldBackB > 0 && <> · {gate.releasedHeldBackB} released but held back (source B)</>} ·{' '}
               <a className="underline" href="?all=1">show all {dAll.rows.length}</a>
             </div>
           )}

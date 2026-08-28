@@ -10,12 +10,14 @@ import { isReady, type CarryoverRow } from './types'
 // view to the documents engineering has actually released, so that EVERYTHING VISIBLE IS
 // SAFE TO PROCEED WITH. More open up as each discipline is signed off.
 //
-// ⚠️ HIDDEN IS NOT DELETED, and this matters more than it looks. 61 documents have already
-// been given new K124 numbers by document control WITHOUT an engineering decision — mostly
-// instrumentation, which is entirely unreviewed. Those rows keep everything they have; they
-// simply leave the working view until engineering rules. Some may be rejected ("keeps its
-// K038 number"), in which case that allocation has to be undone — which is exactly why they
-// must not sit in a list captioned "everything here is safe to proceed with".
+// ⚠️ HIDDEN IS NOT DELETED, and this matters more than it looks. Document control worked
+// ahead: a large number of rows already carry a new K124 number WITHOUT an engineering
+// decision — mostly instrumentation, which is entirely unreviewed. Those rows keep
+// everything they have; they simply leave the working view until engineering rules. Some
+// will be told to keep their K038 number, in which case the allocation has to be undone —
+// which is exactly why they must not sit in a list captioned "everything here is safe to
+// proceed with". The live count is computed as hiddenButFinished and shown on the page
+// rather than written here, where it would rot.
 //
 // The count of parked-but-finished rows is reported to the page so it can say so out loud.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,16 +51,37 @@ export type GateResult = {
   hiddenButFinished: number
   releasedTotal: number
   releasedReady: number
+  /** released by engineering but held back because they came from B, not A */
+  releasedHeldBackB: number
 }
 
+/**
+ * The "A" source — Jarrod's Excel, tagged `k038 highlighted` in the register.
+ *
+ * ⚠️ The tag is misleading and is kept only because it is what the data says: Jarrod's
+ * selection was the VISIBLE rows of his workbook, not the highlighted ones — the yellow
+ * fill stayed on rows he had hidden. Retag it and this constant must change with it.
+ */
+const SOURCE_A = 'k038 highlighted'
+
+/**
+ * Released AND from A. Ruled by Morné 2026-08-28: the carry-over is being worked A first,
+ * so a document engineering has released but which came from the tender folders ("B")
+ * stays hidden for now. Eleven documents sit in that position today — ten E113 bulk-fuel
+ * ED01 drawings and one E101 ED05 — and they are HELD BACK, not rejected. They come in
+ * with the rest of B.
+ */
+export const isVisible = (r: CarryoverRow) => r.source === SOURCE_A && isReleased(r)
+
 export function applyGate(all: CarryoverRow[]): GateResult {
-  const rows = all.filter(isReleased)
-  const hiddenRows = all.filter((r) => !isReleased(r))
+  const rows = all.filter(isVisible)
+  const hiddenRows = all.filter((r) => !isVisible(r))
   return {
     rows,
     hidden: hiddenRows.length,
     hiddenButFinished: hiddenRows.filter(isReady).length,
     releasedTotal: rows.length,
     releasedReady: rows.filter(isReady).length,
+    releasedHeldBackB: all.filter((r) => r.source !== SOURCE_A && isReleased(r)).length,
   }
 }
