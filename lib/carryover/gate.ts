@@ -59,28 +59,39 @@ const keysOf = (r: CarryoverRow) =>
 
 export const isReleased = (r: CarryoverRow) => keysOf(r).some((k) => RELEASED_KEYS.has(k))
 
-const txt = (v: unknown) => String(v ?? '').trim() !== ''
+/**
+ * A PROJECT document number — the RDMC drawing number, or PPE's own Q-quote number.
+ *
+ * ⚠️ IT MUST BE THIS SPECIFIC, and a looser test was wrong in a way that was easy to miss.
+ * An earlier version accepted any non-empty number the reader found, which kept a run of
+ * Cummins and Deep Sea Electronics literature — "DS52-CPGK (09/18)", "A052V600",
+ * "EMERD-6530-EN (06/22)", "055-282/04/23" — because a vendor datasheet carries the
+ * VENDOR'S own document code. That is evidence the vendor produced something, not PPE.
+ */
+const PROJECT_NUM = /(6105A\s*K\s*\d{3}[-\s]?\d{4})|(Q\s*-?\s*24050972)/i
+const hasProjectNumber = (r: CarryoverRow) =>
+  [r.docno, r.ai_docno, r.legacy_docno].some((v) => PROJECT_NUM.test(String(v ?? '')))
 
 /**
- * Evidence that this is a project deliverable rather than a working file.
+ * Evidence that this is a project deliverable rather than a working file or vendor
+ * literature.
  *
  * Ruled by Morné 2026-08-28: keep a document if it was drawn inside a PROJECT BORDER, or
- * if it carries a DOCUMENT NUMBER — by either of those it is something PPE actually
- * produced for the project. A file with neither is a checklist, an adjudication, a
- * calculation template or a spreadsheet: real work, but not a deliverable that belongs in
- * the CDDL, and asking a controller to allocate a K124 number to it wastes their time and
+ * if it carries a PROJECT DOCUMENT NUMBER — by either of those PPE produced it for this
+ * project. A file with neither is a checklist, an adjudication, a calculation template, or
+ * a manufacturer's datasheet: real and useful, but not a deliverable that belongs in the
+ * CDDL, and asking a controller to allocate a K124 number to one wastes their time and
  * pollutes the register.
  *
- * Any of the three numbers counts — the new K124 one, the number printed in the title
- * block, or the number the file was filed under. Each is independent evidence that the
- * document was registered at some point.
+ * A border ALONE is enough, and so is a project number alone — the two are independent
+ * evidence and either settles it.
  *
  * ⚠️ A border of `null` means the reader never opened the document, NOT that there is no
- * border. Those rows survive on their number if they have one; seven have neither and
- * drop out. They are not lost — lift the gate to see them.
+ * border. Those rows survive on their number where they have one. Nothing is deleted:
+ * lifting the gate shows everything.
  */
 export const hasEvidence = (r: CarryoverRow) =>
-  r.ai_has_border === true || txt(r.docno) || txt(r.ai_docno) || txt(r.legacy_docno)
+  r.ai_has_border === true || hasProjectNumber(r)
 
 export const inScope = (r: CarryoverRow, scope: Scope = SCOPE) => {
   if (scope === 'all') return true

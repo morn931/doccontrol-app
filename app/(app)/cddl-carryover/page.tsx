@@ -120,9 +120,10 @@ export default async function CarryoverPage({ searchParams }: { searchParams: Pr
           </div>
           {gate.droppedNoEvidence > 0 && (
             <div className="mt-1.5 text-[13px] text-navy-800">
-              A further <b>{gate.droppedNoEvidence}</b> files from these folders are not shown: they have{' '}
-              <b>no project border and no document number</b>, so they are working files — checklists,
-              adjudications, calculation templates — rather than deliverables that belong in the CDDL.
+              A further <b>{gate.droppedNoEvidence}</b> files from these folders are not shown: they carry{' '}
+              <b>no project border and no project document number</b>, so they are working files or vendor
+              literature — checklists, adjudications, calculation templates, manufacturers&apos; datasheets —
+              rather than deliverables that belong in the CDDL.
             </div>
           )}
           <div className="mt-1.5 text-[13px] text-navy-800">
