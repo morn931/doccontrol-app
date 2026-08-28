@@ -118,8 +118,15 @@ export default async function CarryoverPage({ searchParams }: { searchParams: Pr
             confirmed</b> — if a document looks as though it should keep its existing number, or you are unsure it
             belongs in K124 at all, leave it and flag it rather than allocating.
           </div>
+          {gate.droppedNoEvidence > 0 && (
+            <div className="mt-1.5 text-[13px] text-navy-800">
+              A further <b>{gate.droppedNoEvidence}</b> files from these folders are not shown: they have{' '}
+              <b>no project border and no document number</b>, so they are working files — checklists,
+              adjudications, calculation templates — rather than deliverables that belong in the CDDL.
+            </div>
+          )}
           <div className="mt-1.5 text-[13px] text-navy-800">
-            The <b>{gate.hidden}</b> documents from the other batch are hidden, not deleted
+            The <b>{gate.hidden - gate.droppedNoEvidence}</b> documents from the other batch are hidden, not deleted
             {gate.hiddenButFinished > 0 && <>, including <b>{gate.hiddenButFinished}</b> already completed</>}.
           </div>
           {isDeveloper && (

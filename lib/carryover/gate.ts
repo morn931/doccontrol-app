@@ -59,11 +59,37 @@ const keysOf = (r: CarryoverRow) =>
 
 export const isReleased = (r: CarryoverRow) => keysOf(r).some((k) => RELEASED_KEYS.has(k))
 
-export const isVisible = (r: CarryoverRow, scope: Scope = SCOPE) => {
+const txt = (v: unknown) => String(v ?? '').trim() !== ''
+
+/**
+ * Evidence that this is a project deliverable rather than a working file.
+ *
+ * Ruled by Morné 2026-08-28: keep a document if it was drawn inside a PROJECT BORDER, or
+ * if it carries a DOCUMENT NUMBER — by either of those it is something PPE actually
+ * produced for the project. A file with neither is a checklist, an adjudication, a
+ * calculation template or a spreadsheet: real work, but not a deliverable that belongs in
+ * the CDDL, and asking a controller to allocate a K124 number to it wastes their time and
+ * pollutes the register.
+ *
+ * Any of the three numbers counts — the new K124 one, the number printed in the title
+ * block, or the number the file was filed under. Each is independent evidence that the
+ * document was registered at some point.
+ *
+ * ⚠️ A border of `null` means the reader never opened the document, NOT that there is no
+ * border. Those rows survive on their number if they have one; seven have neither and
+ * drop out. They are not lost — lift the gate to see them.
+ */
+export const hasEvidence = (r: CarryoverRow) =>
+  r.ai_has_border === true || txt(r.docno) || txt(r.ai_docno) || txt(r.legacy_docno)
+
+export const inScope = (r: CarryoverRow, scope: Scope = SCOPE) => {
   if (scope === 'all') return true
   if (scope === 'B') return r.source === SOURCE_B
   return r.source === SOURCE_A && isReleased(r)
 }
+
+export const isVisible = (r: CarryoverRow, scope: Scope = SCOPE) =>
+  inScope(r, scope) && hasEvidence(r)
 
 export type GateResult = {
   scope: Scope
@@ -80,6 +106,8 @@ export type GateResult = {
   visibleReleased: number
   /** released by engineering but not in the current scope */
   releasedOutOfScope: number
+  /** in scope, but neither a border nor a number — a working file, not a deliverable */
+  droppedNoEvidence: number
 }
 
 export function applyGate(all: CarryoverRow[], scope: Scope = SCOPE): GateResult {
@@ -96,5 +124,6 @@ export function applyGate(all: CarryoverRow[], scope: Scope = SCOPE): GateResult
     visibleReady: rows.filter(isReady).length,
     visibleReleased,
     releasedOutOfScope: hiddenRows.filter(isReleased).length,
+    droppedNoEvidence: all.filter((r) => inScope(r, scope) && !hasEvidence(r)).length,
   }
 }
