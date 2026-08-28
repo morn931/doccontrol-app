@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { BookOpen } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
-import { getCarryover, getK124Status } from '@/lib/carryover/carryover'
+import { getCarryover, getK124Status, summarise } from '@/lib/carryover/carryover'
 import { getCarryoverOptions, codeForReaderValue } from '@/lib/carryover/options'
 import CarryoverRegister from './register'
 import ProgressStrip from './progress-strip'
@@ -40,7 +40,10 @@ export default async function CarryoverPage({ searchParams }: { searchParams: Pr
   const gate = applyGate(dAll.rows)
   const showAll = isDeveloper && sp?.all === '1'
   const rows = showAll ? dAll.rows : gate.rows
-  const d = { ...dAll, rows, total: rows.length }
+  // Recompute EVERY count from the visible rows. Spreading dAll and patching two
+  // fields left the tiles and package chips measuring all 528 while the list showed a
+  // subset, so the summary disagreed with the table and out-of-scope chips filtered to 0.
+  const d = summarise(rows)
   const k124 = await getK124Status(rows)
 
   // Translate the reader's English into the codes the CDDL stores, once on the server, so

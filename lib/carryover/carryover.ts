@@ -54,6 +54,20 @@ export async function getCarryover(): Promise<CarryoverView> {
     if (data.length < 1000) break
   }
 
+  return summarise(rows)
+}
+
+/**
+ * Every headline count, the package chips and the ready total, derived from ONE row set.
+ *
+ * ⚠️ Extracted so a filtered view cannot show a filtered LIST beside unfiltered TILES.
+ * The page used to spread this object and replace only `rows` and `total`, which left the
+ * tiles, the package chips and the ready count measuring all 528 documents while the table
+ * showed a subset — the tiles disagreed with the list, and every package chip that was not
+ * in scope filtered to zero because the chip's own count came from a different population.
+ * Anything that narrows the rows must call this again rather than patch the object.
+ */
+export function summarise(rows: CarryoverRow[]) {
   const pkg = new Map<string, { docs: number; done: number }>()
   for (const r of rows) {
     const k = r.target_package ?? '—'
