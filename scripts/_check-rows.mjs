@@ -5,7 +5,7 @@ for (const line of fs.readFileSync('.env.local','utf8').split(/\r?\n/)) {
   if(!(k in process.env)) process.env[k]=t.slice(i+1).trim().replace(/^["']|["']$/g,'')
 }
 const URL=process.env.NEXT_PUBLIC_SUPABASE_URL, KEY=process.env.SUPABASE_SERVICE_ROLE_KEY
-const refs=['CO-039','CO-040','CO-041','CO-042','CO-043','CO-044','CO-045','CO-046','CO-047','CO-048','CO-049','CO-050']
+const refs=['CO-132','CO-139','CO-140','CO-142','CO-146','CO-147','CO-148','CO-149','CO-152','CO-154']
 const r=await fetch(`${URL}/rest/v1/cddl_carryover?select=temp_ref,ai_has_border,docno,ai_docno,legacy_docno,ai_title,doc_class&temp_ref=in.(${refs.join(',')})&order=temp_ref`,{headers:{apikey:KEY,Authorization:`Bearer ${KEY}`}})
 const rows=await r.json()
 const S=(v)=>String(v??'').trim()

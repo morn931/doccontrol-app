@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { getCarryover, isReady, type CarryoverRow } from "@/lib/carryover/carryover";
 import { originalK038, extractK038, k038Disagrees } from "@/lib/carryover/k038";
+import { applyGate, SCOPE } from "@/lib/carryover/gate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -55,8 +56,23 @@ export async function GET(req: NextRequest) {
 
   const only = req.nextUrl.searchParams.get("only"); // 'ready' to export just the finished rows
   const d = await getCarryover();
-  const ready = d.rows.filter(isReady);
-  const rows = only === "ready" ? ready : d.rows;
+
+  // ⚠️ THE EXPORT MUST MATCH THE PAGE. It used to export all 528 rows while the register
+  // showed the working scope, so the file disagreed with the screen it came from — and the
+  // person pasting into the CDDL would have brought in documents nobody had reviewed, plus
+  // vendor literature that does not belong there at all.
+  const gate = applyGate(d.rows);
+  // A developer can export the whole register for background work; nobody else can.
+  let isDeveloper = false;
+  {
+    const { data: profile } = await auth.from("users").select("role").eq("auth_user_id", user.id).single();
+    isDeveloper = (profile as { role?: string } | null)?.role === "developer";
+  }
+  const wantAll = isDeveloper && req.nextUrl.searchParams.get("all") === "1";
+  const scoped = wantAll ? d.rows : gate.rows;
+
+  const ready = scoped.filter(isReady);
+  const rows = only === "ready" ? ready : scoped;
 
   const withK038 = rows.filter((r) => originalK038(r)).length;
   const withK038Renumbered = rows.filter((r) => originalK038(r) && String(r.docno ?? "").trim()).length;
@@ -136,7 +152,13 @@ export async function GET(req: NextRequest) {
     [],
     ["Rows in this export", rows.length],
     ["  ready (number AND area allocated)", ready.length],
-    ["  still to allocate", d.total - ready.length],
+    ["  still to allocate", scoped.length - ready.length],
+    [],
+    ["Scope", wantAll
+      ? `THE WHOLE REGISTER — all ${d.rows.length} rows, including documents nobody has reviewed. Developer export.`
+      : `${SCOPE === "B" ? "The tender-folder batch (B)" : "Engineering-released documents (A)"} — ${gate.rows.length} of ${d.rows.length} rows, matching the register on screen.`],
+    ["Left out of this file", wantAll ? "nothing" :
+      `${d.rows.length - gate.rows.length} rows: the other batch, plus ${gate.droppedNoEvidence} files with no project border and no project document number (working files and vendor datasheets, which do not belong in the CDDL).`],
     [],
     ["Planned / % / Earned Hours", "left BLANK — CoreDocs computes these from discipline and type when the row lands"],
     ["Carrying an original K038 number", withK038],
