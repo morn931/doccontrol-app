@@ -250,11 +250,35 @@ async function healMissingCentralCopies(db: any, summary: PollSummary) {
   for (const s of sites ?? []) if (s.site_url) bySite.set(String(s.site_url).replace(/\/+$/, ''), s)
 
   const driveCache = new Map<string, string>()
+  const dcDriveCache = new Map<string, string>()
+  let dcSiteId: string | null = null
   for (const dv of broken) {
     if (summary.healedCentralCopies >= HEAL_CAP) break
     const site = dv.source_site_url ? bySite.get(String(dv.source_site_url).replace(/\/+$/, '')) : null
     if (!site?.dropoff_library) continue // no configured route back to a source — nothing to heal from
     try {
+      // Cheapest heal first: the central copy may already EXIST in the
+      // DocumentControl library with only the DB pointer lost (seen live
+      // 2026-09-01: a row healed on 27 Aug re-nulled while its 14.8MB copy
+      // sat in the library untouched). Re-link by name — no bytes moved.
+      if (site.documentcontrol_library) {
+        let dcDrive = dcDriveCache.get(site.documentcontrol_library)
+        if (!dcDrive) {
+          dcSiteId = dcSiteId ?? await getSiteId('https://ppetechcoza.sharepoint.com/sites/DocumentControl')
+          dcDrive = await getLibraryDriveId(dcSiteId, site.documentcontrol_library)
+          dcDriveCache.set(site.documentcontrol_library, dcDrive)
+        }
+        const existing = await graphFetch(`/drives/${dcDrive}/root:/${encodeURIComponent(dv.file_name)}?$select=webUrl`)
+        if (existing.ok) {
+          const web = (await existing.json()).webUrl as string | undefined
+          if (web) {
+            await db.from('document_versions').update({ central_file_url: web }).eq('id', dv.id)
+            summary.healedCentralCopies++
+            continue
+          }
+        }
+      }
+
       let driveId = driveCache.get(site.site_url)
       if (!driveId) {
         driveId = await getLibraryDriveId(await getSiteId(site.site_url), site.dropoff_library)
