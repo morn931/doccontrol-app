@@ -7,6 +7,7 @@ import { POST as semanticPOST } from '@/app/api/mddr/semantic/route'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveOpenUrl } from '@/lib/services/sp-resolve'
 import { getFileBytesByUrl, resolveDriveItemByUrl, getDriveItemContentBytes } from '@/lib/services/graph'
+import { contentDisposition } from '@/lib/http/content-disposition'
 
 const OFFICE_EXT = new Set(['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
 const INLINE_CT: Record<string, string> = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', txt: 'text/plain' }
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       return new NextResponse(Buffer.from(bytes), {
         headers: {
           'Content-Type': ct,
-          'Content-Disposition': `inline; filename="${outName.replace(/"/g, '')}"`,
+          'Content-Disposition': contentDisposition('inline', outName),
           'Cache-Control': 'private, no-store',
         },
       })

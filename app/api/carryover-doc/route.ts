@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient, createClient } from "@/lib/supabase/server";
 import { resolveOpenUrl } from "@/lib/services/sp-resolve";
 import { resolveDriveItemByUrl, getDriveItemContentBytes } from "@/lib/services/graph";
+import { contentDisposition } from "@/lib/http/content-disposition"
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         "Content-Type": wantPdf ? "application/pdf" : (INLINE[ext] ?? item.mimeType ?? "application/octet-stream"),
-        "Content-Disposition": `${disp0}; filename="${outName.replace(/"/g, "")}"`,
+        "Content-Disposition": contentDisposition(disp0 as "inline" | "attachment", outName),
         "Cache-Control": "private, max-age=300",
       },
     });
@@ -114,7 +115,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse(buf, {
     headers: {
       "Content-Type": ct,
-      "Content-Disposition": `${disp}; filename="${outName.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition(disp as "inline" | "attachment", outName),
       "Cache-Control": "private, max-age=300",
     },
   });

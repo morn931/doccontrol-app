@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getFileBytesByUrl, getDriveItemMetaByUrl } from '@/lib/services/graph'
+import { contentDisposition } from '@/lib/http/content-disposition'
 
 // Streams a document version's PDF bytes (fetched from SharePoint via Graph) so the
 // in-app markup editor can load it without ever exposing the SharePoint URL/library
@@ -40,7 +41,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return new NextResponse(bytes, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${(dv.file_name ?? 'document.pdf').replace(/"/g, '')}"`,
+        'Content-Disposition': contentDisposition('inline', dv.file_name ?? 'document.pdf'),
         'Cache-Control': 'private, no-store',
       },
     })

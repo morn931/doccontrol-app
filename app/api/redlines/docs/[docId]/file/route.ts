@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getFileBytesByUrl } from '@/lib/services/graph'
+import { contentDisposition } from '@/lib/http/content-disposition'
 
 // Stream a draft redline PDF from SharePoint for the in-app viewer/markup.
 export async function GET(_req: Request, { params }: { params: Promise<{ docId: string }> }) {
@@ -19,7 +20,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ docId: 
     return new NextResponse(bytes, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${(doc.file_name ?? 'redline.pdf').replace(/"/g, '')}"`,
+        'Content-Disposition': contentDisposition('inline', doc.file_name ?? 'redline.pdf'),
         'Cache-Control': 'no-store',
       },
     })
