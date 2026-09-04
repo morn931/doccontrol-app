@@ -70,9 +70,24 @@ export async function POST(_req: Request, { params }: { params: Promise<{ taskId
       status: 'signed', signed_at: now, updated_at: now, signature_data: img ?? null,
       place_page: pl.page, place_x: pl.x, place_y: pl.y, place_w: pl.w, place_h: pl.h,
     }).eq('id', taskId)
-    const rb = await rebuildBatchSignedPdf(db, t.batch_id)
-    if (!rb.ok) return NextResponse.json({ error: rb.error ?? 'Could not stamp the signature.' }, { status: 502 })
+    const rb = await rebuildBatchSignedPdf(db, t.batch_id, { justSignedTaskId: taskId })
+    // The task is marked signed BEFORE the rebuild (the rebuild reads it back out of the
+    // table). So if stamping fails, put it back — otherwise the record says signed while the
+    // document carries no signature, and nothing on screen would ever say so again.
+    if (!rb.ok) {
+      await db.from('signoff_tasks').update({
+        status: t.status, signed_at: null, signature_data: null, updated_at: now,
+        place_page: null, place_x: null, place_y: null, place_w: null, place_h: null,
+      }).eq('id', taskId)
+      return NextResponse.json({ error: rb.error ?? 'Could not stamp the signature.' }, { status: 502 })
+    }
   } catch (e: any) {
+    try {
+      await db.from('signoff_tasks').update({
+        status: t.status, signed_at: null, signature_data: null, updated_at: now,
+        place_page: null, place_x: null, place_y: null, place_w: null, place_h: null,
+      }).eq('id', taskId)
+    } catch {}
     return NextResponse.json({ error: `Could not stamp the signature: ${e?.message ?? e}` }, { status: 502 })
   }
 

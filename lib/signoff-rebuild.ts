@@ -11,7 +11,13 @@ import {
 } from '@/lib/signoff-pdf'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function rebuildBatchSignedPdf(db: any, batchId: string): Promise<{ ok: boolean; error?: string }> {
+export async function rebuildBatchSignedPdf(
+  db: any,
+  batchId: string,
+  // The task whose signature this rebuild is ADDING, if any. Only used to tell a legacy batch
+  // (no clean base) apart from a dangerous one — see the guard below.
+  opts?: { justSignedTaskId?: string },
+): Promise<{ ok: boolean; error?: string }> {
   const { data: batch } = await db.from('batches')
     .select('id, internal_ref, signoff_pdf_url, signoff_base_url, document_versions(doc_name, file_name)')
     .eq('id', batchId).single()
@@ -26,9 +32,25 @@ export async function rebuildBatchSignedPdf(db: any, batchId: string): Promise<{
   const basePageCount = await pageCountOf(base).catch(() => 1)
 
   const { data: tasks } = await db.from('signoff_tasks')
-    .select('signatory_name, role_label, block_row, sequence_number, status, signed_at, signature_data, place_page, place_x, place_y, place_w, place_h, place_date_x, place_date_y')
+    .select('id, signatory_name, role_label, block_row, sequence_number, status, signed_at, signature_data, place_page, place_x, place_y, place_w, place_h, place_date_x, place_date_y')
     .eq('batch_id', batchId).order('sequence_number', { ascending: true })
   const all = (tasks ?? []) as any[]
+
+  // A batch started before signatures became movable (14 Aug 2026) has no clean base: its
+  // signoff_pdf_url IS the stamped document, because the old flow drew straight onto it. The
+  // fallback above then rebuilds FROM a stamped file, so every existing signature would be
+  // drawn a second time. Five batches are in that state, three still in progress. Refuse
+  // rather than quietly issue a document with doubled signatures — the reset button exists
+  // exactly for this, and it regenerates a proper base.
+  if (!b.signoff_base_url) {
+    const alreadyStamped = all.filter((t) => t.status === 'signed' && t.id !== opts?.justSignedTaskId)
+    if (alreadyStamped.length) {
+      return {
+        ok: false,
+        error: 'This sign-off was started before signatures could be moved, so there is no clean copy to rebuild from — doing it now would stamp the existing signatures a second time. Ask a document controller to reset the sign-off on this batch and send it again.',
+      }
+    }
+  }
 
   const stamps: StampSpec[] = all
     .filter((t) => t.status === 'signed')

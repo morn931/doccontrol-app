@@ -2,7 +2,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ArrowUp, ArrowDown, ArrowRight, Move, PenLine, XCircle, Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ArrowUp, ArrowDown, ArrowRight, Move, PenLine, XCircle, Loader2, CheckCircle2, AlertCircle, ExternalLink, Undo2 } from 'lucide-react'
 
 export default function SignoffPage({ params }: { params: Promise<{ taskId: string }> }) {
   const { taskId } = use(params)
@@ -18,6 +18,9 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
   const [moving, setMoving] = useState(false)
   const [step, setStep] = useState(12)         // nudge distance in PDF points
   const [nudgeTarget, setNudgeTarget] = useState<'signature' | 'date'>('signature')
+  const [showWithdraw, setShowWithdraw] = useState(false)
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [withdrawing, setWithdrawing] = useState(false)
 
   useEffect(() => { load() }, [taskId])
   async function load() {
@@ -51,6 +54,22 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
     } catch (e: any) { setError(e.message ?? 'Could not move the signature.') } finally { setMoving(false) }
   }
 
+  // Take my own signature back off. The PDF is rebuilt from the clean base without it, and the
+  // task returns to me to sign again or decline — so this is a real undo, not a new revision.
+  async function handleWithdraw() {
+    setWithdrawing(true); setError('')
+    try {
+      const res = await fetch(`/api/signoff/${taskId}/withdraw`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: withdrawReason.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not remove your signature.'); return }
+      setShowWithdraw(false); setWithdrawReason(''); setDone(null)
+      await load(); setPdfV(v => v + 1)
+    } catch (e: any) { setError(e.message ?? 'Unexpected error') } finally { setWithdrawing(false) }
+  }
+
   async function handleDecline() {
     if (!declineReason.trim()) { setError('Please give a reason.'); return }
     setSigning(true); setError('')
@@ -67,7 +86,16 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-700" /></div>
   if (!ctx?.task) return <div className="card p-8 text-center text-slate-400">Sign-off task not found.</div>
 
-  const { task, batch, canSign, isMine, hasSignature, waitingOn } = ctx
+  const { task, batch, canSign, isMine, hasSignature, waitingOn, canWithdraw, withdrawBlockedBy, signatureImage } = ctx
+
+  // Transparent squares show through the chequer; a scanned signature that still has its
+  // paper shows as a solid block — which is exactly what would land on the drawing.
+  const CHEQUER = {
+    backgroundImage:
+      'linear-gradient(45deg,#eef2f6 25%,transparent 25%),linear-gradient(-45deg,#eef2f6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef2f6 75%),linear-gradient(-45deg,transparent 75%,#eef2f6 75%)',
+    backgroundSize: '12px 12px',
+    backgroundPosition: '0 0,0 6px,6px -6px,-6px 0',
+  } as const
 
   if (done) return (
     <div className="max-w-lg mx-auto card p-8 text-center space-y-3">
@@ -76,6 +104,11 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
       <p className="text-sm text-slate-500">{done === 'signed' ? 'Your signature has been applied and the next signatory (if any) has been notified.' : 'The document controller has been notified to correct and re-send it.'}</p>
       <div className="flex flex-wrap gap-2 justify-center pt-1">
         {done === 'signed' && <button onClick={() => setDone(null)} className="btn-secondary inline-flex"><Move className="h-4 w-4" /> Adjust signature position</button>}
+        {/* The moment someone most wants to undo a signature is right after applying it —
+            seeing it on the page for the first time. Don't make them hunt for the way back. */}
+        {done === 'signed' && canWithdraw && (
+          <button onClick={() => { setDone(null); setShowWithdraw(true) }} className="btn-secondary inline-flex"><Undo2 className="h-4 w-4" /> Undo my signature</button>
+        )}
         <Link href="/signoffs" className="btn-primary inline-flex">Back to my sign-offs</Link>
       </div>
     </div>
@@ -110,6 +143,23 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
             <div className="card p-3 bg-amber-50 border-amber-200 text-sm text-amber-800 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>You have no saved signature — your typed name will be used. Set up a signature in your <a className="underline" href="https://coreflow.build/signature" target="_blank" rel="noopener noreferrer">Coreflow profile</a> for a proper signature image.</span>
+            </div>
+          )}
+
+          {/* What is actually going to be stamped, before it is stamped. */}
+          {isMine && canSign && signatureImage && (
+            <div className="card p-3 space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">This is what will be stamped</div>
+              <div className="flex min-h-[56px] items-center justify-center rounded-lg px-2" style={CHEQUER}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={signatureImage} alt="Your signature" className="max-h-20 object-contain" />
+              </div>
+              <p className="text-[11px] text-slate-400">
+                The chequered squares are see-through. If your signature sits on a solid block, that
+                block gets stamped onto the drawing too —{' '}
+                <a className="underline" href="https://coreflow.build/signature" target="_blank" rel="noopener noreferrer">clear it in your Coreflow profile</a>{' '}
+                before signing.
+              </p>
             </div>
           )}
 
@@ -172,6 +222,37 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
                   {moving && <span className="flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> updating…</span>}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Undo. The signed PDF is rebuilt from the clean base every time, so removing a
+              signature is simply not stamping it — nothing is scraped off a finished file. */}
+          {isMine && task.status === 'signed' && (canWithdraw || withdrawBlockedBy) && (
+            <div className="card p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><Undo2 className="h-4 w-4 text-slate-500" /> Undo my signature</div>
+              {canWithdraw ? (
+                !showWithdraw ? (
+                  <>
+                    <p className="text-xs text-slate-500">Signed the wrong document, or need to change something first? Take your signature back off — it comes out of the document cleanly and this goes back to you to sign again when you&apos;re ready.</p>
+                    <button onClick={() => setShowWithdraw(true)} className="btn-secondary w-full justify-center"><Undo2 className="h-4 w-4" /> Remove my signature</button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-500">Your signature will be taken off the document and this returns to you unsigned. Anyone waiting behind you is put back on hold and told to wait.</p>
+                    <label className="label">Reason <span className="font-normal text-slate-400">(optional — for the record)</span></label>
+                    <textarea value={withdrawReason} onChange={e => setWithdrawReason(e.target.value)} rows={3} className="input resize-none" placeholder="e.g. signed before the revision was updated" />
+                    <div className="flex gap-3">
+                      <button onClick={handleWithdraw} disabled={withdrawing} className="btn-danger flex-1 justify-center">{withdrawing ? <><Loader2 className="h-4 w-4 animate-spin" /> Removing…</> : 'Confirm — remove it'}</button>
+                      <button onClick={() => { setShowWithdraw(false); setError('') }} className="btn-secondary justify-center px-5">Back</button>
+                    </div>
+                  </>
+                )
+              ) : (
+                <p className="text-xs text-slate-500">
+                  <b className="text-slate-700">{withdrawBlockedBy}</b> already signed after you. Removing your signature now would change a document they have approved, so a document controller has to reset the sign-off for this batch.
+                  {batch?.id && <Link href={`/batches/${batch.id}`} className="ml-1 underline">Open the batch</Link>}
+                </p>
+              )}
             </div>
           )}
         </div>

@@ -80,7 +80,7 @@ export async function stampSignature(
 
   if (opts.signaturePng && opts.signaturePng.byteLength) {
     try {
-      const img = await doc.embedPng(opts.signaturePng)
+      const img = await embedStampImage(doc, opts.signaturePng)
       const scale = Math.min((g.sigW - 8) / img.width, (g.sigH - 8) / img.height)
       const w = img.width * scale, h = img.height * scale
       page.drawImage(img, { x: g.sigX + (g.sigW - w) / 2, y: g.sigY + (g.sigH - h) / 2, width: w, height: h })
@@ -189,7 +189,7 @@ export async function stampOnTitleBlock(
 
   if (opts.signaturePng?.byteLength) {
     try {
-      const img = await doc.embedPng(opts.signaturePng)
+      const img = await embedStampImage(doc, opts.signaturePng)
       const scale = Math.min(boxW / img.width, boxH / img.height)
       const w = img.width * scale, h = img.height * scale
       page.drawImage(img, { x: cx - w / 2, y: by, width: w, height: h })
@@ -202,7 +202,17 @@ export async function stampOnTitleBlock(
   return { bytes: await doc.save(), placed: true }
 }
 
-// Decode a data-URL / base64 PNG (as returned by the signature store) to bytes.
+/** Embed a stored signature by what it ACTUALLY is, not by what the field is called.
+ *  coreflow_signature accepts PNG or JPEG, and at least one person's saved signature is a
+ *  raw phone JPEG (Lonice Willemse, found 2026-09-04). embedPng on JPEG bytes throws, and
+ *  every call site catches that and quietly stamps the typed name instead — so she would
+ *  have had a signature on file and a typed name on the drawing, with nothing saying why. */
+async function embedStampImage(doc: PDFDocument, bytes: Uint8Array) {
+  const jpeg = bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+  return jpeg ? doc.embedJpg(bytes) : doc.embedPng(bytes)
+}
+
+// Decode a data-URL / base64 PNG or JPEG (as returned by the signature store) to bytes.
 export function pngFromDataUrl(image: string | null | undefined): Uint8Array | null {
   if (!image) return null
   const b64 = image.includes(',') ? image.split(',')[1] : image
@@ -268,11 +278,18 @@ export async function rebuildSignedPdf(
   const pages = doc.getPages()
   const ink = rgb(0.09, 0.11, 0.16)
   for (const s of opts.stamps) {
+    // Clamping an out-of-range page is how a signature once landed in the middle of a drawing:
+    // the placement pointed at an appended approval sheet that was never appended. The caller
+    // now appends that sheet when any stamp needs it, so this should be unreachable — say so
+    // out loud if it ever happens again rather than silently putting ink somewhere wrong.
+    if (s.page > pages.length || s.page < 1) {
+      console.warn(`[signoff] stamp targets page ${s.page} of a ${pages.length}-page document — clamping. The approval sheet was expected and is missing.`)
+    }
     const page = pages[Math.min(Math.max(s.page, 1), pages.length) - 1]
     if (!page) continue
     if (s.png?.byteLength) {
       try {
-        const img = await doc.embedPng(s.png)
+        const img = await embedStampImage(doc, s.png)
         const scale = Math.min(s.w / img.width, s.h / img.height)
         const w = img.width * scale, h = img.height * scale
         page.drawImage(img, { x: s.x + (s.w - w) / 2, y: s.y + (s.h - h) / 2, width: w, height: h })
