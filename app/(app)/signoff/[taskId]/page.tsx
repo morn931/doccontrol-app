@@ -109,7 +109,7 @@ export default function SignoffPage({ params }: { params: Promise<{ taskId: stri
           {!hasSignature && isMine && (
             <div className="card p-3 bg-amber-50 border-amber-200 text-sm text-amber-800 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>You have no saved signature — your typed name will be used. Set up a signature in your <a className="underline" href="https://coreflow.build/settings/signature" target="_blank" rel="noopener noreferrer">Coreflow profile</a> for a proper signature image.</span>
+              <span>You have no saved signature — your typed name will be used. Set up a signature in your <a className="underline" href="https://coreflow.build/signature" target="_blank" rel="noopener noreferrer">Coreflow profile</a> for a proper signature image.</span>
             </div>
           )}
 
