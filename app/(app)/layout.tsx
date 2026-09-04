@@ -38,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     signoffs:     can(perms, FK.NAV_SIGNOFFS, role),
     engineeringActions: can(perms, FK.NAV_ENGINEERING_ACTIONS, role),
     signoffIntake: can(perms, FK.ACTION_APPROVE_SIGNOFF_ONLY, role),
+    prelimReview: can(perms, FK.NAV_PRELIM_REVIEW, role),
   }
 
   const firstName = name.split(' ')[0]

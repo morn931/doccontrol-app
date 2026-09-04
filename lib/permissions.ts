@@ -31,6 +31,9 @@ export const FK = {
   NAV_CDDL:                 'nav.cddl',
   ACTION_EDIT_CDDL:         'action.edit_cddl',
   NAV_ENGINEERING_ACTIONS:  'nav.engineering_actions',
+  // Prelim Review — the group pass in front of the formal chain (migration 051).
+  NAV_PRELIM_REVIEW:        'nav.prelim_review',
+  ACTION_PRELIM_MANAGE:     'action.prelim_manage',
 } as const
 
 export type PermMap = Map<string, boolean>

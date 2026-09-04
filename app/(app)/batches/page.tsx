@@ -124,7 +124,7 @@ async function getBatches(params: SearchParams) {
   let query = db
     .from('batches')
     .select(`id, batch_guid, status, source, file_count, received_at, rejected_at,
-             comments, vendor_email,
+             comments, vendor_email, internal_ref,
              vendors(name, code), packages(package_code, package_name),
              document_versions(revision, doc_name, file_name),
              review_tasks(reviewer_email, sequence_number, status, due_date)`)
@@ -273,6 +273,10 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
             // Internal-engineering batches carry no vendor/package — surface the document
             // metadata (from the linked Document Request line) instead of "Unknown …".
             const isInternal = batch.source === 'internal'
+            // Unnumbered internal review (INT-YYYY-NNNN): carries no vendor or package either.
+            // Until 2026-09-04 it fell through to the vendor branch and read "Unknown Package /
+            // Unknown Vendor" — including everything handed over from a prelim session.
+            const isInternalReview = batch.source === 'internal_review'
             const isRedline  = batch.source === 'redline'
             const isAsbuilt  = batch.source === 'asbuilt'
             const dv = (batch.document_versions ?? [])[0]
@@ -285,14 +289,18 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
               ? (docNo ?? (isAsbuilt ? 'As-Built' : 'Site redline'))
               : isInternal
               ? (docNo ?? 'Internal document')
+              : isInternalReview
+              ? (dv?.doc_name ?? (batch as any).internal_ref ?? 'Internal review')
               : (batch.packages?.package_name ?? batch.packages?.package_code ?? 'Unknown Package')
             const originLabel = isAsbuilt
               ? `As-Built — uploaded by ${batch.vendor_email ?? 'engineering'}`
               : isRedline
               ? `Site redline — submitted by ${batch.vendor_email ?? 'site'}`
-              : isInternal ? 'PPE Internal Engineering' : (batch.vendors?.name ?? 'Unknown Vendor')
+              : isInternal ? 'PPE Internal Engineering'
+              : isInternalReview ? `PPE Internal Review${(batch as any).internal_ref ? ` — ${(batch as any).internal_ref}` : ''}`
+              : (batch.vendors?.name ?? 'Unknown Vendor')
             const internalTitle = isInternal ? (dv?.doc_name ?? null) : null
-            const internalRev = isInternal ? (dv?.revision ?? null) : null
+            const internalRev = (isInternal || isInternalReview) ? (dv?.revision ?? null) : null
 
             return (
               <Link key={batch.id} href={`/batches/${batch.id}`}
@@ -305,6 +313,11 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     {isInternal && (
                       <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-700">
                         Internal
+                      </span>
+                    )}
+                    {isInternalReview && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">
+                        Internal review
                       </span>
                     )}
                     {isRedline && (

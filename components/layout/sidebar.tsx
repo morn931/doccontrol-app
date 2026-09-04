@@ -18,6 +18,7 @@ export interface NavPerms {
   signoffs:     boolean
   engineeringActions: boolean
   signoffIntake: boolean
+  prelimReview: boolean
 }
 
 interface SidebarProps { role: UserRole; navPerms: NavPerms; inDrawer?: boolean }
@@ -31,7 +32,7 @@ const ICON_SURFACE = (name: string) => `/coreflow/icons/${name}/surface/${name}-
 // Every nav destination — the ACTIVE item is the LONGEST href that matches the current
 // path, so /documents/requests no longer also lights up /documents ("Document Search").
 const NAV_HREFS = [
-  '/home', '/dashboard', '/documents/requests', '/internal-review/new', '/redlines', '/rev0', '/signoff-intake', '/batches', '/internal', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
+  '/home', '/dashboard', '/documents/requests', '/internal-review/new', '/prelim', '/redlines', '/rev0', '/signoff-intake', '/batches', '/internal', '/reviews', '/signoffs', '/engineering-actions', '/transmittals', '/documents',
   '/mddr', '/reporting', '/aconex-review', '/aconex-issue', '/rfi', '/cddl', '/sddr',
   '/admin/import', '/admin/vendors', '/developer', '/developer/doc-requests', '/admin/users', '/help',
 ]
@@ -73,6 +74,9 @@ export function Sidebar({ role, navPerms, inDrawer }: SidebarProps) {
         {/* Document Requests — the origination step, kept right under Dashboard */}
         {(dev || navPerms.docRequests) && <NavLink href="/documents/requests" label="Document Requests" icon={ICON('documents')} />}
         {(dev || navPerms.internalReview) && <NavLink href="/internal-review/new" label="Internal Review" icon={ICON('documents')} />}
+
+        {/* Prelim Review — the group pass in the boardroom, in front of the formal chain */}
+        {(dev || navPerms.prelimReview) && <NavLink href="/prelim" label="Prelim Review" icon={ICON_SURFACE('review-approvals')} />}
 
         {/* Site Redlines — driveway C: register + upload + awaiting-As-Built list */}
         {role !== 'vendor' && <NavLink href="/redlines" label="Site Redlines" icon={ICON('documents')} />}

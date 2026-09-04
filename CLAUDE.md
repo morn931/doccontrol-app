@@ -848,3 +848,45 @@ diagnosed the email-before-delivery defect from code alone). Fix (commit `30ddd5
 - One-off remediation the same day: 6 K125 docs healed by script; both batches delivered to
   the K125 TO VENDOR library (verified in Graph), stamped `returned_to_vendor`, audit rows
   written. Roelien's ticket resolved; no re-send was needed — the original links now work.
+
+## 2026-09-04 — Prelim Review: the group pass in front of the formal chain
+
+**Migration 051 `prelim_review` — WRITTEN, apply in the Supabase SQL Editor (project tjzeahdimbekuizegsky).**
+
+Morné: newly developed tender documents are looked at by the whole team in the boardroom
+BEFORE they go through internal review for the first time. The formal engine cannot host
+that — one document per submission, a reference minted on entry, reviewers in strict
+sequence, no state before "in review". So the preliminary pass has its own tables
+(`prelim_session`, `prelim_document`), the way a site-redline basket does, and **nothing
+reaches `batches` until a drawing is handed over**. Built to be reused, not a one-off.
+
+- **`/prelim`** — sessions. Open one for the folder the room is looking at (defaults:
+  site `PRELIM_SOURCE_SITE_URL` = K138 Balance of Plant, library `PRELIM_SOURCE_LIBRARY` =
+  COLAB; any site/library can be passed). Pull drawings from the folder: a working PDF copy
+  of each goes to **Internal Reviews / Prelim / <session>** (non-PDFs rendered by Graph);
+  the source file is never touched; the CDDL is matched on the number in the filename
+  (RDMC then PPE), never guessed from the title.
+- **`/prelim/[id]/doc/[docId]`** — the shared markup layer (`PdfMarkup` with
+  `endpointBase=/api/prelim/documents/<id>`): everyone in the room draws on ONE layer,
+  each in a colour hashed from their email; comments carry the author. "Save to
+  SharePoint" flattens into the working copy (same commit contract as redlines).
+  The room's call per drawing: ready / rework (mails the engineer the comment list) /
+  withdraw.
+- **Hand over** (`action.prelim_manage`) creates the formal batch through the existing
+  front doors — numbered → `documents` + `document_versions` + `batches.source='internal'`
+  named `<docno>_<rev>.pdf` (the full chain: ENG2 return, sign-off, Aconex, MDDR);
+  unnumbered → `source='internal_review'` with an INT reference. Both land in Incoming
+  Batches as `metadata_pending`. The flattened working copy IS the review file, and the
+  room's comments become the first `reviewer_notes` handover note. Hand-over refuses while
+  the layer holds unsaved marks, because the formal review reads the file, not our layer.
+- Permissions: `nav.prelim_review` (see, mark up, record the call — all roles but vendor)
+  and `action.prelim_manage` (open, pull, hand over, close — admin, DC, EM, PM). Both in the
+  developer matrix.
+
+**Two defects fixed on the way:** Incoming Batches rendered every `internal_review` batch as
+"Unknown Package / Unknown Vendor" (no display branch); the transmittal route ran the VENDOR
+path over an `internal_review` batch on a direct call (the button was hidden, the route was
+not). Both closed.
+
+**Not done:** `document_routing` is not used for rework (it needs a document_version or
+batch, and a prelim drawing has neither) — rework is an email plus the record on the row.

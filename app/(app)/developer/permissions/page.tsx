@@ -158,6 +158,13 @@ export default async function PermissionsPage() {
       ],
     },
     {
+      title: 'Prelim Review',
+      rows: [
+        r('View sessions, mark up, record the room\'s outcome', FK.NAV_PRELIM_REVIEW),
+        r('Open a session, pull from the source folder, hand over, close', FK.ACTION_PRELIM_MANAGE),
+      ],
+    },
+    {
       title: 'CDDL Register',
       rows: [
         r('View CDDL Register',                          FK.NAV_CDDL),

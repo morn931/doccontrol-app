@@ -494,6 +494,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if ((batch as any).source === 'internal') {
     return await returnInternalToEngineer(db, batchId, batch, profile, body)
   }
+  // An unnumbered internal review has no vendor to transmit to and no ENG2 library to return
+  // to. The button was hidden in the UI; the route now refuses too, so a direct call cannot
+  // run the vendor path over it (found 2026-09-04 while building Prelim Review).
+  if ((batch as any).source === 'internal_review') {
+    return NextResponse.json({ error: 'An internal review has no transmittal. Sign it off, or re-submit it with a document number to return it to engineering.' }, { status: 400 })
+  }
 
   const docVersions = (batch.document_versions as any[]) ?? []
 
