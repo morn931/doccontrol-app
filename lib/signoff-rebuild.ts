@@ -46,10 +46,15 @@ export async function rebuildBatchSignedPdf(db: any, batchId: string): Promise<{
       }
     })
 
-  // Only append the approval block when the cover has no title block to sign in.
-  const appendSignatories: SignatoryRow[] | null = cols
-    ? null
-    : all.map((t) => ({ name: t.signatory_name ?? '', role: t.role_label ?? '' }))
+  // Append the approval block when the cover has no title block to sign in — or when a stamp
+  // resolves past the base (a role that matched no title-block column falls back to the appended
+  // sheet). Without this second case that page wouldn't exist and rebuildSignedPdf would clamp
+  // the stamp onto the last page of the document itself. signoff/start now refuses such a role
+  // up front, so this only catches chains created before that check.
+  const needsAppended = stamps.some((s) => s.page > basePageCount)
+  const appendSignatories: SignatoryRow[] | null = (!cols || needsAppended)
+    ? all.map((t) => ({ name: t.signatory_name ?? '', role: t.role_label ?? '' }))
+    : null
 
   const bytes = await rebuildSignedPdf(base, {
     appendSignatories,

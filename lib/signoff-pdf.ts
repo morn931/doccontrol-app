@@ -155,6 +155,17 @@ export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array):
 
 const ROLE_TO_COL: [string, string][] = [['prepar', 'PREPARED'], ['compil', 'PREPARED'], ['check', 'CHECKED'], ['review', 'CHECKED'], ['approv', 'APPROVED']]
 
+/** The title-block column a free-text role label signs in, or null if it maps to none.
+ *  A document WITH a title block has nowhere to put an unmapped role, so callers that
+ *  create a sign-off chain must reject one up front (see signoff/start). */
+export function roleColumnKey(roleLabel: string | null | undefined): string | null {
+  const rl = (roleLabel || '').toLowerCase()
+  return ROLE_TO_COL.find(([frag]) => rl.includes(frag))?.[1] ?? null
+}
+
+/** The role labels a title-block document accepts — shown to the user when one is rejected. */
+export const TITLE_BLOCK_ROLES = ['Prepared', 'Checked', 'Reviewed', 'Approved'] as const
+
 /** Stamp a signature into the title-block column matching the signatory's role, above the
  *  name. Returns placed:false if the block/column isn't found (caller falls back). */
 export async function stampOnTitleBlock(
@@ -165,8 +176,7 @@ export async function stampOnTitleBlock(
   const cols = await findTitleBlockColumns(pdfBytes)
   if (!cols) return { bytes: asBytes(), placed: false }
 
-  const rl = (opts.roleLabel || '').toLowerCase()
-  const key = ROLE_TO_COL.find(([frag]) => rl.includes(frag))?.[1] ?? null
+  const key = roleColumnKey(opts.roleLabel)
   const col = key ? cols[key] : null
   if (!col) return { bytes: asBytes(), placed: false }
 
@@ -221,8 +231,7 @@ export function defaultPlacement(
   cols: Record<string, Col> | null,
   basePageCount: number,
 ): Placement {
-  const rl = (roleLabel || '').toLowerCase()
-  const key = ROLE_TO_COL.find(([frag]) => rl.includes(frag))?.[1] ?? null
+  const key = roleColumnKey(roleLabel)
   const col = key && cols ? cols[key] : null
   if (col) {
     const w = 104, h = 40   // signature box — sits in the title-block column above the name

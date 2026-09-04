@@ -11,7 +11,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import { resolveDriveItemByUrl, getDriveItemContentBytes, uploadBytesToLibraryFolder } from '@/lib/services/graph'
-import { appendSignoffBlock, findTitleBlockColumns } from '@/lib/signoff-pdf'
+import { appendSignoffBlock, findTitleBlockColumns, roleColumnKey, TITLE_BLOCK_ROLES } from '@/lib/signoff-pdf'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 
 export const maxDuration = 120
@@ -69,6 +69,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const hasTitleBlock = await findTitleBlockColumns(nativePdf).catch(() => null)
     let bytes: Uint8Array
     if (hasTitleBlock) {
+      // The title block has a fixed column per role — a role that maps to none has nowhere to
+      // sign, so refuse the chain here rather than stamping it somewhere arbitrary later.
+      // Documents without a title block keep free-text roles: the appended sheet prints them.
+      const unmapped = signatories.filter((s: any) => !roleColumnKey(s.role))
+      if (unmapped.length) {
+        return NextResponse.json({
+          error: `This document signs in its cover title block, so each role must be one of ${TITLE_BLOCK_ROLES.join(', ')}. `
+            + `Not usable: ${unmapped.map((s: any) => `"${s.role || '(blank)'}" (${s.email})`).join(', ')}.`,
+        }, { status: 400 })
+      }
       bytes = nativePdf
     } else {
       ({ bytes } = await appendSignoffBlock(nativePdf, signatories.map((s: any) => ({ name: s.name, role: s.role })),
