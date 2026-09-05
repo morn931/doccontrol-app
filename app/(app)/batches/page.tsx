@@ -126,7 +126,7 @@ async function getBatches(params: SearchParams) {
     .select(`id, batch_guid, status, source, file_count, received_at, rejected_at,
              comments, vendor_email, internal_ref,
              vendors(name, code), packages(package_code, package_name),
-             document_versions(revision, doc_name, file_name),
+             document_versions(revision, doc_name, file_name, ai_review),
              review_tasks(reviewer_email, sequence_number, status, due_date)`)
     .order('received_at', { ascending: false })
     .limit(q ? 500 : 100)
@@ -299,6 +299,9 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
               : isInternal ? 'PPE Internal Engineering'
               : isInternalReview ? `PPE Internal Review${(batch as any).internal_ref ? ` — ${(batch as any).internal_ref}` : ''}`
               : (batch.vendors?.name ?? 'Unknown Vendor')
+            // A document handed over from Prelim Review carries its last quality check; open
+            // issues are flagged here so the controller sees them before assigning reviewers.
+            const qualityOpen: number = Number(dv?.ai_review?.prelim_quality?.open ?? 0)
             const internalTitle = isInternal ? (dv?.doc_name ?? null) : null
             const internalRev = (isInternal || isInternalReview) ? (dv?.revision ?? null) : null
 
@@ -318,6 +321,11 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                     {isInternalReview && (
                       <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-700">
                         Internal review
+                      </span>
+                    )}
+                    {qualityOpen > 0 && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800" title="Open issues from the prelim quality check — listed in the handover note">
+                        ⚠ {qualityOpen} quality issue{qualityOpen === 1 ? '' : 's'}
                       </span>
                     )}
                     {isRedline && (

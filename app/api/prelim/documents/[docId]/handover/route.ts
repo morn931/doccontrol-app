@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getFileBytesByUrl, uploadBytesToLibrary } from '@/lib/services/graph'
+import { getFileBytesByUrl, uploadBytesToLibrary, resolveDriveItemByUrl, getDriveItemContentBytes } from '@/lib/services/graph'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { splitEmails } from '@/lib/utils/emails'
 import { prelimAuth, isErr } from '@/lib/prelim'
@@ -37,10 +37,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
   const layerHasMarks = d.markup_layer && typeof d.markup_layer === 'object' && Object.keys(d.markup_layer).length > 0
   if (layerHasMarks) return NextResponse.json({ error: 'The room\'s marks are not in the file yet — open the drawing and press "Save to SharePoint" first, then hand over.' }, { status: 409 })
 
-  // ── the review file: the working copy, into the Internal Reviews library root ─────
-  let bytes: ArrayBuffer
-  try { bytes = await getFileBytesByUrl(d.working_file_url) }
-  catch (e: any) { return NextResponse.json({ error: `Could not read the working copy: ${e?.message ?? e}` }, { status: 502 }) }
+  // ── the review file ───────────────────────────────────────────────────────────────
+  // If the room drew on it, the marked-up working copy is the file. If nobody drew on it,
+  // the LIVE source in COLAB is — the helper may have fixed quality issues there since the
+  // pull, and a copy taken at pull time would carry the defects back in.
+  const roomMarked = !!d.markup_committed_at
+  let bytes: ArrayBuffer, fileSource = 'working copy (room markup)'
+  try {
+    if (roomMarked) bytes = await getFileBytesByUrl(d.working_file_url)
+    else {
+      const item = await resolveDriveItemByUrl(d.source_file_url)
+      if (!item?.driveId) throw new Error('source file not found in COLAB')
+      bytes = await getDriveItemContentBytes(item.driveId, item.id, /\.pdf$/i.test(item.name) ? undefined : 'pdf')
+      fileSource = 'live source in COLAB'
+    }
+  } catch (e: any) { return NextResponse.json({ error: `Could not read the ${roomMarked ? 'working copy' : 'source file'}: ${e?.message ?? e}` }, { status: 502 }) }
+  // Outstanding quality issues travel with it — flagged, never blocking.
+  const qIssues: any[] = Array.isArray(d.quality_latest?.issues) ? d.quality_latest.issues : []
+  const qOpen = qIssues.length
+  const qualityFlag = d.quality_checked_at ? { prelim_quality: { open: qOpen, checked_at: d.quality_checked_at, source_modified_at: d.quality_source_modified_at ?? null, issues: qIssues } } : null
+  const qualityText = d.quality_checked_at
+    ? (qOpen ? `Prelim quality check (${new Date(d.quality_checked_at).toLocaleDateString('en-GB')}): ${qOpen} open issue${qOpen === 1 ? '' : 's'} — ${qIssues.slice(0, 6).map(i => `${i.page != null ? `p.${i.page} ` : ''}${i.description}`).join('; ')}${qOpen > 6 ? '; …' : ''}` : `Prelim quality check (${new Date(d.quality_checked_at).toLocaleDateString('en-GB')}): clear`)
+    : 'Prelim quality check: not run'
   const docno: string | null = d.document_number || null
   const revision: string = d.revision || 'A'
   const fileName = docno ? `${docno}_${revision}.pdf` : d.working_file_name
@@ -80,6 +98,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
       central_file_url: centralUrl, storage_provider: 'sharepoint', doc_name: d.title ?? null,
       discipline: d.discipline ?? null, document_type: d.document_type ?? null,
       ai_metadata_source: 'manually_confirmed', status: 'uploaded', is_latest: true,
+      ai_review: qualityFlag, ai_text: qualityText,
     }).select('id').single()
     if (ve || !dv) return NextResponse.json({ error: ve?.message ?? 'Could not create the document version.' }, { status: 500 })
     dvId = (dv as any).id
@@ -100,6 +119,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
       central_file_url: centralUrl, doc_unique_id: ref, storage_provider: 'sharepoint', doc_name: d.title ?? fileName,
       discipline: d.discipline ?? null, document_type: d.document_type ?? null,
       ai_metadata_source: 'manually_confirmed', status: 'uploaded', is_latest: true,
+      ai_review: qualityFlag, ai_text: qualityText,
     }).select('id').single()
     if (ve || !dv) return NextResponse.json({ error: ve?.message ?? 'Could not create the document version.' }, { status: 500 })
     dvId = (dv as any).id
@@ -108,8 +128,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
   // ── what the room said, as a handover note every formal reviewer sees at the top ────
   const comments: any[] = d.markup_comments ?? []
   const noteLines = [
-    `Prelim review — ${d.prelim_session.title}${d.prelim_session.area ? ` (${d.prelim_session.area})` : ''}. Outcome: ready for internal review.`,
+    `Prelim review — ${d.prelim_session.title}${d.prelim_session.area ? ` (${d.prelim_session.area})` : ''}. Outcome: ready for internal review. Review file taken from the ${fileSource}.`,
     d.outcome_note ? `Note from the room: ${d.outcome_note}` : null,
+    qualityText,
+    ...(qOpen ? qIssues.map((i, k) => `  Q${k + 1}. [${i.severity}] ${i.page != null ? `p.${i.page} ` : ''}${i.description} — fix: ${i.fix}`) : []),
     comments.length ? `Comments from the room (${comments.length}):` : 'No written comments from the room; marks are on the drawing.',
     ...comments.map((c, i) => `${i + 1}. ${c.page != null ? `p.${Number(c.page) + 1} ` : ''}${String(c.text ?? '')}${c.author ? ` — ${c.author}` : ''}${c.resolved ? ' (resolved)' : ''}`),
   ].filter(Boolean)
@@ -120,7 +142,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
   await db.from('prelim_document').update({ handed_over_batch_id: batchId, handed_over_dv_id: dvId, handed_over_at: now, handed_over_by_email: auth.email }).eq('id', docId)
   await db.from('audit_events').insert({
     entity_type: 'batch', entity_id: batchId, event_type: docno ? 'internal_drawing_submitted' : 'internal_review_submitted',
-    actor_user_id: auth.userId, actor_email: auth.email, event_data: { via: 'prelim_review', prelimDocumentId: docId, sessionId: d.prelim_session.id, ref, fileName },
+    actor_user_id: auth.userId, actor_email: auth.email, event_data: { via: 'prelim_review', prelimDocumentId: docId, sessionId: d.prelim_session.id, ref, fileName, fileSource, qualityOpen: qOpen },
   }).then(() => null, () => null)
 
   // Controller notification, as the front doors do (best-effort).
@@ -133,7 +155,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
       htmlBody: brandedEmail({
         heading: 'A prelim-reviewed drawing is ready for internal review',
         bodyHtml: `<p><b>${auth.email}</b> handed over <b>${d.title ?? fileName}</b> from the session <b>${d.prelim_session.title}</b>.</p>
-          <p style="margin:12px 0"><b>Ref:</b> ${ref}<br/><b>File:</b> ${fileName}<br/><b>Room's comments:</b> ${comments.length}</p>
+          <p style="margin:12px 0"><b>Ref:</b> ${ref}<br/><b>File:</b> ${fileName}<br/><b>Room's comments:</b> ${comments.length}<br/><b>Quality:</b> ${qOpen ? `<span style="color:#b45309">${qOpen} open issue${qOpen === 1 ? '' : 's'} carried into the review</span>` : d.quality_checked_at ? 'clear' : 'not checked'}</p>
           <p style="color:#6b7280;font-size:13px">The room's marks are in the file; its comments are the first handover note on the document.</p>`,
         cta: { href: `${APP_URL}/batches/${batchId}/assign`, label: 'Assign reviewers →' },
       }),

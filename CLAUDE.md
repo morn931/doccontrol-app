@@ -890,3 +890,25 @@ not). Both closed.
 
 **Not done:** `document_routing` is not used for rework (it needs a document_version or
 batch, and a prelim drawing has neither) — rework is an email plus the record on the row.
+
+### 2026-09-05 — Quality check on Prelim Review (migration 052)
+
+**Migration 052 `prelim_quality` — WRITTEN, apply in the Supabase SQL Editor.** Morné: the
+vendor intake reads every incoming vendor document and flags title-block / template /
+revision defects; our own drawings got no such read before internal review. **Check quality**
+on a session runs `lib/prelim/quality-check.ts` (same shape as `lib/intake/ai-review.ts`,
+Claude, structured output, advisory) over each drawing's **SOURCE file in COLAB, never the
+working copy** — the helper fixes the actual document, presses again, and the list shrinks.
+Every run is kept in `prelim_quality_run`; the latest is denormalised on `prelim_document`.
+The session page lists open issues per document with a link to the source and the in-app
+view, and exports the list. Hand-over carries open issues into the reviewer handover note and
+`document_versions.ai_review.prelim_quality`, which Incoming Batches badges — **flagged,
+never blocked**. Hand-over now takes the review file from the live source when the room
+made no marks, so fixes made after the pull are what goes into review.
+
+Trialled over five real COLAB files before shipping (`scripts/_quality-trial.mjs`): found an
+XXXX supplier number, `#VALUE!`/`#REF!` through a BOQ, duplicate cable numbers, "3 of 43" beside
+"42 of 43". Two corrections from the read: the model has no clock (a June date was called
+"future" — today's date is now in the prompt), and a spreadsheet's `#VALUE!` can be the
+server-side PDF render failing external workbook links, so converted sources are told to
+report those as "confirm in Excel", minor unless in a title-block field.
