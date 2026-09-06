@@ -2,6 +2,26 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { readCoreflowPpeEmail } from '@/lib/coreflow-auth'
 
+/* WHY THIS FILE HAS TIMEOUTS (after a 504 MIDDLEWARE_INVOCATION_TIMEOUT).
+ * This runs on EVERY request. It used to make unbounded network round-trips to
+ * Supabase — getUser() to validate the JWT, and (for a logged-out request) a
+ * second getUser() against the shared Coreflow project to decide the SSO bridge.
+ * When Supabase (behind Cloudflare) stalled, those hung past Vercel's middleware
+ * budget and the whole site answered 504. Fix: race every Supabase call against a
+ * hard timeout so the middleware always returns fast, and fail CLOSED — a timeout
+ * treats the request as unauthenticated (→ /login), never as authenticated. This
+ * IS the auth gate, so it must never fail open. A real session comes back on the
+ * next request once Supabase recovers, so it is a transient hop, not a logout. */
+const AUTH_TIMEOUT_MS = 3500
+const TIMED_OUT = Symbol('timeout')
+
+function withTimeout<T>(p: PromiseLike<T>, ms = AUTH_TIMEOUT_MS): Promise<T | typeof TIMED_OUT> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<typeof TIMED_OUT>((r) => setTimeout(() => r(TIMED_OUT), ms)),
+  ])
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -21,7 +41,11 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Fail CLOSED: if Supabase does not answer in time, treat the request as
+  // unauthenticated (user = null) rather than hanging. A public path still renders;
+  // anything gated falls through to the normal no-user redirect below.
+  const userRes = await withTimeout(supabase.auth.getUser())
+  const user = userRes === TIMED_OUT ? null : userRes.data.user
 
   const { pathname } = request.nextUrl
 
@@ -57,7 +81,10 @@ export async function middleware(request: NextRequest) {
     // Internal PPE staff: if they carry a valid Coreflow session, bridge them in
     // instead of bouncing to CoreDocs' own login. External users (no shared session)
     // fall through to the normal login.
-    const ppeEmail = await readCoreflowPpeEmail(request.cookies.getAll())
+    // Time-box the shared-project session read too — it is a second Supabase
+    // round-trip and would reintroduce the 504 exactly when the primary one is slow.
+    const bridgeRes = await withTimeout(readCoreflowPpeEmail(request.cookies.getAll()))
+    const ppeEmail = bridgeRes === TIMED_OUT ? null : bridgeRes
     if (ppeEmail) {
       const url = new URL('/auth/coreflow-bridge', request.url)
       url.searchParams.set('next', next)
