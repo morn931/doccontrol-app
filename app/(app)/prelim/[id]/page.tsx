@@ -20,7 +20,7 @@ export default async function PrelimSessionPage({ params }: { params: Promise<{ 
   const { data: session } = await db.from('prelim_session').select('*').eq('id', id).maybeSingle()
   if (!session) redirect('/prelim')
   const { data: docs } = await db.from('prelim_document')
-    .select('id, document_number, revision, title, discipline, document_type, source_file_name, source_file_url, working_file_name, cddl_doc_id, markup_comments, markup_layer, markup_committed_at, outcome, outcome_note, outcome_by_email, outcome_at, rework_to_email, handed_over_batch_id, handed_over_at, pulled_by_email, created_at, quality_latest, quality_open, quality_checked_at, quality_source_modified_at, routing, routing_at, routing_to_email, routing_to_name, routing_mailed_at, routing_error, returned_at, returned_from')
+    .select('id, document_number, revision, title, discipline, document_type, source_file_name, source_file_url, working_file_name, cddl_doc_id, markup_comments, markup_layer, markup_committed_at, outcome, outcome_note, outcome_by_email, outcome_at, rework_to_email, handed_over_batch_id, handed_over_at, pulled_by_email, created_at, quality_latest, quality_open, quality_checked_at, quality_source_modified_at, routing, routing_at, routing_to_email, routing_to_name, routing_mailed_at, routing_error, returned_at, returned_from, tender_stamped_file_url, tender_stamp_error')
     .eq('session_id', id).order('created_at', { ascending: true })
 
   const rows = (docs ?? []).map((d: any) => ({

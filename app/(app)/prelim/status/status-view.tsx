@@ -9,7 +9,7 @@ export type StatusRow = {
   status: PrelimStatus; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: string
   routing: string | null; routing_at: string | null; routing_by_email: string | null; routing_to_email: string | null; routing_to_name: string | null; routing_mailed_at: string | null
   returned_at: string | null; returned_by_email: string | null; returned_from: string | null
-  quality_open: number | null; quality_checked_at: string | null; handed_over_batch_id: string | null
+  quality_open: number | null; quality_checked_at: string | null; handed_over_batch_id: string | null; tender_stamped_file_url?: string | null
 }
 
 const when = (s: string | null) => s ? new Date(s).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
@@ -88,7 +88,7 @@ export default function StatusView({ docs }: { docs: StatusRow[] }) {
                   <td className="px-4 py-2 text-slate-700 max-w-md truncate" title={d.title ?? ''}>{d.title}</td>
                   <td className="px-4 py-2 text-slate-500 text-xs whitespace-nowrap">{d.session.replace(/ — .*$/, '')}</td>
                   <td className="px-4 py-2 whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_CLS[d.status]}`}>{STATUS_LABEL[d.status]}</span></td>
-                  <td className="px-4 py-2 text-xs text-slate-500">{statusDetail(d)}</td>
+                  <td className="px-4 py-2 text-xs text-slate-500">{statusDetail(d)}{d.status === 'ready_for_tender' && d.tender_stamped_file_url && <> · <a href={d.tender_stamped_file_url} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline">stamped copy ↗</a></>}</td>
                   <td className="px-4 py-2 whitespace-nowrap text-xs">{!d.quality_checked_at ? <span className="text-slate-300">not checked</span> : (d.quality_open ?? 0) > 0 ? <span className="text-amber-700">{d.quality_open} open</span> : <span className="text-emerald-700">clear</span>}</td>
                   <td className="px-4 py-2 text-right"><Link href={`/prelim/${d.session_id}/doc/${d.id}`} className="btn-secondary text-xs py-1 px-2.5">Open</Link></td>
                 </tr>

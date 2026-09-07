@@ -25,7 +25,7 @@ export default async function PrelimDocPage({ params }: { params: Promise<{ id: 
 
   const db = createServiceClient()
   const { data: doc } = await db.from('prelim_document')
-    .select('id, document_number, revision, title, source_file_name, working_file_name, outcome, outcome_note, rework_to_email, handed_over_batch_id, markup_committed_at, routing, routing_at, routing_by_email, routing_to_email, routing_to_name, routing_mailed_at, routing_attached, routing_error, prelim_session!inner(id, title, status)')
+    .select('id, document_number, revision, title, source_file_name, working_file_name, outcome, outcome_note, rework_to_email, handed_over_batch_id, markup_committed_at, routing, routing_at, routing_by_email, routing_to_email, routing_to_name, routing_mailed_at, routing_attached, routing_error, tender_stamped_file_url, tender_stamped_file_name, tender_stamp_error, prelim_session!inner(id, title, status)')
     .eq('id', docId).eq('session_id', id).maybeSingle()
   if (!doc) redirect(`/prelim/${id}`)
   const s = (doc as any).prelim_session
@@ -54,7 +54,7 @@ export default async function PrelimDocPage({ params }: { params: Promise<{ id: 
       </div>
       <OutcomePanel docId={docId} sessionId={id} outcome={(doc as any).outcome} note={(doc as any).outcome_note} reworkTo={(doc as any).rework_to_email} handedOver={!!(doc as any).handed_over_batch_id} handedOverBatchId={(doc as any).handed_over_batch_id} open={open} canManage={canManage} />
       <PdfMarkup src={`/api/prelim/documents/${docId}/file`} fileName={((doc as any).working_file_name ?? 'document').replace(/\.pdf$/i, '')} endpointBase={`/api/prelim/documents/${docId}`} initialColor={myColor} readOnly={!open}
-        toolbarExtra={<RoutingButtons docId={docId} routing={(doc as any).routing ?? null} routingTo={(doc as any).routing_to_name ?? null} routingToEmail={(doc as any).routing_to_email ?? null} routingAt={(doc as any).routing_at ?? null} routingBy={(doc as any).routing_by_email ?? null} mailedAt={(doc as any).routing_mailed_at ?? null} attached={(doc as any).routing_attached ?? null} error={(doc as any).routing_error ?? null} open={s.status === 'open'} canManage={canManage} />} />
+        toolbarExtra={<RoutingButtons docId={docId} routing={(doc as any).routing ?? null} routingTo={(doc as any).routing_to_name ?? null} routingToEmail={(doc as any).routing_to_email ?? null} routingAt={(doc as any).routing_at ?? null} routingBy={(doc as any).routing_by_email ?? null} mailedAt={(doc as any).routing_mailed_at ?? null} attached={(doc as any).routing_attached ?? null} error={(doc as any).routing_error ?? null} open={s.status === 'open'} canManage={canManage} tenderCopyUrl={(doc as any).tender_stamped_file_url ?? null} tenderCopyName={(doc as any).tender_stamped_file_name ?? null} tenderStampError={(doc as any).tender_stamp_error ?? null} />} />
     </div>
   )
 }

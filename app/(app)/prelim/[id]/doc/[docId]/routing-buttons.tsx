@@ -10,9 +10,10 @@ const LABEL: Record<Routing, string> = { drawing_office: 'To drawing office', le
 
 // The three calls a reviewer makes on a drawing in the tender push — see migration 053.
 // One call per drawing: after it is made, the chosen one stays lit and all three lock.
-export default function RoutingButtons({ docId, routing, routingTo, routingToEmail, routingAt, routingBy, mailedAt, attached, error, open, canManage }: {
+export default function RoutingButtons({ docId, routing, routingTo, routingToEmail, routingAt, routingBy, mailedAt, attached, error, open, canManage, tenderCopyUrl, tenderCopyName, tenderStampError }: {
   docId: string; routing: Routing | null; routingTo: string | null; routingToEmail: string | null; routingAt: string | null; routingBy: string | null
   mailedAt: string | null; attached: boolean | null; error: string | null; open: boolean; canManage: boolean
+  tenderCopyUrl?: string | null; tenderCopyName?: string | null; tenderStampError?: string | null
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<Routing | 'undo' | null>(null)
@@ -28,7 +29,7 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
     if (!toEmail) {
       const ask = action === 'drawing_office' ? 'Send this marked-up drawing to the drawing office?'
                 : action === 'lead' ? 'Send this marked-up drawing to its PPE responsible person?'
-                : 'Mark this drawing ready for tender? No mail is sent.'
+                : 'Mark this drawing ready for tender? A copy stamped "ISSUED FOR TENDER ONLY" on every page is filed beside the source in COLAB. No mail is sent.'
       if (!confirm(ask)) return
     }
     setBusy(action); setErr(''); setMsg('')
@@ -38,7 +39,7 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
       if (res.status === 409 && d.needLead) { setPick({ reason: d.reason, owner: d.owner, candidates: d.candidates ?? [], people: d.people ?? [] }); setChosen(d.candidates?.[0]?.email ?? ''); return }
       if (!res.ok) { setErr(d.error ?? 'Could not record the call.'); router.refresh(); return }
       setPick(null)
-      setMsg(action === 'ready_for_tender' ? 'Marked ready for tender.' : `Sent to ${d.to?.name ?? d.to?.email}${d.attached ? ' with the PDF attached.' : d.sizeMb ? ` — the PDF (${d.sizeMb} MB) was too large to attach, so the mail carries a link to it.` : '.'}`)
+      setMsg(action === 'ready_for_tender' ? `Marked ready for tender${d.tenderCopy ? ` — stamped copy filed (${d.tenderCopy.pages} page${d.tenderCopy.pages === 1 ? '' : 's'}).` : '.'}` : `Sent to ${d.to?.name ?? d.to?.email}${d.attached ? ' with the PDF attached.' : d.sizeMb ? ` — the PDF (${d.sizeMb} MB) was too large to attach, so the mail carries a link to it.` : '.'}`)
       router.refresh()
     } catch (e: any) { setErr(e.message) } finally { setBusy(null) }
   }
@@ -76,6 +77,8 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
           <span className="text-xs text-slate-600 ml-1">
             {routing === 'ready_for_tender' ? 'Marked ready for tender' : `${mailedAt ? 'Sent' : 'Recorded, mail failed'} to ${routingTo ?? routingToEmail}${mailedAt ? (attached === false ? ' (link, PDF too large)' : ' with the PDF') : ''}`}
             {' '}· {routingBy} · {when(routingAt)}
+            {routing === 'ready_for_tender' && tenderCopyUrl && <> · <a href={tenderCopyUrl} target="_blank" rel="noreferrer" className="font-semibold text-emerald-700 hover:underline" title={tenderCopyName ?? undefined}>Stamped tender copy ↗</a> <span className="text-slate-400">(every page: ISSUED FOR TENDER ONLY, filed beside the source in COLAB)</span></>}
+            {routing === 'ready_for_tender' && tenderStampError && <span className="text-red-600"> · stamped copy failed: {tenderStampError}</span>}
             {error && <span className="text-red-600"> · {error}</span>}
           </span>
         )}

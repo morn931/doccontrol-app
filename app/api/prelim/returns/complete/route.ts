@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { deleteDriveItemByUrl } from '@/lib/services/graph'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { prelimAuth, isErr } from '@/lib/prelim'
 
@@ -36,9 +37,12 @@ export async function POST(req: Request) {
     prior_working_file_url: d.working_file_url, working_file_url: webUrl, working_file_name: fileName,
     markup_layer: null, markup_comments: null, markup_committed_at: null,
     routing: null, routing_at: null, routing_by_email: null, routing_to_email: null, routing_to_name: null, routing_mailed_at: null, routing_attached: null, routing_error: null,
+    tender_stamped_at: null, tender_stamped_file_name: null, tender_stamped_file_url: null, tender_stamp_error: null,
     routing_history: history,
   }).eq('id', docId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // A stamped tender copy of the OLD version must not survive a corrected file coming in.
+  if (d.tender_stamped_file_url) await deleteDriveItemByUrl(d.tender_stamped_file_url).catch(() => null)
 
   await db.from('audit_events').insert({
     entity_type: 'prelim_document', entity_id: docId, event_type: 'prelim_returned',

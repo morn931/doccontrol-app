@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getFileBytesByUrl } from '@/lib/services/graph'
+import { getFileBytesByUrl, uploadBytesBesideItem, deleteDriveItemByUrl } from '@/lib/services/graph'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { prelimAuth, isErr, drawingOfficeEmail, listPeople, resolveLead, type Person } from '@/lib/prelim'
+import { stampIssuedForTender, tenderCopyName } from '@/lib/prelim/tender-stamp'
+
+/** Subfolder beside the source file in COLAB that holds the stamped copies. */
+const TENDER_FOLDER = process.env.PRELIM_TENDER_FOLDER || 'Issued for Tender'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 // Graph's simple fileAttachment tops out around 3 MB; above that the mail carries a link.
@@ -40,9 +44,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
   const now = new Date().toISOString()
 
   if (action === 'ready_for_tender') {
-    await db.from('prelim_document').update({ routing: action, routing_at: now, routing_by_email: auth.email, routing_to_email: null, routing_to_name: null, routing_mailed_at: null, routing_attached: null, routing_error: null }).eq('id', docId)
-    await audit(db, auth, docId, d, { action })
-    return NextResponse.json({ ok: true, routing: action })
+    // The stamped copy: every page marked ISSUED FOR TENDER ONLY + today's date, filed
+    // beside the source in COLAB under "Issued for Tender". The working copy is untouched.
+    let stamp: { name: string; url: string; pages: number } | null = null, stampErr: string | null = null
+    try {
+      const src = await getFileBytesByUrl(d.working_file_url)
+      const { bytes, pages } = await stampIssuedForTender(src)
+      const name = tenderCopyName(d.source_file_name.replace(/\.[^.]+$/, '.pdf'))
+      const up = await uploadBytesBesideItem(d.source_file_url, TENDER_FOLDER, name, bytes)
+      stamp = { name, url: up.webUrl, pages }
+    } catch (e: any) { stampErr = e?.message ?? String(e) }
+    await db.from('prelim_document').update({
+      routing: action, routing_at: now, routing_by_email: auth.email, routing_to_email: null, routing_to_name: null, routing_mailed_at: null, routing_attached: null, routing_error: null,
+      tender_stamped_at: stamp ? now : null, tender_stamped_file_name: stamp?.name ?? null, tender_stamped_file_url: stamp?.url ?? null, tender_stamp_error: stampErr,
+    }).eq('id', docId)
+    await audit(db, auth, docId, d, { action, tenderCopy: stamp?.url ?? null, tenderCopyPages: stamp?.pages ?? null, error: stampErr })
+    if (stampErr) return NextResponse.json({ ok: false, routing: action, error: `Marked ready for tender, but the stamped copy could not be made: ${stampErr}` }, { status: 502 })
+    return NextResponse.json({ ok: true, routing: action, tenderCopy: stamp })
   }
 
   // The mail carries the drawing WITH the marks — so they must be in the file first.
@@ -145,10 +163,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ docI
   const auth = await prelimAuth('manage'); if (isErr(auth)) return auth
   const { docId } = await params
   const db = createServiceClient()
-  const { data: d } = await db.from('prelim_document').select('routing, routing_to_email, prelim_session!inner(id, title)').eq('id', docId).maybeSingle()
+  const { data: d } = await db.from('prelim_document').select('routing, routing_to_email, tender_stamped_file_url, prelim_session!inner(id, title)').eq('id', docId).maybeSingle()
   if (!d) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  await db.from('prelim_document').update({ routing: null, routing_at: null, routing_by_email: null, routing_to_email: null, routing_to_name: null, routing_mailed_at: null, routing_attached: null, routing_error: null }).eq('id', docId)
-  await audit(db, auth, docId, d, { action: 'undo', was: (d as any).routing, wasTo: (d as any).routing_to_email })
+  // A wrong "Ready for tender" must not leave a stamped copy in COLAB for the pack to pick up.
+  let removed: string | null = null
+  if ((d as any).tender_stamped_file_url) { const r = await deleteDriveItemByUrl((d as any).tender_stamped_file_url); removed = r.status; if (!r.ok) return NextResponse.json({ error: `Could not remove the stamped tender copy from COLAB (${r.detail}). Delete it by hand, then undo again.` }, { status: 502 }) }
+  await db.from('prelim_document').update({ routing: null, routing_at: null, routing_by_email: null, routing_to_email: null, routing_to_name: null, routing_mailed_at: null, routing_attached: null, routing_error: null, tender_stamped_at: null, tender_stamped_file_name: null, tender_stamped_file_url: null, tender_stamp_error: null }).eq('id', docId)
+  await audit(db, auth, docId, d, { action: 'undo', was: (d as any).routing, wasTo: (d as any).routing_to_email, tenderCopyRemoved: removed })
   return NextResponse.json({ ok: true })
 }
 

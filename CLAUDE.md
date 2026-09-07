@@ -969,3 +969,17 @@ touched it, and pulls anything new. The pull route also takes `{ folder, recursi
 the session page has **Pull everything under this folder** for the discipline subfolders.
 `scripts/prelim-quality-run.mjs` now skips a drawing unchanged since its last check (`--force`
 to re-read all); `scripts/prelim-quality-all.ps1` runs the five sessions.
+
+### 2026-09-07 (4) — "ISSUED FOR TENDER ONLY" stamp on Ready for tender (migration 055)
+
+Pressing **Ready for tender** now also makes a stamped copy: `lib/prelim/tender-stamp.ts` draws a
+red-on-white box top right of EVERY page — "ISSUED FOR TENDER ONLY / Not to be used for
+Manufacturing, Detailed Design or Construction / Stamped 7 September 2026" — scaled to the page
+and placed in VISUAL top-right whatever /Rotate says (0/90/180/270 all trialled on real working
+copies, `scripts/_tender-stamp-trial.mjs`, renders in `%TEMP%\claude\k480\stamp-trial`). The copy
+is filed BESIDE THE SOURCE in COLAB under `Issued for Tender/` as `<source name> - ISSUED FOR
+TENDER.pdf` (`uploadBytesBesideItem` in graph.ts, upload session, replace on conflict). The
+working copy is untouched — it is what goes into internal review afterwards. Undo and a returned
+file both delete the stamped copy. A stamp failure still records the call and says so
+(`tender_stamp_error`); the session row shows "no stamped copy" in red. Morné intends to reuse the
+stamp later for documents not handled through this app (the Aconex-current ones); not built.

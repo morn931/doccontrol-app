@@ -798,3 +798,30 @@ export async function sendEmail(params: {
     })),
   })
 }
+
+/** Put a file NEXT TO an existing SharePoint item, in a subfolder of its parent folder
+ *  (created if missing), replacing any file of the same name. Uses an upload session so
+ *  size is not limited by the simple-PUT 4 MB cap; one Content-Range PUT for anything up
+ *  to 60 MB, which covers a drawing. Returns the new item's URL. Used for the
+ *  "ISSUED FOR TENDER" copy, filed beside its source in COLAB. */
+export async function uploadBytesBesideItem(
+  fileUrl: string, subfolder: string, fileName: string, bytes: Uint8Array | ArrayBuffer,
+): Promise<{ webUrl: string; id: string }> {
+  const meta = await graphFetch(`/shares/${shareId(fileUrl)}/driveItem?$select=id,parentReference`)
+  if (!meta.ok) throw new Error(`Could not resolve the source item (${meta.status})`)
+  const j = await meta.json()
+  const driveId = j.parentReference?.driveId, parentId = j.parentReference?.id
+  if (!driveId || !parentId) throw new Error('Source item has no parent folder')
+  const rel = [subfolder, fileName].filter(Boolean).map(encodeURIComponent).join('/')
+  const sess = await graphFetch(`/drives/${driveId}/items/${parentId}:/${rel}:/createUploadSession`, {
+    method: 'POST', body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }),
+  })
+  if (!sess.ok) throw new Error(`createUploadSession failed (${sess.status}): ${await sess.text()}`)
+  const { uploadUrl } = await sess.json()
+  const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+  if (buf.length > 60 * 1024 * 1024) throw new Error('File over 60 MB — too large for a single upload chunk')
+  const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Range': `bytes 0-${buf.length - 1}/${buf.length}`, 'Content-Length': String(buf.length) }, body: buf as any })
+  if (!put.ok) throw new Error(`Upload failed (${put.status}): ${await put.text()}`)
+  const item = await put.json()
+  return { webUrl: item.webUrl, id: item.id }
+}
