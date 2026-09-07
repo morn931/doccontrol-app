@@ -23,7 +23,7 @@ export default async function PrelimSessionsPage() {
 
   const db = createServiceClient()
   const { data: sessions } = await db.from('prelim_session')
-    .select('id, title, area, held_on, status, attendees, disciplines, created_by_name, created_by_email, created_at, prelim_document(outcome, handed_over_batch_id)')
+    .select('id, title, area, held_on, status, attendees, created_by_name, created_by_email, created_at, prelim_document(outcome, handed_over_batch_id)')
     .order('created_at', { ascending: false }).limit(200)
 
   const rows = (sessions ?? []).map((s: any) => {
@@ -63,7 +63,6 @@ export default async function PrelimSessionsPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-slate-900 truncate">{s.title}</p>
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold ${s.status === 'open' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-600'}`}>{s.status}</span>
-                    {(s.disciplines ?? []).map((d: string) => <span key={d} className="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700">{d}</span>)}
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {[s.area, s.held_on ? new Date(s.held_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null, s.created_by_name ?? s.created_by_email].filter(Boolean).join(' · ')}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { prelimAuth, isErr, PRELIM_SOURCE_SITE_URL, PRELIM_SOURCE_LIBRARY, DISCIPLINES } from '@/lib/prelim'
+import { prelimAuth, isErr, PRELIM_SOURCE_SITE_URL, PRELIM_SOURCE_LIBRARY } from '@/lib/prelim'
 
 // Open a prelim session: which source folder the room is reviewing, when, who is there.
 export async function POST(req: Request) {
@@ -18,7 +18,6 @@ export async function POST(req: Request) {
     held_on:          body?.heldOn ? String(body.heldOn).slice(0, 10) : null,
     attendees:        String(body?.attendees ?? '').trim() || null,
     notes:            String(body?.notes ?? '').trim() || null,
-    disciplines:      (Array.isArray(body?.disciplines) ? body.disciplines : []).map(String).filter((d: string) => DISCIPLINES.some(x => x.key === d)),
     created_by_email: auth.email,
     created_by_name:  auth.name,
   }).select('id').single()

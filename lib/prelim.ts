@@ -18,9 +18,6 @@ export const PRELIM_SOURCE_LIBRARY  = process.env.PRELIM_SOURCE_LIBRARY || 'COLA
 /** Folder inside the Internal Reviews library that holds the working copies. */
 export const PRELIM_FOLDER = process.env.PRELIM_FOLDER || 'Prelim'
 
-// Disciplines live in lib/prelim-disciplines.ts (client-safe); re-exported for the server.
-export { DISCIPLINES, disciplineOf, type DisciplineKey } from './prelim-disciplines'
-
 export type PrelimAuth = {
   userId: string
   email: string
