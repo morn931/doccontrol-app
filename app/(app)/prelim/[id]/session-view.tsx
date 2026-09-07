@@ -7,8 +7,13 @@ import FolderBrowser, { type BrowseItem } from '../folder-browser'
 
 type Session = { id: string; title: string; area: string | null; held_on: string | null; attendees: string | null; notes: string | null; status: 'open' | 'closed'; source_site_url: string; source_library: string; source_folder: string; created_by_name: string | null; created_by_email: string }
 type Issue = { code: string; severity: 'major' | 'minor'; page: number | null; description: string; fix: string }
-type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null }
+type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null; routing: 'drawing_office' | 'lead' | 'ready_for_tender' | null; routing_at: string | null; routing_to_email: string | null; routing_to_name: string | null; routing_mailed_at: string | null; routing_error: string | null }
 
+const ROUTING_PILL: Record<NonNullable<Doc['routing']>, { label: string; cls: string }> = {
+  drawing_office:   { label: 'To drawing office', cls: 'bg-sky-100 text-sky-800' },
+  lead:             { label: 'To lead',           cls: 'bg-amber-100 text-amber-800' },
+  ready_for_tender: { label: 'Ready for tender',  cls: 'bg-emerald-100 text-emerald-700' },
+}
 const OUTCOME_PILL: Record<Doc['outcome'], string> = {
   pending:   'bg-slate-100 text-slate-600',
   ready:     'bg-emerald-100 text-emerald-700',
@@ -61,6 +66,8 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
 
   const counts = { pending: 0, ready: 0, rework: 0, withdrawn: 0, handed: 0 }
   for (const d of docs) { counts[d.outcome]++; if (d.handed_over_batch_id) counts.handed++ }
+  const routed = { drawing_office: 0, lead: 0, ready_for_tender: 0, none: 0 }
+  for (const d of docs) { if (d.routing) routed[d.routing]++; else routed.none++ }
 
   function toggle(i: BrowseItem) { setSelected(m => { const n = new Map(m); n.has(i.webUrl) ? n.delete(i.webUrl) : n.set(i.webUrl, i); return n }) }
   function selectAll(items: BrowseItem[]) { setSelected(m => { const n = new Map(m); for (const i of items) n.set(i.webUrl, i); return n }) }
@@ -129,6 +136,10 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 tabular-nums">
           <span><b className="text-slate-900">{docs.length}</b> drawings</span>
           <span>{counts.pending} pending</span><span className="text-emerald-700">{counts.ready} ready</span><span className="text-amber-700">{counts.rework} rework</span><span className="text-red-700">{counts.withdrawn} withdrawn</span><span className="text-teal-700">{counts.handed} handed over</span>
+        </div>
+        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 tabular-nums">
+          <span className="text-slate-500">Before tender:</span>
+          <span className="text-sky-800">{routed.drawing_office} to drawing office</span><span className="text-amber-800">{routed.lead} to lead</span><span className="text-emerald-700">{routed.ready_for_tender} ready for tender</span><span>{routed.none} no call yet</span>
         </div>
         {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
         {qc.failed.length > 0 && !qc.running && <p className="mt-2 text-xs text-amber-700">Could not check {qc.failed.length}: {qc.failed.join(' · ')}</p>}
@@ -204,7 +215,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-              <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Disc</th><th className="px-4 py-2">Quality</th><th className="px-4 py-2 text-right">Comments</th><th className="px-4 py-2">Room&rsquo;s call</th><th className="px-4 py-2">Formal review</th><th className="px-4 py-2"></th>
+              <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Disc</th><th className="px-4 py-2">Quality</th><th className="px-4 py-2 text-right">Comments</th><th className="px-4 py-2">Room&rsquo;s call</th><th className="px-4 py-2">Before tender</th><th className="px-4 py-2">Formal review</th><th className="px-4 py-2"></th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100">
               {docs.map(d => (
@@ -226,6 +237,14 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${OUTCOME_PILL[d.outcome]}`}>{d.outcome}</span>
                     {d.outcome === 'rework' && d.rework_to_email && <span className="ml-1 text-xs text-slate-500">→ {d.rework_to_email}</span>}
                     {d.outcome_note && <div className="text-xs text-slate-500 mt-0.5 max-w-xs truncate" title={d.outcome_note}>{d.outcome_note}</div>}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {d.routing
+                      ? <>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ROUTING_PILL[d.routing].cls}`}>{ROUTING_PILL[d.routing].label}</span>
+                          {d.routing !== 'ready_for_tender' && <div className="text-xs text-slate-500 mt-0.5" title={d.routing_error ?? undefined}>{d.routing_mailed_at ? '→ ' : <span className="text-red-600">mail failed → </span>}{d.routing_to_name ?? d.routing_to_email}</div>}
+                        </>
+                      : <span className="text-xs text-slate-300">no call yet</span>}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {d.handed_over_batch_id

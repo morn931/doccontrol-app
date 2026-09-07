@@ -5,6 +5,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import PdfMarkup from '@/components/markup/pdf-markup'
 import OutcomePanel from './outcome-panel'
+import RoutingButtons from './routing-buttons'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +25,7 @@ export default async function PrelimDocPage({ params }: { params: Promise<{ id: 
 
   const db = createServiceClient()
   const { data: doc } = await db.from('prelim_document')
-    .select('id, document_number, revision, title, source_file_name, working_file_name, outcome, outcome_note, rework_to_email, handed_over_batch_id, markup_committed_at, prelim_session!inner(id, title, status)')
+    .select('id, document_number, revision, title, source_file_name, working_file_name, outcome, outcome_note, rework_to_email, handed_over_batch_id, markup_committed_at, routing, routing_at, routing_by_email, routing_to_email, routing_to_name, routing_mailed_at, routing_attached, routing_error, prelim_session!inner(id, title, status)')
     .eq('id', docId).eq('session_id', id).maybeSingle()
   if (!doc) redirect(`/prelim/${id}`)
   const s = (doc as any).prelim_session
@@ -48,11 +49,12 @@ export default async function PrelimDocPage({ params }: { params: Promise<{ id: 
         <h1 className="text-xl font-bold text-slate-900">{(doc as any).document_number ?? (doc as any).title ?? (doc as any).source_file_name}{(doc as any).revision ? <span className="text-slate-400 font-normal text-base"> rev {(doc as any).revision}</span> : null}</h1>
         <p className="text-slate-500 text-xs mt-0.5">
           {(doc as any).title && (doc as any).document_number ? `${(doc as any).title} · ` : ''}
-          Everyone in the room draws on the same layer. <b>Save draft</b> keeps it editable; <b>☁ Save to SharePoint</b> writes the marks into the working copy, which is what hand-over sends into internal review.
+          Everyone in the room draws on the same layer. <b>Save draft</b> keeps it editable; <b>☁ Save to SharePoint</b> writes the marks into the working copy — that file is what <b>To drawing office</b> and <b>To Lead</b> mail, and what hand-over sends into internal review afterwards.
         </p>
       </div>
       <OutcomePanel docId={docId} sessionId={id} outcome={(doc as any).outcome} note={(doc as any).outcome_note} reworkTo={(doc as any).rework_to_email} handedOver={!!(doc as any).handed_over_batch_id} handedOverBatchId={(doc as any).handed_over_batch_id} open={open} canManage={canManage} />
-      <PdfMarkup src={`/api/prelim/documents/${docId}/file`} fileName={((doc as any).working_file_name ?? 'document').replace(/\.pdf$/i, '')} endpointBase={`/api/prelim/documents/${docId}`} initialColor={myColor} readOnly={!open} />
+      <PdfMarkup src={`/api/prelim/documents/${docId}/file`} fileName={((doc as any).working_file_name ?? 'document').replace(/\.pdf$/i, '')} endpointBase={`/api/prelim/documents/${docId}`} initialColor={myColor} readOnly={!open}
+        toolbarExtra={<RoutingButtons docId={docId} routing={(doc as any).routing ?? null} routingTo={(doc as any).routing_to_name ?? null} routingToEmail={(doc as any).routing_to_email ?? null} routingAt={(doc as any).routing_at ?? null} routingBy={(doc as any).routing_by_email ?? null} mailedAt={(doc as any).routing_mailed_at ?? null} attached={(doc as any).routing_attached ?? null} error={(doc as any).routing_error ?? null} open={s.status === 'open'} canManage={canManage} />} />
     </div>
   )
 }

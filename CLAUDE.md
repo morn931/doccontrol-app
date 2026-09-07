@@ -912,3 +912,25 @@ XXXX supplier number, `#VALUE!`/`#REF!` through a BOQ, duplicate cable numbers, 
 "future" — today's date is now in the prompt), and a spreadsheet's `#VALUE!` can be the
 server-side PDF render failing external workbook links, so converted sources are told to
 report those as "confirm in Excel", minor unless in a title-block field.
+
+### 2026-09-07 — Before tender: three calls on the drawing itself (migration 053)
+
+For the K480/SWP-006 push the prelim session **is the review before the documents go out** —
+there is no time for the internal review first; that follows afterwards. So the drawing page
+carries three buttons under the markup toolbar (`toolbarExtra` slot on `PdfMarkup`, filled only
+by the Prelim doc page): **To drawing office** mails the marked-up working copy to the drawing
+office (`PRELIM_DRAWING_OFFICE_EMAIL` → `system_settings.prelim_drawing_office_email` →
+miemiev@ppetech.co.za) with "please find the drawing that requires mark-ups as per the PDF" and
+the quality issues found; **To Lead** mails the same to the PPE responsible person; **Ready for
+tender** marks only. One call per drawing — after it the chosen button stays lit and all three
+lock; a manager can Undo (the mail is not recalled). Route: `POST/DELETE
+/api/prelim/documents/[id]/routing`. Both mails refuse while the layer holds unsaved marks (the
+attachment is the FILE); a PDF over 3 MB goes as a link, and the response says which.
+
+**The lead is the CDDL `doc_owner`, resolved by `lib/prelim/lead.ts` — never guessed.** Measured
+over every owner string on the live register (`scripts/_prelim-lead-probe.mjs`, 28 distinct, 1,000
+rows): 910 rows resolve to one user; the rest prompt. An "A or B" owner prompts even when only one
+of them has an account, bare initials prompt, a name with no account prompts, and a drawing that
+is not on the CDDL prompts — the picker lists the CDDL's own candidates first, then everyone.
+⚠ All 41 drawings in the four open sessions are unnumbered COLAB files with no CDDL match, so
+today every To Lead press prompts; the resolver pays off as the files are numbered.

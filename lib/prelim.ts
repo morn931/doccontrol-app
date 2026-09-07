@@ -47,6 +47,30 @@ export const isErr = (a: PrelimAuth | NextResponse): a is NextResponse => a inst
 export const sessionFolder = (title: string, id: string) =>
   `${PRELIM_FOLDER}/${title.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)} ${id.slice(0, 8)}`
 
+/** The drawing office address the "To drawing office" button mails. Env wins, then the
+ *  system_settings row, then the standing default (Miemie Vorster). */
+export async function drawingOfficeEmail(): Promise<string> {
+  if (process.env.PRELIM_DRAWING_OFFICE_EMAIL) return process.env.PRELIM_DRAWING_OFFICE_EMAIL
+  const db = createServiceClient()
+  const { data } = await db.from('system_settings').select('value').eq('key', 'prelim_drawing_office_email').maybeSingle()
+  const v = String((data as any)?.value ?? '').trim()
+  return v.includes('@') ? v : 'miemiev@ppetech.co.za'
+}
+
+export type { Person } from './prelim/lead'
+export { resolveLead } from './prelim/lead'
+import type { Person } from './prelim/lead'
+
+/** Every active CoreDocs user — the picker the reviewer chooses a lead from. */
+export async function listPeople(): Promise<Person[]> {
+  const db = createServiceClient()
+  const { data } = await db.from('users').select('email, full_name, role, active').limit(1000)
+  return ((data ?? []) as any[])
+    .filter(u => u.active !== false && u.email)
+    .map(u => ({ email: String(u.email).toLowerCase(), name: String(u.full_name ?? u.email), role: String(u.role ?? '') }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 /** Match a pulled file to the CDDL by the number in its filename. Exact on the RDMC
  *  number, then on the PPE number; nothing is guessed from the title. */
 export async function matchCddl(fileName: string) {

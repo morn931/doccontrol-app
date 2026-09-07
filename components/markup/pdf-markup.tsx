@@ -15,7 +15,9 @@ const SCALE = 1.4
 // canvas dimension exceeds this; normal documents are unaffected.
 const MAX_DIM = 10000
 
-export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase, allowDraftSave = true, readOnly = false, exposeApi }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string; allowDraftSave?: boolean; readOnly?: boolean; exposeApi?: (api: { jumpTo: (c: any) => void }) => void }) {
+export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase, allowDraftSave = true, readOnly = false, exposeApi, toolbarExtra }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string; allowDraftSave?: boolean; readOnly?: boolean; exposeApi?: (api: { jumpTo: (c: any) => void }) => void; toolbarExtra?: React.ReactNode }) {
+  // toolbarExtra: a caller-supplied bar rendered directly under the toolbar (Prelim Review's
+  // routing buttons) — it stays with the toolbar in full-screen mode.
   // readOnly hides the drawing/save toolbar — for the originator viewing the flattened doc and
   // jumping to reviewer comments. exposeApi hands the parent an imperative jumpTo(comment).
   // endpointBase generalises persistence: review tasks use /api/reviews/<id>,
@@ -541,6 +543,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
         </button>
         )}
       </div>
+      {toolbarExtra}
       <p className="text-xs text-slate-500">{status}</p>
       <div className={`flex gap-3 ${fullscreen ? 'flex-1 min-h-0' : ''}`}>
         <div ref={containerRef}
