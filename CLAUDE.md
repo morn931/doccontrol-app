@@ -934,3 +934,22 @@ of them has an account, bare initials prompt, a name with no account prompts, an
 is not on the CDDL prompts — the picker lists the CDDL's own candidates first, then everyone.
 ⚠ All 41 drawings in the four open sessions are unnumbered COLAB files with no CDDL match, so
 today every To Lead press prompts; the resolver pays off as the files are numbered.
+
+### 2026-09-07 (2) — Two more doors on the Prelim landing page (migration 054)
+
+**Current Document Status** (`/prelim/status`) lists every drawing in every open session with ONE
+status, derived in `lib/prelim/status.ts` and nowhere else: not started · in review (marks,
+comments or a room's call exist, no call yet) · sent to drawing office · sent to lead engineer ·
+returned · ready for tender. A call made after a return outranks the return, because the return
+clears the routing columns, so a non-null routing is always the newer event.
+
+**Return from Drawing Office / Lead Engineer** (`/prelim/returns`): drop the corrected PDF.
+`POST /api/prelim/returns/start` matches it — explicit docId → document number in the filename →
+exact pulled/sent filename; anything else or more than one hit is 409 with candidates and the
+person picks — and hands back a Graph upload session under `Prelim/<session>/Returned/`, so the
+browser PUTs the bytes straight to SharePoint (no Vercel body cap, same pattern as
+internal-submit). `POST /api/prelim/returns/complete` makes the file the working copy, archives
+the call, the marked-up copy's URL and the comments into `routing_history`, clears the layer and
+the routing so the three buttons unlock, and mails the reviewer who sent it out. PDF only: a DWG
+cannot be marked up, so it stays in COLAB. The landing description now describes this process;
+"Open a session" reads "Open Review Session".

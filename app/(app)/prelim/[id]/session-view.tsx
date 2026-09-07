@@ -7,7 +7,7 @@ import FolderBrowser, { type BrowseItem } from '../folder-browser'
 
 type Session = { id: string; title: string; area: string | null; held_on: string | null; attendees: string | null; notes: string | null; status: 'open' | 'closed'; source_site_url: string; source_library: string; source_folder: string; created_by_name: string | null; created_by_email: string }
 type Issue = { code: string; severity: 'major' | 'minor'; page: number | null; description: string; fix: string }
-type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null; routing: 'drawing_office' | 'lead' | 'ready_for_tender' | null; routing_at: string | null; routing_to_email: string | null; routing_to_name: string | null; routing_mailed_at: string | null; routing_error: string | null }
+type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null; routing: 'drawing_office' | 'lead' | 'ready_for_tender' | null; routing_at: string | null; routing_to_email: string | null; routing_to_name: string | null; routing_mailed_at: string | null; routing_error: string | null; returned_at: string | null; returned_from: string | null }
 
 const ROUTING_PILL: Record<NonNullable<Doc['routing']>, { label: string; cls: string }> = {
   drawing_office:   { label: 'To drawing office', cls: 'bg-sky-100 text-sky-800' },
@@ -67,6 +67,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
   const counts = { pending: 0, ready: 0, rework: 0, withdrawn: 0, handed: 0 }
   for (const d of docs) { counts[d.outcome]++; if (d.handed_over_batch_id) counts.handed++ }
   const routed = { drawing_office: 0, lead: 0, ready_for_tender: 0, none: 0 }
+  const returnedOpen = docs.filter(d => !d.routing && d.returned_at).length
   for (const d of docs) { if (d.routing) routed[d.routing]++; else routed.none++ }
 
   function toggle(i: BrowseItem) { setSelected(m => { const n = new Map(m); n.has(i.webUrl) ? n.delete(i.webUrl) : n.set(i.webUrl, i); return n }) }
@@ -139,7 +140,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
         </div>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 tabular-nums">
           <span className="text-slate-500">Before tender:</span>
-          <span className="text-sky-800">{routed.drawing_office} to drawing office</span><span className="text-amber-800">{routed.lead} to lead</span><span className="text-emerald-700">{routed.ready_for_tender} ready for tender</span><span>{routed.none} no call yet</span>
+          <span className="text-sky-800">{routed.drawing_office} to drawing office</span><span className="text-amber-800">{routed.lead} to lead</span><span className="text-emerald-700">{routed.ready_for_tender} ready for tender</span><span>{routed.none - returnedOpen} no call yet</span>{returnedOpen > 0 && <span className="text-violet-800">{returnedOpen} returned, awaiting a call</span>}
         </div>
         {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
         {qc.failed.length > 0 && !qc.running && <p className="mt-2 text-xs text-amber-700">Could not check {qc.failed.length}: {qc.failed.join(' · ')}</p>}
@@ -244,6 +245,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
                           <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ROUTING_PILL[d.routing].cls}`}>{ROUTING_PILL[d.routing].label}</span>
                           {d.routing !== 'ready_for_tender' && <div className="text-xs text-slate-500 mt-0.5" title={d.routing_error ?? undefined}>{d.routing_mailed_at ? '→ ' : <span className="text-red-600">mail failed → </span>}{d.routing_to_name ?? d.routing_to_email}</div>}
                         </>
+                      : d.returned_at ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800" title="A corrected file came back and is now the working copy — make the next call">returned from {d.returned_from === 'lead' ? 'lead' : 'drawing office'}</span>
                       : <span className="text-xs text-slate-300">no call yet</span>}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">

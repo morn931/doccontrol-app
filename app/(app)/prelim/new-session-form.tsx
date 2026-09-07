@@ -26,10 +26,10 @@ export default function NewSessionForm() {
     } catch (e: any) { setError(e.message) } finally { setBusy(false) }
   }
 
-  if (!open) return <button onClick={() => setOpen(true)} className="btn-primary w-fit"><Plus className="h-4 w-4" /> Open a session</button>
+  if (!open) return <button onClick={() => setOpen(true)} className="btn-primary w-fit"><Plus className="h-4 w-4" /> Open Review Session</button>
   return (
     <div className="card p-6 space-y-4 max-w-3xl">
-      <h2 className="font-semibold text-slate-900">Open a prelim session</h2>
+      <h2 className="font-semibold text-slate-900">Open a review session</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <div><label className="label">Title <span className="text-red-500">*</span></label><input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Main Consumer Substation — tender drawings, batch 1" /></div>
         <div><label className="label">Area / substation</label><input className="input" value={area} onChange={e => setArea(e.target.value)} placeholder="Main Consumer Substation" /></div>

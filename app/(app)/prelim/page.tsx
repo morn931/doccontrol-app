@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Users } from 'lucide-react'
+import { Users, ListChecks, Upload } from 'lucide-react'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import NewSessionForm from './new-session-form'
@@ -40,14 +40,19 @@ export default async function PrelimSessionsPage() {
           <h1 className="text-xl font-bold text-slate-900">Prelim Review</h1>
         </div>
         <p className="text-sm text-slate-500 max-w-3xl">
-          The group pass before a document enters internal review. Open a session for the folder the room is looking at,
-          pull the drawings in, mark them up together on one shared layer, and record the room&rsquo;s call on each.
-          A drawing marked <b>ready</b> is handed over into the normal internal review with the room&rsquo;s marks in the
-          file and its comments as the first handover note. Nothing here is part of the formal record until it is handed over.
+          The review before the tender documents go out. Open a review session for the folder the room is looking at, pull the
+          drawings in, mark them up together on one shared layer, and on each drawing make one call: <b>To drawing office</b>,
+          <b> To Lead</b>, or <b>Ready for tender</b>. A corrected drawing comes back through <b>Return from Drawing Office / Lead Engineer</b>
+          and is called again. <b>Current Document Status</b> shows every drawing in every session and where it is right now. After tender,
+          each drawing still goes through the normal internal review from the same session.
         </p>
       </div>
 
-      {canManage && <NewSessionForm />}
+      <div className="flex flex-wrap items-start gap-3">
+        {canManage && <NewSessionForm />}
+        <Link href="/prelim/status" className="btn-secondary"><ListChecks className="h-4 w-4" /> Current Document Status</Link>
+        <Link href="/prelim/returns" className="btn-secondary"><Upload className="h-4 w-4" /> Return from Drawing Office / Lead Engineer</Link>
+      </div>
 
       <div className="card overflow-hidden">
         <div className="px-6 py-3 border-b border-slate-200 flex items-baseline justify-between">
