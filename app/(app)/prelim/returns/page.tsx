@@ -20,14 +20,14 @@ export default async function PrelimReturnsPage() {
 
   const db = createServiceClient()
   const { data: docs } = await db.from('prelim_document')
-    .select('id, session_id, document_number, revision, title, markup_layer, markup_comments, markup_committed_at, outcome, routing, routing_at, routing_by_email, routing_to_email, routing_to_name, routing_mailed_at, returned_at, returned_by_email, returned_from, returned_file_name, returned_file_url, routing_history, prelim_session!inner(id, title, status)')
+    .select('id, session_id, document_number, revision, title, markup_layer, markup_comments, markup_committed_at, outcome, routing, routing_at, routing_by_email, routing_to_email, routing_to_name, routing_mailed_at, returned_at, returned_by_email, returned_from, returned_file_name, returned_file_url, routing_history, tender_stamped_file_url, tender_stamp_error, prelim_session!inner(id, title, status)')
     .eq('prelim_session.status', 'open').not('returned_at', 'is', null).order('returned_at', { ascending: false }).limit(5000)
 
   const rows = (docs ?? []).map((d: any) => ({
     id: d.id, session_id: d.session_id, session: d.prelim_session.title, document_number: d.document_number, revision: d.revision, title: d.title,
     status: prelimStatus(d),
     returned_at: d.returned_at, returned_by_email: d.returned_by_email, returned_from: d.returned_from, returned_file_name: d.returned_file_name, returned_file_url: d.returned_file_url,
-    routing: d.routing, routing_at: d.routing_at, routing_by_email: d.routing_by_email, routing_to_name: d.routing_to_name, routing_to_email: d.routing_to_email,
+    routing: d.routing, routing_at: d.routing_at, routing_by_email: d.routing_by_email, routing_to_name: d.routing_to_name, routing_to_email: d.routing_to_email, tender_stamped_file_url: d.tender_stamped_file_url, tender_stamp_error: d.tender_stamp_error,
     timesReturned: Array.isArray(d.routing_history) ? d.routing_history.filter((h: any) => h?.event === 'returned').length : 0,
   }))
   return <ReturnsView docs={rows} />

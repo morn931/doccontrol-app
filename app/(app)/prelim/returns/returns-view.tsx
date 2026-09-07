@@ -8,7 +8,7 @@ import { STATUS_LABEL, STATUS_CLS, type PrelimStatus } from '@/lib/prelim/status
 type Row = {
   id: string; session_id: string; session: string; document_number: string | null; revision: string | null; title: string | null; status: PrelimStatus
   returned_at: string | null; returned_by_email: string | null; returned_from: string | null; returned_file_name: string | null; returned_file_url: string | null
-  routing: string | null; routing_at: string | null; routing_by_email: string | null; routing_to_name: string | null; routing_to_email: string | null; timesReturned: number
+  routing: string | null; routing_at: string | null; routing_by_email: string | null; routing_to_name: string | null; routing_to_email: string | null; timesReturned: number; tender_stamped_file_url: string | null; tender_stamp_error: string | null
 }
 type Candidate = { id: string; document_number: string | null; revision: string | null; title: string | null; session: string; routing: string | null }
 type Item = { file: File; state: 'queued' | 'matching' | 'pick' | 'uploading' | 'done' | 'error'; pct: number; msg: string; doc?: Candidate; reason?: string; candidates?: Candidate[]; all?: Candidate[]; chosen?: string }
@@ -22,6 +22,22 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [items, setItems] = useState<Item[]>([])
   const [over, setOver] = useState(false)
+  const [readyBusy, setReadyBusy] = useState<string | null>(null)
+  const [readyMsg, setReadyMsg] = useState<Record<string, string>>({})
+  // The last check after a correction comes back: Ready for tender from this list stamps the
+  // RETURNED file and files it as the tender copy, replacing whatever was in COLAB's
+  // Issued for Tender folder for this drawing (same name, replace on conflict).
+  async function readyForTender(d: Row) {
+    if (!confirm(`Mark ${d.document_number ?? d.title} ready for tender?\n\nThe returned file is stamped "ISSUED FOR TENDER ONLY" on every page and filed in COLAB under Issued for Tender, replacing any earlier stamped copy of this drawing.`)) return
+    setReadyBusy(d.id); setReadyMsg(m => ({ ...m, [d.id]: '' }))
+    try {
+      const res = await fetch(`/api/prelim/documents/${d.id}/routing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ready_for_tender' }) })
+      const j = await res.json()
+      if (!res.ok) { setReadyMsg(m => ({ ...m, [d.id]: j.error ?? 'Could not mark ready.' })); router.refresh(); return }
+      setReadyMsg(m => ({ ...m, [d.id]: `Stamped copy filed${j.tenderCopy?.pages ? ` (${j.tenderCopy.pages} page${j.tenderCopy.pages === 1 ? '' : 's'})` : ''}.` }))
+      router.refresh()
+    } catch (e: any) { setReadyMsg(m => ({ ...m, [d.id]: e.message })) } finally { setReadyBusy(null) }
+  }
   const upd = (file: File, patch: Partial<Item>) => setItems(list => list.map(i => i.file === file ? { ...i, ...patch } : i))
 
   async function process(file: File, docId?: string) {
@@ -119,7 +135,7 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-                <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Session</th><th className="px-4 py-2">Returned</th><th className="px-4 py-2">Status now</th><th className="px-4 py-2"></th>
+                <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Session</th><th className="px-4 py-2">Returned</th><th className="px-4 py-2">Status now</th><th className="px-4 py-2 text-right">Last check</th>
               </tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {docs.map(d => (
@@ -138,8 +154,19 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_CLS[d.status]}`}>{STATUS_LABEL[d.status]}</span>
                       {d.routing && <div className="text-xs text-slate-500 mt-0.5">{d.routing === 'ready_for_tender' ? `${d.routing_by_email} · ${when(d.routing_at)}` : `→ ${d.routing_to_name ?? d.routing_to_email} · ${when(d.routing_at)}`}</div>}
+                      {d.routing === 'ready_for_tender' && (d.tender_stamped_file_url
+                        ? <div className="text-xs mt-0.5"><a href={d.tender_stamped_file_url} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline">stamped copy ↗</a></div>
+                        : <div className="text-xs text-red-600 mt-0.5" title={d.tender_stamp_error ?? undefined}>no stamped copy</div>)}
+                      {readyMsg[d.id] && <div className={`text-xs mt-0.5 ${/could not|fail|error/i.test(readyMsg[d.id]) ? 'text-red-600' : 'text-emerald-700'}`}>{readyMsg[d.id]}</div>}
                     </td>
-                    <td className="px-4 py-2 text-right"><Link href={`/prelim/${d.session_id}/doc/${d.id}`} className="btn-secondary text-xs py-1 px-2.5">Open</Link></td>
+                    <td className="px-4 py-2 text-right whitespace-nowrap">
+                      {!d.routing && (
+                        <button onClick={() => readyForTender(d)} disabled={readyBusy !== null} title="Stamp the returned file ISSUED FOR TENDER ONLY and file it in COLAB, replacing any earlier stamped copy" className="btn-primary text-xs py-1 px-2.5 mr-2">
+                          {readyBusy === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Ready for tender
+                        </button>
+                      )}
+                      <Link href={`/prelim/${d.session_id}/doc/${d.id}`} className="btn-secondary text-xs py-1 px-2.5">Open</Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
