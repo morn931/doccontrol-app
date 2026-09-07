@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFileBytesByUrl, getDriveItemContentBytes, resolveDriveItemByUrl, uploadBytesToLibraryFolder } from '@/lib/services/graph'
-import { prelimAuth, isErr, matchCddl, sessionFolder } from '@/lib/prelim'
+import { prelimAuth, isErr, matchCddl, sessionFolder, disciplineOf } from '@/lib/prelim'
 
 export const maxDuration = 300
 
@@ -53,7 +53,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         document_number:   cddl?.docno ?? (parsed.revision ? parsed.normalizedDocumentNumber : null),
         revision:          parsed.revision ?? cddl?.revision ?? null,
         title:             cddl?.title ?? name.replace(/\.[^.]+$/, ''),
-        discipline:        cddl?.discipline ?? null,
+        // the CDDL letter where matched, else the discipline the COLAB folder says
+        discipline:        cddl?.discipline ?? disciplineOf(webUrl, null) ?? null,
         document_type:     cddl?.doc_type ?? null,
         source_file_name:  name,
         source_file_url:   webUrl,

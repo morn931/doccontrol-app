@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, Download, Send, Lock, Unlock, ExternalLink, ShieldCheck, ChevronDown, ChevronRight, FileDown } from 'lucide-react'
 import FolderBrowser, { type BrowseItem } from '../folder-browser'
 
-type Session = { id: string; title: string; area: string | null; held_on: string | null; attendees: string | null; notes: string | null; status: 'open' | 'closed'; source_site_url: string; source_library: string; source_folder: string; created_by_name: string | null; created_by_email: string }
+type Session = { id: string; title: string; area: string | null; held_on: string | null; attendees: string | null; notes: string | null; status: 'open' | 'closed'; source_site_url: string; source_library: string; source_folder: string; disciplines?: string[] | null; created_by_name: string | null; created_by_email: string }
 type Issue = { code: string; severity: 'major' | 'minor'; page: number | null; description: string; fix: string }
-type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null }
+type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; disciplineKey: string; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null }
 
 const OUTCOME_PILL: Record<Doc['outcome'], string> = {
   pending:   'bg-slate-100 text-slate-600',
@@ -16,9 +16,14 @@ const OUTCOME_PILL: Record<Doc['outcome'], string> = {
   withdrawn: 'bg-red-100 text-red-700',
 }
 
-export default function SessionView({ session, docs, canManage }: { session: Session; docs: Doc[]; canManage: boolean }) {
+export default function SessionView({ session, docs: allDocs, canManage }: { session: Session; docs: Doc[]; canManage: boolean }) {
   const router = useRouter()
   const open = session.status === 'open'
+  // Discipline filter — the drawings in the session grouped by the discipline their COLAB
+  // folder (or CDDL letter) says, so a mixed session can be worked one discipline at a time.
+  const disciplinesPresent = [...new Set(allDocs.map(d => d.disciplineKey))].sort()
+  const [discFilter, setDiscFilter] = useState<string>('all')
+  const docs = discFilter === 'all' ? allDocs : allDocs.filter(d => d.disciplineKey === discFilter)
   const [path, setPath] = useState(session.source_folder)
   const [selected, setSelected] = useState<Map<string, BrowseItem>>(new Map())
   const [pulling, setPulling] = useState(false)
@@ -110,6 +115,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-slate-900">{session.title}</h1>
               <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${open ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-600'}`}>{session.status}</span>
+              {(session.disciplines ?? []).map(d => <span key={d} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700">{d}</span>)}
             </div>
             <p className="text-sm text-slate-500 mt-1">
               {[session.area, session.held_on ? new Date(session.held_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null, session.attendees ? `in the room: ${session.attendees}` : null].filter(Boolean).join(' · ')}
@@ -126,8 +132,15 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
             {canManage && <button onClick={() => closeSession(!open)} disabled={busySession} className="btn-secondary text-xs">{busySession ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : open ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />} {open ? 'Close session' : 'Reopen'}</button>}
           </div>
         </div>
+        {disciplinesPresent.length > 1 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mr-1">Discipline</span>
+            <button onClick={() => setDiscFilter('all')} className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${discFilter === 'all' ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 bg-white text-slate-600'}`}>All ({allDocs.length})</button>
+            {disciplinesPresent.map(k => <button key={k} onClick={() => setDiscFilter(k)} className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${discFilter === k ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 bg-white text-slate-600'}`}>{k} ({allDocs.filter(d => d.disciplineKey === k).length})</button>)}
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 tabular-nums">
-          <span><b className="text-slate-900">{docs.length}</b> drawings</span>
+          <span><b className="text-slate-900">{docs.length}</b> drawings{discFilter !== 'all' ? ` in ${discFilter}` : ''}</span>
           <span>{counts.pending} pending</span><span className="text-emerald-700">{counts.ready} ready</span><span className="text-amber-700">{counts.rework} rework</span><span className="text-red-700">{counts.withdrawn} withdrawn</span><span className="text-teal-700">{counts.handed} handed over</span>
         </div>
         {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
@@ -200,11 +213,11 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
 
       <div className="card overflow-hidden">
         <div className="px-6 py-3 border-b border-slate-200"><h2 className="font-semibold text-slate-900">Drawings in this session</h2></div>
-        {!docs.length && <p className="px-6 py-8 text-sm text-slate-400">Nothing pulled yet.</p>}
+        {!docs.length && <p className="px-6 py-8 text-sm text-slate-400">{allDocs.length ? 'No drawings in this discipline.' : 'Nothing pulled yet.'}</p>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-              <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Disc</th><th className="px-4 py-2">Quality</th><th className="px-4 py-2 text-right">Comments</th><th className="px-4 py-2">Room&rsquo;s call</th><th className="px-4 py-2">Formal review</th><th className="px-4 py-2"></th>
+              <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Discipline</th><th className="px-4 py-2">Quality</th><th className="px-4 py-2 text-right">Comments</th><th className="px-4 py-2">Room&rsquo;s call</th><th className="px-4 py-2">Formal review</th><th className="px-4 py-2"></th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100">
               {docs.map(d => (
@@ -215,7 +228,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
                     {!d.cddl_doc_id && <span className="ml-1 text-[10px] text-amber-700" title="No CDDL match — will be handed over as an unnumbered internal review">no CDDL match</span>}
                   </td>
                   <td className="px-4 py-2 text-slate-700">{d.title}</td>
-                  <td className="px-4 py-2 text-slate-500">{d.discipline ?? ''}</td>
+                  <td className="px-4 py-2 text-slate-500 whitespace-nowrap">{d.disciplineKey}</td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {!d.quality_checked_at ? <span className="text-xs text-slate-300">not checked</span>
                       : (d.quality_open ?? 0) > 0 ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">{d.quality_open} open</span>

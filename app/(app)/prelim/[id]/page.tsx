@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import SessionView from './session-view'
+import { disciplineOf } from '@/lib/prelim'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,7 @@ export default async function PrelimSessionPage({ params }: { params: Promise<{ 
     unsavedMarks: !!(d.markup_layer && typeof d.markup_layer === 'object' && Object.keys(d.markup_layer).length),
     markup_layer: undefined, markup_comments: undefined,
     // only the issues travel to the browser, not the whole report
+    disciplineKey: disciplineOf(d.source_file_url, d.discipline) ?? 'Other',
     qualityIssues: Array.isArray(d.quality_latest?.issues) ? d.quality_latest.issues : null,
     qualityOverall: d.quality_latest?.overall ?? null,
     quality_latest: undefined,

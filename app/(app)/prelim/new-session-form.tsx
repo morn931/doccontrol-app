@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Plus } from 'lucide-react'
 import FolderBrowser from './folder-browser'
+import { DISCIPLINES } from '@/lib/prelim-disciplines'
 
 export default function NewSessionForm() {
   const router = useRouter()
@@ -12,6 +13,8 @@ export default function NewSessionForm() {
   const [heldOn, setHeldOn] = useState(new Date().toISOString().slice(0, 10))
   const [attendees, setAttendees] = useState('')
   const [folder, setFolder] = useState('')
+  const [disciplines, setDisciplines] = useState<string[]>([])
+  const toggleDisc = (k: string) => setDisciplines(s => s.includes(k) ? s.filter(x => x !== k) : [...s, k])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -19,7 +22,7 @@ export default function NewSessionForm() {
     if (!title.trim()) { setError('Give the session a title.'); return }
     setBusy(true); setError('')
     try {
-      const res = await fetch('/api/prelim/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, area, heldOn, attendees, folder }) })
+      const res = await fetch('/api/prelim/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, area, heldOn, attendees, folder, disciplines }) })
       const d = await res.json()
       if (!res.ok) { setError(d.error ?? 'Could not open the session'); return }
       router.push(`/prelim/${d.id}`)
@@ -35,6 +38,14 @@ export default function NewSessionForm() {
         <div><label className="label">Area / substation</label><input className="input" value={area} onChange={e => setArea(e.target.value)} placeholder="Main Consumer Substation" /></div>
         <div><label className="label">Held on</label><input type="date" className="input" value={heldOn} onChange={e => setHeldOn(e.target.value)} /></div>
         <div><label className="label">In the room</label><input className="input" value={attendees} onChange={e => setAttendees(e.target.value)} placeholder="Johan, Vossie, Bennie…" /></div>
+      </div>
+      <div>
+        <label className="label">Disciplines in the room <span className="text-slate-400 font-normal">— pick one, or several for a common-layouts session</span></label>
+        <div className="flex flex-wrap gap-2">
+          {DISCIPLINES.map(d => (
+            <button key={d.key} type="button" onClick={() => toggleDisc(d.key)} className={`rounded-full border px-3 py-1 text-xs font-medium transition ${disciplines.includes(d.key) ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>{d.key}</button>
+          ))}
+        </div>
       </div>
       <div>
         <label className="label">Source folder <span className="text-slate-400 font-normal">— navigate to the folder the drawings are in; files are pulled from the session page</span></label>
