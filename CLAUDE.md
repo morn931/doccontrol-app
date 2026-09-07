@@ -953,3 +953,19 @@ the call, the marked-up copy's URL and the comments into `routing_history`, clea
 the routing so the three buttons unlock, and mails the reviewer who sent it out. PDF only: a DWG
 cannot be marked up, so it stays in COLAB. The landing description now describes this process;
 "Open a session" reads "Open Review Session".
+
+### 2026-09-07 (3) — The sessions point at Vossie's SWP006 tender tree now
+
+Vossie's mail "K480 SWP 006 - Tender Handover Documents" (7 Sep): engineers move their
+For-Tender documents into **COLAB/SWP006 TENDER HANDOVER DOCUMENTS/<n. Substation>/<discipline>**
+by close of business; review starts 8 Sep; tender pack due Wed 9 Sep. The four sessions were
+re-pointed to their new substation folders (Main Consumer = "2. Plant Main Substation", Main Intake
+= "4. Power Station Substation") and a fifth opened for "1. Substations BOP Project Site Wide".
+`scripts/prelim-repoint-tender.mjs --write` is idempotent and is how the sessions are kept in
+step while files keep arriving: re-points an already-pulled drawing to its moved file (keeps its
+quality check — a MOVE bumps lastModified, so it compares quickXorHash before calling it a
+re-save), refreshes the working copy of a file re-saved after the pull unless the room has
+touched it, and pulls anything new. The pull route also takes `{ folder, recursive: true }` and
+the session page has **Pull everything under this folder** for the discipline subfolders.
+`scripts/prelim-quality-run.mjs` now skips a drawing unchanged since its last check (`--force`
+to re-read all); `scripts/prelim-quality-all.ps1` runs the five sessions.

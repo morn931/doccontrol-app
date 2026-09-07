@@ -5,7 +5,8 @@ import fs from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
 for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const t = line.trim(); if (!t || t.startsWith('#') || !t.includes('=')) continue; const i = t.indexOf('='); const k = t.slice(0, i).trim(); if (!(k in process.env)) process.env[k] = t.slice(i + 1).trim().replace(/^["']|["']$/g, '') }
 const { checkDocumentQuality, openCount } = await import('../lib/prelim/quality-check.ts')
-const sessionId = process.argv[2]; if (!sessionId) { console.error('usage: node scripts/prelim-quality-run.mjs <sessionId>'); process.exit(1) }
+const FORCE = process.argv.includes('--force')
+const sessionId = process.argv.find(a => /^[0-9a-f-]{36}$/i.test(a)); if (!sessionId) { console.error('usage: node scripts/prelim-quality-run.mjs <sessionId>'); process.exit(1) }
 const BY = 'mornec@ppetech.co.za'
 const retry = async (fn, n = 5) => { for (let i = 0; ; i++) { try { return await fn() } catch (e) { if (i >= n) throw e; await new Promise(r => setTimeout(r, 4000 * (i + 1))) } } }
 const tok = (await retry(async () => (await fetch(`https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}/oauth2/v2.0/token`, { method: 'POST', body: new URLSearchParams({ client_id: process.env.MICROSOFT_CLIENT_ID, client_secret: process.env.MICROSOFT_CLIENT_SECRET, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }) })).json())).access_token
@@ -16,14 +17,16 @@ const gbytes = (u) => retry(async () => { const r = await fetch(G + u, { headers
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
 
 const { data: session } = await sb.from('prelim_session').select('id, title').eq('id', sessionId).single()
-const { data: docs } = await sb.from('prelim_document').select('id, document_number, revision, title, discipline, document_type, source_file_name, source_file_url, cddl_doc_id, handed_over_batch_id').eq('session_id', sessionId).order('created_at')
+const { data: docs } = await sb.from('prelim_document').select('id, document_number, revision, title, discipline, document_type, source_file_name, source_file_url, cddl_doc_id, handed_over_batch_id, quality_checked_at, quality_source_modified_at').eq('session_id', sessionId).order('created_at')
 console.log(`${session?.title}: ${docs?.length ?? 0} drawings`)
-let clear = 0, withIssues = 0, failed = 0, totalOpen = 0
+let clear = 0, withIssues = 0, failed = 0, totalOpen = 0, skipped = 0
 for (const d of docs ?? []) {
   if (d.handed_over_batch_id) continue
   const label = `${d.document_number ?? d.source_file_name}`
   try {
     const item = await gjson(`/shares/${shareId(d.source_file_url)}/driveItem?$select=id,name,lastModifiedDateTime,parentReference`)
+    // already checked, and the source has not been saved since: skip unless --force
+    if (!FORCE && d.quality_checked_at && d.quality_source_modified_at && item.lastModifiedDateTime && new Date(item.lastModifiedDateTime) <= new Date(d.quality_source_modified_at)) { skipped++; continue }
     const isPdf = /\.pdf$/i.test(item.name)
     const bytes = await gbytes(`/drives/${item.parentReference.driveId}/items/${item.id}/content${isPdf ? '' : '?format=pdf'}`)
     let expected = { document_number: d.document_number, title: d.title, revision: d.revision, discipline: d.discipline, document_type: d.document_type }
@@ -41,4 +44,4 @@ for (const d of docs ?? []) {
     console.log(`   FAILED      ${label}: ${e?.message ?? e}`)
   }
 }
-console.log(`\nclear ${clear} · with issues ${withIssues} (${totalOpen} open) · failed ${failed}`)
+console.log(`\nclear ${clear} · with issues ${withIssues} (${totalOpen} open) · failed ${failed} · unchanged since last check, skipped ${skipped}`)

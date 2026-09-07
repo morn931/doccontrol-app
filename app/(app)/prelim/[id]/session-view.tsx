@@ -73,11 +73,12 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
   function toggle(i: BrowseItem) { setSelected(m => { const n = new Map(m); n.has(i.webUrl) ? n.delete(i.webUrl) : n.set(i.webUrl, i); return n }) }
   function selectAll(items: BrowseItem[]) { setSelected(m => { const n = new Map(m); for (const i of items) n.set(i.webUrl, i); return n }) }
 
-  async function pull() {
-    if (!selected.size) return
+  async function pull(everything = false) {
+    if (!everything && !selected.size) return
+    if (everything && !confirm(`Pull every file under "${path || session.source_folder || 'the library root'}" and all its subfolders into this session? Files already in the session are skipped.`)) return
     setPulling(true); setErr(''); setPullMsg('')
     try {
-      const res = await fetch(`/api/prelim/sessions/${session.id}/pull`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: [...selected.values()].map(i => ({ name: i.name, webUrl: i.webUrl })) }) })
+      const res = await fetch(`/api/prelim/sessions/${session.id}/pull`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(everything ? { folder: path, recursive: true } : { files: [...selected.values()].map(i => ({ name: i.name, webUrl: i.webUrl })) }) })
       const d = await res.json()
       if (!res.ok) { setErr(d.error ?? 'Pull failed'); return }
       const r: any[] = d.results ?? []
@@ -204,7 +205,8 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
           </div>
           <FolderBrowser site={session.source_site_url} library={session.source_library} path={path} onPath={setPath} selectable selected={new Set(selected.keys())} onToggle={toggle} onSelectAll={selectAll} />
           <div className="flex items-center gap-3">
-            <button onClick={pull} disabled={pulling || !selected.size} className="btn-primary">{pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Pull {selected.size || ''} selected</button>
+            <button onClick={() => pull(false)} disabled={pulling || !selected.size} className="btn-primary">{pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Pull {selected.size || ''} selected</button>
+            <button onClick={() => pull(true)} disabled={pulling} className="btn-secondary" title="Every file in this folder and every subfolder under it (discipline folders included); files already in the session are skipped"><Download className="h-4 w-4" /> Pull everything under this folder</button>
             {pullMsg && <span className="text-xs text-slate-600">{pullMsg}</span>}
           </div>
         </div>

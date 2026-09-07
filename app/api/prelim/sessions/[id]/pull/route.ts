@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { getFileBytesByUrl, getDriveItemContentBytes, resolveDriveItemByUrl, uploadBytesToLibraryFolder } from '@/lib/services/graph'
+import { getFileBytesByUrl, getDriveItemContentBytes, resolveDriveItemByUrl, uploadBytesToLibraryFolder, listLibraryFolder, resolveLibraryName } from '@/lib/services/graph'
 import { prelimAuth, isErr, matchCddl, sessionFolder } from '@/lib/prelim'
 
 export const maxDuration = 300
@@ -10,18 +10,36 @@ export const maxDuration = 300
 // already serves from), and a prelim_document row is created with its CDDL match. The
 // source file is never touched. Pulling a file twice is a no-op (unique on source URL).
 //
-// Body: { files: [{ name, webUrl }] }
+// Body: { files: [{ name, webUrl }] }  — the ticked files
+//    or { folder, recursive: true }     — every file under that folder and its subfolders
+//                                         (Vossie's SWP006 tree is substation → discipline)
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await prelimAuth('manage'); if (isErr(auth)) return auth
   const { id } = await params
   const body = await req.json().catch(() => ({}))
-  const files: { name: string; webUrl: string }[] = Array.isArray(body?.files) ? body.files : []
-  if (!files.length) return NextResponse.json({ error: 'Choose at least one file to pull.' }, { status: 400 })
+  let files: { name: string; webUrl: string }[] = Array.isArray(body?.files) ? body.files : []
 
   const db = createServiceClient()
-  const { data: session } = await db.from('prelim_session').select('id, title, status').eq('id', id).single()
+  const { data: session } = await db.from('prelim_session').select('id, title, status, source_site_url, source_library').eq('id', id).single()
   if (!session) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
   if ((session as any).status !== 'open') return NextResponse.json({ error: 'This session is closed.' }, { status: 409 })
+
+  if (!files.length && body?.recursive && typeof body?.folder === 'string') {
+    const folder = String(body.folder).replace(/\.\./g, '').replace(/^\/+|\/+$/g, '')
+    try {
+      const library = await resolveLibraryName((session as any).source_site_url, (session as any).source_library)
+      const walk = async (rel: string, depth: number) => {
+        const items = await listLibraryFolder((session as any).source_site_url, library, rel)
+        for (const it of items) {
+          if (it.isFolder) { if (depth < 6) await walk(rel ? `${rel}/${it.name}` : it.name, depth + 1) }
+          else files.push({ name: it.name, webUrl: it.webUrl })
+        }
+      }
+      await walk(folder, 0)
+    } catch (e: any) { return NextResponse.json({ error: `Could not list the folder: ${e?.message ?? e}` }, { status: 502 }) }
+    if (!files.length) return NextResponse.json({ error: 'That folder and its subfolders hold no files yet.' }, { status: 404 })
+  }
+  if (!files.length) return NextResponse.json({ error: 'Choose at least one file to pull.' }, { status: 400 })
 
   const folder = sessionFolder((session as any).title, id)
   const results: { name: string; ok: boolean; docId?: string; documentNumber?: string | null; matched?: boolean; skipped?: string; error?: string }[] = []
