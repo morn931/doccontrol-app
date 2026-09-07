@@ -37,6 +37,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
   const [qc, setQc] = useState<{ running: boolean; done: number; total: number; failed: string[] }>({ running: false, done: 0, total: 0, failed: [] })
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [openOnly, setOpenOnly] = useState(true)
+  const [qualityOpen, setQualityOpen] = useState(false)
 
   async function checkQuality(targets: Doc[]) {
     if (!targets.length) return
@@ -150,18 +151,22 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
       {/* ── Quality issues — the helper's job list ─────────────────────────────── */}
       {checked.length > 0 && (
         <div className="card overflow-hidden">
-          <div className="px-6 py-3 border-b border-slate-200 flex flex-wrap items-baseline justify-between gap-2">
-            <div className="flex items-baseline gap-3">
+          {/* Collapsed by default — the counts in the header say enough until the helper opens the list */}
+          <div className={`px-6 py-3 flex flex-wrap items-baseline justify-between gap-2 ${qualityOpen ? 'border-b border-slate-200' : ''}`}>
+            <button type="button" onClick={() => setQualityOpen(v => !v)} className="flex items-baseline gap-3 text-left" title={qualityOpen ? 'Hide the list' : 'Show the list'}>
+              {qualityOpen ? <ChevronDown className="h-4 w-4 self-center text-slate-500" /> : <ChevronRight className="h-4 w-4 self-center text-slate-500" />}
               <h2 className="font-semibold text-slate-900">Quality issues</h2>
               <span className="text-xs text-slate-500">{checked.length} of {docs.length} checked · <b className={totalOpen ? 'text-amber-700' : 'text-emerald-700'}>{totalOpen} open</b> on {withIssues.length} document{withIssues.length === 1 ? '' : 's'} · read from the source file in COLAB</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <label className="flex items-center gap-1.5 text-slate-600"><input type="checkbox" checked={openOnly} onChange={e => setOpenOnly(e.target.checked)} /> open issues only</label>
-              {withIssues.length > 0 && <button onClick={exportCsv} className="btn-secondary text-xs py-1 px-2.5"><FileDown className="h-3 w-3" /> Export list</button>}
-            </div>
+            </button>
+            {qualityOpen && (
+              <div className="flex items-center gap-3 text-xs">
+                <label className="flex items-center gap-1.5 text-slate-600"><input type="checkbox" checked={openOnly} onChange={e => setOpenOnly(e.target.checked)} /> open issues only</label>
+                {withIssues.length > 0 && <button onClick={exportCsv} className="btn-secondary text-xs py-1 px-2.5"><FileDown className="h-3 w-3" /> Export list</button>}
+              </div>
+            )}
           </div>
-          {!withIssues.length && <p className="px-6 py-6 text-sm text-emerald-700">All checked drawings are clear.</p>}
-          <ul className="divide-y divide-slate-100">
+          {qualityOpen && !withIssues.length && <p className="px-6 py-6 text-sm text-emerald-700">All checked drawings are clear.</p>}
+          {qualityOpen && <ul className="divide-y divide-slate-100">
             {(openOnly ? withIssues : checked).map(d => {
               const isOpen = expanded.has(d.id); const n = d.quality_open ?? 0
               const majors = (d.qualityIssues ?? []).filter(i => i.severity === 'major').length
@@ -193,7 +198,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
                 </li>
               )
             })}
-          </ul>
+          </ul>}
         </div>
       )}
 
