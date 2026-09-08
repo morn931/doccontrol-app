@@ -1021,3 +1021,14 @@ stamps `prelim_session.last_synced_at` / `last_sync_note` (057). Throttled to on
 session per 90 s, and one in-flight sync per session per instance. A re-saved file is NOT
 refreshed here (the room may have marked the working copy); that stays with the hash-checked
 script. The sessions list now counts by before-tender status (`prelimStatus`), not the room's call.
+
+### 2026-09-08 (3) — Only the tender tree; the sync now also removes
+
+Morné: the sessions look at `SWP006 TENDER HANDOVER DOCUMENTS` and nothing else. The 26 rows
+still pointing at the old Document Register folders (the first pull, 4 Sep) were removed with
+`scripts/prelim-tender-only.mjs --write`, working copies and eight out-of-tree stamped copies
+with them; none carried a mark or comment. `syncSession()` now also drops a row whose file has
+left the tree and has no same-name file elsewhere in it, but ONLY while untouched (no marks,
+comments, call, return or stamp); a worked-on row is kept and counted in `last_sync_note`.
+Engineers copy rather than move, so the same number can sit in two sessions (11 CTMP records
+were in Main Consumer and Site Wide); `scripts/_prelim-dupes.mjs` lists such cases.
