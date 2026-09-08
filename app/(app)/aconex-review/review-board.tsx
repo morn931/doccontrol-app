@@ -1,6 +1,6 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { Filter } from 'lucide-react'
+import { Filter, Download } from 'lucide-react'
 import { ColumnMenu, BLANKS, sortRows, type ColFilter, type SortDir } from '@/components/table/column-menu'
 
 export type ReviewRow = {
@@ -176,6 +176,44 @@ export function ReviewBoard({ rows, ownerRosters }: { rows: ReviewRow[]; ownerRo
     { key: 'CLOSED',          label: 'Closed',                   n: counts.CLOSED ?? 0,          accent: 'text-slate-600' },
   ]
 
+  // Export EXACTLY what is on screen — the current tab, card filter, search,
+  // column filters and sort (the `shown` set) — so the workbook matches the
+  // register the person is looking at. SheetJS is loaded on click only.
+  const [exporting, setExporting] = useState(false)
+  async function exportToExcel() {
+    if (!shown.length || exporting) return
+    setExporting(true)
+    try {
+      const XLSX = await import('xlsx')
+      const data = shown.map(r => ({
+        'Document No': r.docno,
+        'Title': r.title ?? '',
+        'Discipline': r.discipline ?? '',
+        'Rev': r.revision ?? '',
+        'Doc Status': r.doc_status ?? '',
+        'Review Status': r.review_status ?? '',
+        'Whose Court': r.court_label ?? COURT[(r.court as CourtKey)]?.label ?? r.court,
+        'Court Basis': r.court_basis ?? '',
+        'Owner': r.doc_owner ?? '',
+        'CDDL Due': r.cddl_due ?? '',
+        'Days In Court': r.days_in_court ?? '',
+        'Date Modified': r.date_modified ?? '',
+        'Package': r.package_code,
+      }))
+      const ws = XLSX.utils.json_to_sheet(data)
+      ws['!cols'] = [
+        { wch: 26 }, { wch: 52 }, { wch: 12 }, { wch: 6 }, { wch: 16 }, { wch: 22 },
+        { wch: 26 }, { wch: 44 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 10 },
+      ]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Aconex Review')
+      const today = new Date().toISOString().slice(0, 10)
+      XLSX.writeFile(wb, `Aconex Review Tracker - ${pkg} - ${today}.xlsx`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {pkgs.length > 1 && (
@@ -243,7 +281,17 @@ export function ReviewBoard({ rows, ownerRosters }: { rows: ReviewRow[]; ownerRo
             <Filter className="h-3 w-3" /> {activeFilterCols.length} column filter{activeFilterCols.length === 1 ? '' : 's'} · Clear
           </button>
         )}
-        <span className="text-xs text-slate-400 ml-auto">{shown.length} shown</span>
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            onClick={exportToExcel}
+            disabled={!shown.length || exporting}
+            title="Export the rows currently shown (this tab, search, filters and sort) to an Excel workbook"
+            className="text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-full px-3 py-1 hover:bg-emerald-100 disabled:opacity-40 inline-flex items-center gap-1"
+          >
+            <Download className="h-3 w-3" /> {exporting ? 'Exporting…' : 'Export to Excel'}
+          </button>
+          <span className="text-xs text-slate-400">{shown.length} shown</span>
+        </div>
       </div>
 
       <div className="card overflow-x-auto">
