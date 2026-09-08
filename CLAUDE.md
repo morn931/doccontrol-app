@@ -1032,3 +1032,12 @@ left the tree and has no same-name file elsewhere in it, but ONLY while untouche
 comments, call, return or stamp); a worked-on row is kept and counted in `last_sync_note`.
 Engineers copy rather than move, so the same number can sit in two sessions (11 CTMP records
 were in Main Consumer and Site Wide); `scripts/_prelim-dupes.mjs` lists such cases.
+
+### 2026-09-08 (4) — Stamp placement: drawings bottom-left, documents top-right
+
+Top right was covering legends and key plans on drawings. `isDrawingPage(W, H)` in
+`tender-stamp.ts` — landscape AND at least 1150 pt wide (A3 or bigger) — puts the stamp inside the
+revision table at bottom left (PPE frame: rows are empty on a tender issue), slightly smaller;
+everything else keeps top right. Trialled on A3, A1 and a /Rotate 270 sheet before shipping.
+`scripts/prelim-restamp.mjs --write` re-made every existing stamped copy in place, keeping each
+copy's original stamp date.
