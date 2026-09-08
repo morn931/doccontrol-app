@@ -10,15 +10,21 @@ export type PullSession = { id: string; title: string; status: string; source_si
 export type PullFile = { name: string; webUrl: string }
 export type PullResult = { name: string; ok: boolean; docId?: string; documentNumber?: string | null; matched?: boolean; skipped?: string; error?: string }
 
-/** Every file under a folder and its subfolders (Vossie's tree is substation → discipline). */
+/** The subfolder Ready for tender files the stamped copies into. NEVER a source of drawings:
+ *  walking into it pulled the stamped copies back in as new "pending" drawings (8 Sep). */
+export const TENDER_FOLDER = process.env.PRELIM_TENDER_FOLDER || 'Issued for Tender'
+export const isTenderCopyName = (name: string) => / - ISSUED FOR TENDER\.pdf$/i.test(name)
+
+/** Every file under a folder and its subfolders (Vossie's tree is substation → discipline),
+ *  skipping the Issued for Tender folders and any stamped copy by name. */
 export async function listFolderTree(session: PullSession, folder: string, maxDepth = 6): Promise<PullFile[]> {
   const library = await resolveLibraryName(session.source_site_url, session.source_library)
   const files: PullFile[] = []
   const walk = async (rel: string, depth: number) => {
     const items = await listLibraryFolder(session.source_site_url, library, rel)
     for (const it of items) {
-      if (it.isFolder) { if (depth < maxDepth) await walk(rel ? `${rel}/${it.name}` : it.name, depth + 1) }
-      else files.push({ name: it.name, webUrl: it.webUrl })
+      if (it.isFolder) { if (it.name.toLowerCase() !== TENDER_FOLDER.toLowerCase() && depth < maxDepth) await walk(rel ? `${rel}/${it.name}` : it.name, depth + 1) }
+      else if (!isTenderCopyName(it.name)) files.push({ name: it.name, webUrl: it.webUrl })
     }
   }
   await walk(folder.replace(/\.\./g, '').replace(/^\/+|\/+$/g, ''), 0)
@@ -32,6 +38,7 @@ export async function pullFilesIntoSession(session: PullSession, files: PullFile
   for (const f of files.slice(0, 500)) {
     const name = String(f?.name ?? '').trim(), webUrl = String(f?.webUrl ?? '').trim()
     if (!name || !webUrl) { results.push({ name, ok: false, error: 'missing name or url' }); continue }
+    if (isTenderCopyName(name) || /\/Issued(%20| )for(%20| )Tender\//i.test(webUrl)) { results.push({ name, ok: true, skipped: 'a stamped tender copy, not a drawing to review' }); continue }
     try {
       const { data: existing } = await db.from('prelim_document').select('id').eq('session_id', session.id).eq('source_file_url', webUrl).maybeSingle()
       if (existing) { results.push({ name, ok: true, docId: (existing as any).id, skipped: 'already in the session' }); continue }
