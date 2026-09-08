@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFileBytesByUrl, uploadBytesBesideItem, deleteDriveItemByUrl } from '@/lib/services/graph'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
-import { prelimAuth, isErr, drawingOfficeEmail, listPeople, resolveLead, type Person } from '@/lib/prelim'
+import { prelimAuth, isErr, drawingOfficeEmail, documentControlEmail, listPeople, resolveLead, type Person } from '@/lib/prelim'
 import { stampIssuedForTender, tenderCopyName } from '@/lib/prelim/tender-stamp'
 
 /** Subfolder beside the source file in COLAB that holds the stamped copies. */
@@ -13,14 +13,15 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 const ATTACH_LIMIT = 3 * 1024 * 1024
 export const maxDuration = 60
 
-type Action = 'drawing_office' | 'lead' | 'ready_for_tender'
-const isDoText = (a: string) => a === 'drawing_office' ? 'drawing office' : 'engineer'
+type Action = 'drawing_office' | 'document_control' | 'lead' | 'ready_for_tender'
+const isDoText = (a: string) => a === 'drawing_office' ? 'drawing office' : a === 'document_control' ? 'document control' : 'engineer'
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 
 // Where a prelim-reviewed drawing goes next (migration 053). For the tender push this is
 // THE review before the documents go out, so the reviewer makes one of three calls on the
 // drawing itself:
 //   drawing_office    mail the marked-up PDF to the drawing office (+ the quality issues)
+//   document_control  the same mail to Document Control (migration 056)
 //   lead              mail it to the PPE responsible person — the CDDL doc owner where that
 //                     resolves to one user, otherwise the reviewer picks (409 needLead)
 //   ready_for_tender  mark only
@@ -32,7 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
   const { docId } = await params
   const body = await req.json().catch(() => ({}))
   const action = String(body?.action ?? '') as Action
-  if (!['drawing_office', 'lead', 'ready_for_tender'].includes(action)) return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
+  if (!['drawing_office', 'document_control', 'lead', 'ready_for_tender'].includes(action)) return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
 
   const db = createServiceClient()
   const { data: doc } = await db.from('prelim_document').select('*, prelim_session!inner(id, title, status, area)').eq('id', docId).maybeSingle()
@@ -70,9 +71,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
 
   // ── who ────────────────────────────────────────────────────────────────────────────
   let to: Person
-  if (action === 'drawing_office') {
-    const email = await drawingOfficeEmail()
-    to = { email, name: (await listPeople()).find(p => p.email === email.toLowerCase())?.name ?? 'Drawing office', role: '' }
+  if (action === 'drawing_office' || action === 'document_control') {
+    // Same mail, different desk: the drawing office (Miemie) or Document Control (Bernice).
+    const email = action === 'drawing_office' ? await drawingOfficeEmail() : await documentControlEmail()
+    to = { email, name: (await listPeople()).find(p => p.email === email.toLowerCase())?.name ?? (action === 'drawing_office' ? 'Drawing office' : 'Document Control'), role: '' }
   } else {
     const people = await listPeople()
     const pickedEmail = String(body?.toEmail ?? '').trim().toLowerCase()
@@ -139,7 +141,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
   const noteHtml = noteText
     ? `<p style="margin:14px 0 0"><b>Notes to the ${isDoText(action)}:</b></p><p style="margin:4px 0 0;white-space:pre-wrap;border-left:3px solid #0097A3;padding:6px 10px;background:#f0fdfa">${esc(noteText)}</p>`
     : ''
-  const isDo = action === 'drawing_office'
+  const isDo = action === 'drawing_office' || action === 'document_control'
   const heading = isDo ? 'Drawing requires mark-ups' : 'Prelim review — drawing for your attention'
   const opening = isDo
     ? `<p>Hi ${esc(to.name.split(' ')[0])},</p><p>Please find the drawing that requires mark-ups as per the PDF.</p>`

@@ -3,7 +3,7 @@ import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Upload, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { STATUS_LABEL, STATUS_CLS, type PrelimStatus } from '@/lib/prelim/status'
+import { STATUS_LABEL, STATUS_CLS, fromLabel, type PrelimStatus } from '@/lib/prelim/status'
 
 type Row = {
   id: string; session_id: string; session: string; document_number: string | null; revision: string | null; title: string | null; status: PrelimStatus
@@ -79,9 +79,9 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
     <div className="space-y-5">
       <Link href="/prelim" className="btn-secondary text-xs py-1.5 px-3 w-fit"><ArrowLeft className="h-3.5 w-3.5" /> Prelim Review</Link>
       <div className="card p-6">
-        <h1 className="text-xl font-bold text-slate-900">Return from Drawing Office / Lead Engineer</h1>
+        <h1 className="text-xl font-bold text-slate-900">Return from Drawing Office / Document Control / Lead Engineer</h1>
         <p className="text-sm text-slate-500 mt-1 max-w-3xl">
-          When the drawing office or the lead engineer has finished the corrections, drop the corrected <b>PDF</b> here. It is matched to its drawing by
+          When the drawing office, Document Control or the lead engineer has finished the corrections, drop the corrected <b>PDF</b> here. It is matched to its drawing by
           the document number in the filename, <b>replaces</b> that drawing&rsquo;s working copy in the session folder (the marked-up version lives on in the email that went out), and the
           three before-tender buttons unlock so the reviewer can check it and call it <b>Ready for tender</b> — or send it out again.
         </p>
@@ -148,7 +148,7 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
                     <td className="px-4 py-2 text-slate-700 max-w-md truncate" title={d.title ?? ''}>{d.title}</td>
                     <td className="px-4 py-2 text-slate-500 text-xs whitespace-nowrap">{d.session.replace(/ — .*$/, '')}</td>
                     <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">
-                      from {d.returned_from === 'lead' ? 'lead engineer' : 'drawing office'} · {when(d.returned_at)}
+                      from {fromLabel(d.returned_from)} · {when(d.returned_at)}
                       {d.returned_file_url && <> · <a href={d.returned_file_url} target="_blank" rel="noreferrer" className="text-teal-700 hover:underline">{d.returned_file_name}</a></>}
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap">

@@ -57,6 +57,16 @@ export async function drawingOfficeEmail(): Promise<string> {
   return v.includes('@') ? v : 'miemiev@ppetech.co.za'
 }
 
+/** The Document Control address the "To Document Control" button mails. Env, then the
+ *  system_settings row, then Bernice Neethling. */
+export async function documentControlEmail(): Promise<string> {
+  if (process.env.PRELIM_DOCUMENT_CONTROL_EMAIL) return process.env.PRELIM_DOCUMENT_CONTROL_EMAIL
+  const db = createServiceClient()
+  const { data } = await db.from('system_settings').select('value').eq('key', 'prelim_document_control_email').maybeSingle()
+  const v = String((data as any)?.value ?? '').trim()
+  return v.includes('@') ? v : 'bernicen@ppetech.co.za'
+}
+
 export type { Person } from './prelim/lead'
 export { resolveLead } from './prelim/lead'
 import type { Person } from './prelim/lead'

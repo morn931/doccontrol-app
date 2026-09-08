@@ -1000,3 +1000,12 @@ held them and the server's "unsaved marks" guard saw nothing. Fixed at the root:
 - **A returned file replaces the working copy IN PLACE** (`createLibraryUploadSession(..., 'replace')`
   at the working path) — no `Returned/` subfolder; the session folder only ever holds the latest
   file, the marked-up version lives on in the email. Ready for tender then stamps that latest file.
+
+### 2026-09-08 — "To Document Control", a fourth before-tender call (migration 056)
+
+Same mail and same behaviour as To drawing office — marks flattened first, PDF attached, notes,
+quality issues — addressed to Document Control: `PRELIM_DOCUMENT_CONTROL_EMAIL` →
+`system_settings.prelim_document_control_email` → bernicen@ppetech.co.za. Routing value
+`document_control` (056 widens 053's check constraint); status `sent_document_control`; the
+Returns page is titled "Return from Drawing Office / Document Control / Lead Engineer" and
+`fromLabel()` in `lib/prelim/status.ts` is the one place the three desks are named.

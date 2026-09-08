@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, Download, Send, Lock, Unlock, ExternalLink, ShieldCheck, ChevronDown, ChevronRight, FileDown } from 'lucide-react'
 import FolderBrowser, { type BrowseItem } from '../folder-browser'
+import { fromLabel } from '@/lib/prelim/status'
 
 type Session = { id: string; title: string; area: string | null; held_on: string | null; attendees: string | null; notes: string | null; status: 'open' | 'closed'; source_site_url: string; source_library: string; source_folder: string; created_by_name: string | null; created_by_email: string }
 type Issue = { code: string; severity: 'major' | 'minor'; page: number | null; description: string; fix: string }
-type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null; routing: 'drawing_office' | 'lead' | 'ready_for_tender' | null; routing_at: string | null; routing_to_email: string | null; routing_to_name: string | null; routing_mailed_at: string | null; routing_error: string | null; returned_at: string | null; returned_from: string | null; tender_stamped_file_url: string | null; tender_stamp_error: string | null }
+type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null; routing: 'drawing_office' | 'document_control' | 'lead' | 'ready_for_tender' | null; routing_at: string | null; routing_to_email: string | null; routing_to_name: string | null; routing_mailed_at: string | null; routing_error: string | null; returned_at: string | null; returned_from: string | null; tender_stamped_file_url: string | null; tender_stamp_error: string | null }
 
 const ROUTING_PILL: Record<NonNullable<Doc['routing']>, { label: string; cls: string }> = {
   drawing_office:   { label: 'To drawing office', cls: 'bg-sky-100 text-sky-800' },
+  document_control: { label: 'To document control', cls: 'bg-indigo-100 text-indigo-800' },
   lead:             { label: 'To lead',           cls: 'bg-amber-100 text-amber-800' },
   ready_for_tender: { label: 'Ready for tender',  cls: 'bg-emerald-100 text-emerald-700' },
 }
@@ -67,7 +69,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
 
   const counts = { pending: 0, ready: 0, rework: 0, withdrawn: 0, handed: 0 }
   for (const d of docs) { counts[d.outcome]++; if (d.handed_over_batch_id) counts.handed++ }
-  const routed = { drawing_office: 0, lead: 0, ready_for_tender: 0, none: 0 }
+  const routed = { drawing_office: 0, document_control: 0, lead: 0, ready_for_tender: 0, none: 0 }
   const returnedOpen = docs.filter(d => !d.routing && d.returned_at).length
   for (const d of docs) { if (d.routing) routed[d.routing]++; else routed.none++ }
 
@@ -142,7 +144,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
         </div>
         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 tabular-nums">
           <span className="text-slate-500">Before tender:</span>
-          <span className="text-sky-800">{routed.drawing_office} to drawing office</span><span className="text-amber-800">{routed.lead} to lead</span><span className="text-emerald-700">{routed.ready_for_tender} ready for tender</span><span>{routed.none - returnedOpen} no call yet</span>{returnedOpen > 0 && <span className="text-violet-800">{returnedOpen} returned, awaiting a call</span>}
+          <span className="text-sky-800">{routed.drawing_office} to drawing office</span><span className="text-indigo-800">{routed.document_control} to document control</span><span className="text-amber-800">{routed.lead} to lead</span><span className="text-emerald-700">{routed.ready_for_tender} ready for tender</span><span>{routed.none - returnedOpen} no call yet</span>{returnedOpen > 0 && <span className="text-violet-800">{returnedOpen} returned, awaiting a call</span>}
         </div>
         {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
         {qc.failed.length > 0 && !qc.running && <p className="mt-2 text-xs text-amber-700">Could not check {qc.failed.length}: {qc.failed.join(' · ')}</p>}
@@ -255,7 +257,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
                             ? <div className="text-xs mt-0.5"><a href={d.tender_stamped_file_url} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline">stamped copy ↗</a></div>
                             : <div className="text-xs text-red-600 mt-0.5" title={d.tender_stamp_error ?? undefined}>no stamped copy</div>)}
                         </>
-                      : d.returned_at ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800" title="A corrected file came back and is now the working copy — make the next call">returned from {d.returned_from === 'lead' ? 'lead' : 'drawing office'}</span>
+                      : d.returned_at ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800" title="A corrected file came back and is now the working copy — make the next call">returned from {fromLabel(d.returned_from)}</span>
                       : <span className="text-xs text-slate-300">no call yet</span>}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">

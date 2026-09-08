@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { deleteDriveItemByUrl } from '@/lib/services/graph'
 import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
 import { prelimAuth, isErr } from '@/lib/prelim'
+import { fromLabel } from '@/lib/prelim/status'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   if (d.prelim_session.status !== 'open') return NextResponse.json({ error: 'This session is closed.' }, { status: 409 })
 
   const now = new Date().toISOString()
-  const from = d.routing === 'drawing_office' || d.routing === 'lead' ? d.routing : (d.returned_from ?? null)
+  const from = d.routing === 'drawing_office' || d.routing === 'document_control' || d.routing === 'lead' ? d.routing : (d.returned_from ?? null)
   const history: any[] = Array.isArray(d.routing_history) ? d.routing_history : []
   history.push({
     at: now, event: 'returned', by: auth.email, file: fileName, file_url: webUrl,
@@ -58,10 +59,10 @@ export async function POST(req: Request) {
     try {
       await sendMail({
         to: notify,
-        subject: `Back from ${from === 'lead' ? 'the lead engineer' : 'the drawing office'} — ${d.document_number ?? d.title ?? fileName}`,
+        subject: `Back from the ${fromLabel(from)} — ${d.document_number ?? d.title ?? fileName}`,
         htmlBody: brandedEmail({
           heading: 'A corrected drawing is back',
-          bodyHtml: `<p><b>${d.document_number ?? d.title ?? fileName}</b> has been returned${from ? ` from ${from === 'lead' ? 'the lead engineer' : 'the drawing office'}` : ''} by ${auth.name ?? auth.email} and is now the working copy in the session <b>${d.prelim_session.title}</b>.</p><p>Open it, check the corrections, and make the next call — Ready for tender, or send it out again.</p>`,
+          bodyHtml: `<p><b>${d.document_number ?? d.title ?? fileName}</b> has been returned${from ? ` from the ${fromLabel(from)}` : ''} by ${auth.name ?? auth.email} and is now the working copy in the session <b>${d.prelim_session.title}</b>.</p><p>Open it, check the corrections, and make the next call — Ready for tender, or send it out again.</p>`,
           cta: { href: `${APP_URL}/prelim/${d.prelim_session.id}/doc/${docId}`, label: 'Open the drawing →' },
         }),
       })

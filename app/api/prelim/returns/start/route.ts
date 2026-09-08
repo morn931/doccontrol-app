@@ -53,6 +53,6 @@ export async function POST(req: Request) {
   try {
     const folder = sessionFolder(hit.prelim_session.title, hit.prelim_session.id)
     const { uploadUrl } = await createLibraryUploadSession(`${folder}/${hit.working_file_name}`, undefined, undefined, 'replace')
-    return NextResponse.json({ uploadUrl, doc: compact(hit), wasSent: hit.routing === 'drawing_office' || hit.routing === 'lead' })
+    return NextResponse.json({ uploadUrl, doc: compact(hit), wasSent: hit.routing === 'drawing_office' || hit.routing === 'document_control' || hit.routing === 'lead' })
   } catch (e: any) { return NextResponse.json({ error: `SharePoint upload session failed: ${e?.message ?? e}` }, { status: 502 }) }
 }

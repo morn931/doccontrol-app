@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, FileDown } from 'lucide-react'
-import { STATUS_LABEL, STATUS_CLS, STATUS_ORDER, type PrelimStatus } from '@/lib/prelim/status'
+import { STATUS_LABEL, STATUS_CLS, STATUS_ORDER, fromLabel, type PrelimStatus } from '@/lib/prelim/status'
 
 export type StatusRow = {
   id: string; session_id: string; session: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null
@@ -19,8 +19,9 @@ export function statusDetail(d: StatusRow): string {
   switch (d.status) {
     case 'ready_for_tender':    return `${d.routing_by_email ?? ''} · ${when(d.routing_at)}`
     case 'sent_drawing_office':
+    case 'sent_document_control':
     case 'sent_lead':           return `${d.routing_mailed_at ? '→' : 'mail failed →'} ${d.routing_to_name ?? d.routing_to_email ?? ''} · ${when(d.routing_at)}`
-    case 'returned':            return `from ${d.returned_from === 'lead' ? 'lead engineer' : 'drawing office'} · ${d.returned_by_email ?? ''} · ${when(d.returned_at)}`
+    case 'returned':            return `from ${fromLabel(d.returned_from)} · ${d.returned_by_email ?? ''} · ${when(d.returned_at)}`
     case 'in_review':           return [d.commentCount ? `${d.commentCount} comment${d.commentCount === 1 ? '' : 's'}` : null, d.unsavedMarks ? 'unsaved marks' : null, d.markup_committed_at ? `marks saved ${when(d.markup_committed_at)}` : null, d.outcome !== 'pending' ? `room: ${d.outcome}` : null].filter(Boolean).join(' · ')
     default:                    return ''
   }

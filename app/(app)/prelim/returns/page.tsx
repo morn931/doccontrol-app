@@ -6,7 +6,7 @@ import ReturnsView from './returns-view'
 
 export const dynamic = 'force-dynamic'
 
-// Return from Drawing Office / Lead Engineer — drop the corrected PDF here. It becomes the
+// Return from Drawing Office / Document Control / Lead Engineer — drop the corrected PDF here. It becomes the
 // drawing's working copy, the before-tender buttons unlock, and the drawing joins the list
 // below with its current status (returned → and then whatever the reviewer calls next).
 export default async function PrelimReturnsPage() {

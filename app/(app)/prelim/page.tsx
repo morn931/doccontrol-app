@@ -42,7 +42,7 @@ export default async function PrelimSessionsPage() {
         <p className="text-sm text-slate-500 max-w-3xl">
           The review before the tender documents go out. Open a review session for the folder the room is looking at, pull the
           drawings in, mark them up together on one shared layer, and on each drawing make one call: <b>To drawing office</b>,
-          <b> To Lead</b>, or <b>Ready for tender</b>. A corrected drawing comes back through <b>Return from Drawing Office / Lead Engineer</b>
+          <b> To Lead</b>, <b>To Document Control</b>, or <b>Ready for tender</b>. A corrected drawing comes back through <b>Return from Drawing Office / Document Control / Lead Engineer</b>
           and is called again. <b>Current Document Status</b> shows every drawing in every session and where it is right now. After tender,
           each drawing still goes through the normal internal review from the same session.
         </p>
@@ -51,7 +51,7 @@ export default async function PrelimSessionsPage() {
       <div className="flex flex-wrap items-start gap-3">
         {canManage && <NewSessionForm />}
         <Link href="/prelim/status" className="btn-secondary"><ListChecks className="h-4 w-4" /> Current Document Status</Link>
-        <Link href="/prelim/returns" className="btn-secondary"><Upload className="h-4 w-4" /> Return from Drawing Office / Lead Engineer</Link>
+        <Link href="/prelim/returns" className="btn-secondary"><Upload className="h-4 w-4" /> Return from Drawing Office / Document Control / Lead Engineer</Link>
       </div>
 
       <div className="card overflow-hidden">

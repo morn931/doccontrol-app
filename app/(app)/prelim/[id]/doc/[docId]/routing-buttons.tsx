@@ -1,13 +1,13 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Mail, UserCheck, CheckCircle2, Undo2 } from 'lucide-react'
+import { Loader2, Mail, UserCheck, CheckCircle2, Undo2, FolderInput } from 'lucide-react'
 import { noteStore } from '@/lib/prelim/note-sync'
 
-export type Routing = 'drawing_office' | 'lead' | 'ready_for_tender'
+export type Routing = 'drawing_office' | 'document_control' | 'lead' | 'ready_for_tender'
 type Person = { email: string; name: string; role: string }
 
-const LABEL: Record<Routing, string> = { drawing_office: 'To drawing office', lead: 'To Lead', ready_for_tender: 'Ready for tender' }
+const LABEL: Record<Routing, string> = { drawing_office: 'To drawing office', document_control: 'To Document Control', lead: 'To Lead', ready_for_tender: 'Ready for tender' }
 
 // The three calls a reviewer makes on a drawing in the tender push — see migration 053.
 // One call per drawing: after it is made, the chosen one stays lit and all three lock.
@@ -43,6 +43,7 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
     }
     if (!toEmail) {
       const ask = action === 'drawing_office' ? 'Send this marked-up drawing to the drawing office?'
+                : action === 'document_control' ? 'Send this marked-up drawing to Document Control?'
                 : 'Mark this drawing ready for tender? A copy stamped "ISSUED FOR TENDER ONLY" on every page is filed beside the source in COLAB. No mail is sent.'
       if (!confirm(ask)) return
     }
@@ -92,6 +93,7 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 mr-1">Before tender</span>
         {btn('drawing_office', Mail, 'border-sky-600 bg-sky-600 text-white ring-sky-300')}
         {btn('lead', UserCheck, 'border-amber-500 bg-amber-500 text-white ring-amber-300')}
+        {btn('document_control', FolderInput, 'border-indigo-600 bg-indigo-600 text-white ring-indigo-300')}
         {btn('ready_for_tender', CheckCircle2, 'border-emerald-600 bg-emerald-600 text-white ring-emerald-300')}
         {routing && (
           <span className="text-xs text-slate-600 ml-1">
