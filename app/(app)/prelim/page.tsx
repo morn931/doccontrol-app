@@ -4,6 +4,8 @@ import { Users, ListChecks, Upload } from 'lucide-react'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import NewSessionForm from './new-session-form'
+import { syncSession } from '@/lib/prelim/sync'
+import { prelimStatus, STATUS_LABEL, STATUS_ORDER, type PrelimStatus } from '@/lib/prelim/status'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,15 +24,22 @@ export default async function PrelimSessionsPage() {
   const canManage = can(perms, FK.ACTION_PRELIM_MANAGE, role)
 
   const db = createServiceClient()
+  // Keep every open session in step with its COLAB folder before counting (throttled per
+  // session inside syncSession, so a burst of refreshes is one walk).
+  const { data: openSessions } = await db.from('prelim_session').select('id, title, status, source_site_url, source_library, source_folder, last_synced_at').eq('status', 'open')
+  const { data: { user: me } } = await supabase.auth.getUser()
+  await Promise.all(((openSessions ?? []) as any[]).map(sess => syncSession(sess, me?.email ?? 'sync@coredocs').catch(() => null)))
   const { data: sessions } = await db.from('prelim_session')
-    .select('id, title, area, held_on, status, attendees, created_by_name, created_by_email, created_at, prelim_document(outcome, handed_over_batch_id)')
+    .select('id, title, area, held_on, status, attendees, created_by_name, created_by_email, created_at, last_synced_at, last_sync_note, prelim_document(outcome, handed_over_batch_id, routing, returned_at, markup_layer, markup_comments, markup_committed_at)')
     .order('created_at', { ascending: false }).limit(200)
 
   const rows = (sessions ?? []).map((s: any) => {
     const docs: any[] = s.prelim_document ?? []
-    const n = (o: string) => docs.filter(d => d.outcome === o).length
-    return { ...s, total: docs.length, pending: n('pending'), ready: n('ready'), rework: n('rework'), withdrawn: n('withdrawn'), handed: docs.filter(d => d.handed_over_batch_id).length }
+    const by: Record<PrelimStatus, number> = { not_started: 0, in_review: 0, sent_drawing_office: 0, sent_document_control: 0, sent_lead: 0, returned: 0, ready_for_tender: 0 }
+    for (const d of docs) by[prelimStatus(d)]++
+    return { ...s, total: docs.length, by, handed: docs.filter(d => d.handed_over_batch_id).length, prelim_document: undefined }
   })
+  const STATUS_TONE: Record<PrelimStatus, string> = { not_started: 'text-slate-400', in_review: 'text-indigo-700', sent_drawing_office: 'text-sky-700', sent_document_control: 'text-indigo-700', sent_lead: 'text-amber-700', returned: 'text-violet-700', ready_for_tender: 'text-emerald-700' }
 
   return (
     <div className="space-y-6">
@@ -75,7 +84,11 @@ export default async function PrelimSessionsPage() {
                 </div>
                 <div className="shrink-0 text-right text-xs text-slate-600 tabular-nums">
                   <div><b className="text-slate-900">{s.total}</b> drawings</div>
-                  <div className="text-slate-400">{s.pending} pending · {s.ready} ready · {s.rework} rework · {s.withdrawn} withdrawn · {s.handed} handed over</div>
+                  <div className="text-slate-400 flex flex-wrap justify-end gap-x-2">
+                    {STATUS_ORDER.map((k, i) => <span key={k} className={s.by[k] ? STATUS_TONE[k] : 'text-slate-300'}>{i > 0 ? '· ' : ''}{s.by[k]} {STATUS_LABEL[k].toLowerCase().replace('returned from drawing office / document control / lead', 'returned')}</span>)}
+                    {s.handed > 0 && <span className="text-teal-700">· {s.handed} handed over</span>}
+                  </div>
+                  {s.last_sync_note && <div className="text-[10px] text-slate-300 mt-0.5" title={s.last_sync_note}>folder synced {new Date(s.last_synced_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>}
                 </div>
               </Link>
             </li>

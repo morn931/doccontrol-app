@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import SessionView from './session-view'
+import { syncSession } from '@/lib/prelim/sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,11 @@ export default async function PrelimSessionPage({ params }: { params: Promise<{ 
   const canManage = can(perms, FK.ACTION_PRELIM_MANAGE, role)
 
   const db = createServiceClient()
-  const { data: session } = await db.from('prelim_session').select('*').eq('id', id).maybeSingle()
+  const { data: session0 } = await db.from('prelim_session').select('*').eq('id', id).maybeSingle()
+  if (!session0) redirect('/prelim')
+  // New files in the COLAB folder appear here on refresh; moved files are re-pointed. Throttled.
+  const sync = await syncSession(session0 as any, user.email ?? 'sync@coredocs').catch(() => null)
+  const { data: session } = sync && !sync.skipped ? await db.from('prelim_session').select('*').eq('id', id).maybeSingle() : { data: session0 }
   if (!session) redirect('/prelim')
   const { data: docs } = await db.from('prelim_document')
     .select('id, document_number, revision, title, discipline, document_type, source_file_name, source_file_url, working_file_name, cddl_doc_id, markup_comments, markup_layer, markup_committed_at, outcome, outcome_note, outcome_by_email, outcome_at, rework_to_email, handed_over_batch_id, handed_over_at, pulled_by_email, created_at, quality_latest, quality_open, quality_checked_at, quality_source_modified_at, routing, routing_at, routing_to_email, routing_to_name, routing_mailed_at, routing_error, returned_at, returned_from, tender_stamped_file_url, tender_stamp_error')

@@ -6,7 +6,7 @@ import { ArrowLeft, Loader2, Download, Send, Lock, Unlock, ExternalLink, ShieldC
 import FolderBrowser, { type BrowseItem } from '../folder-browser'
 import { fromLabel } from '@/lib/prelim/status'
 
-type Session = { id: string; title: string; area: string | null; held_on: string | null; attendees: string | null; notes: string | null; status: 'open' | 'closed'; source_site_url: string; source_library: string; source_folder: string; created_by_name: string | null; created_by_email: string }
+type Session = { id: string; title: string; area: string | null; held_on: string | null; attendees: string | null; notes: string | null; status: 'open' | 'closed'; source_site_url: string; source_library: string; source_folder: string; created_by_name: string | null; created_by_email: string; last_synced_at?: string | null; last_sync_note?: string | null }
 type Issue = { code: string; severity: 'major' | 'minor'; page: number | null; description: string; fix: string }
 type Doc = { id: string; document_number: string | null; revision: string | null; title: string | null; discipline: string | null; document_type: string | null; source_file_name: string; source_file_url: string; cddl_doc_id: string | null; commentCount: number; unsavedMarks: boolean; markup_committed_at: string | null; outcome: 'pending' | 'ready' | 'rework' | 'withdrawn'; outcome_note: string | null; outcome_by_email: string | null; rework_to_email: string | null; handed_over_batch_id: string | null; handed_over_at: string | null; qualityIssues: Issue[] | null; qualityOverall: 'pass' | 'issues' | null; quality_open: number | null; quality_checked_at: string | null; quality_source_modified_at: string | null; routing: 'drawing_office' | 'document_control' | 'lead' | 'ready_for_tender' | null; routing_at: string | null; routing_to_email: string | null; routing_to_name: string | null; routing_mailed_at: string | null; routing_error: string | null; returned_at: string | null; returned_from: string | null; tender_stamped_file_url: string | null; tender_stamp_error: string | null }
 
@@ -127,6 +127,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
               {[session.area, session.held_on ? new Date(session.held_on).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null, session.attendees ? `in the room: ${session.attendees}` : null].filter(Boolean).join(' · ')}
             </p>
             <p className="text-xs text-slate-400 mt-1 font-mono">{session.source_library}/{session.source_folder || '(library root)'}</p>
+            {session.last_sync_note && <p className="text-[11px] text-slate-400 mt-0.5" title={session.last_sync_note}>Folder synced {session.last_synced_at ? new Date(session.last_synced_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''} — new files in the folder are pulled in on refresh; {session.last_sync_note.replace(/^[^:]+: /, '')}</p>}
           </div>
           <div className="flex gap-2 flex-wrap">
             {open && docs.length > 0 && (

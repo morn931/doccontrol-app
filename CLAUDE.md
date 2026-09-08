@@ -1009,3 +1009,15 @@ quality issues — addressed to Document Control: `PRELIM_DOCUMENT_CONTROL_EMAIL
 `document_control` (056 widens 053's check constraint); status `sent_document_control`; the
 Returns page is titled "Return from Drawing Office / Document Control / Lead Engineer" and
 `fromLabel()` in `lib/prelim/status.ts` is the one place the three desks are named.
+
+### 2026-09-08 (2) — Sessions sync with their COLAB folder on load (migration 057)
+
+Morné: the sessions list must move as the before-tender process moves, and new files landing in
+the BOP folders must appear without anyone pressing Pull. `lib/prelim/sync.ts` `syncSession()` runs
+from the sessions list (every open session) and the session page: walks the session's folder
+tree, pulls anything new through `lib/prelim/pull.ts` (the ONE pull implementation — the Pull
+button and the recursive pull use it too), re-points rows whose file moved within the tree, and
+stamps `prelim_session.last_synced_at` / `last_sync_note` (057). Throttled to one walk per
+session per 90 s, and one in-flight sync per session per instance. A re-saved file is NOT
+refreshed here (the room may have marked the working copy); that stays with the hash-checked
+script. The sessions list now counts by before-tender status (`prelimStatus`), not the room's call.
