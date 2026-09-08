@@ -1052,3 +1052,17 @@ replaced, source re-pointed to the new file, buttons unlocked, `returned_from` =
 sent to, history entry `by: 'folder'`), otherwise it is ignored and counted in the sync note.
 The one-off for IIDX-0001 is `scripts/_fix-iidx-0001.mjs`. Bernice's proper door is still the
 Returns page, but the folder now works too.
+
+### 2026-09-08 (6) — Prelim mail now goes out from a PPE mailbox, not projects@coreflow.build
+
+From ~16:00 every prelim email sent through `lib/coreflow-mail.ts` (projects@coreflow.build) was
+accepted by Graph (202, `routing_mailed_at` set) and never arrived — Bennie, Bernice, Morné
+himself at 16:59 and 17:11 — while a plain test from mornec@ through the PPE tenant app landed
+at once. Likely an outbound-volume restriction on the coreflow.build sender or PPE-side
+quarantine of the external domain; not verifiable from a laptop (the coreflow mail creds are
+Vercel-only and pull empty). `lib/prelim/mail.ts` `sendPrelimMail()` sends via the PPE app's
+Mail.Send as `PRELIM_MAIL_FROM` (default mornec@ppetech.co.za), same branded body, same
+attachment shape; the four prelim routes (routing, returns/complete, outcome, handover) use it.
+The rest of CoreDocs stays on projects@. **Open:** find out WHY projects@ stopped delivering
+(Defender → Restricted entities in the coreflow.build tenant; Quarantine in PPE's) — every
+other Coreflow app still sends through it.

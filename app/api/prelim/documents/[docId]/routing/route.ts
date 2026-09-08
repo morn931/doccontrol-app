@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFileBytesByUrl, uploadBytesBesideItem, deleteDriveItemByUrl } from '@/lib/services/graph'
-import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+import { sendPrelimMail as sendMail, brandedEmail } from '@/lib/prelim/mail'
 import { prelimAuth, isErr, drawingOfficeEmail, documentControlEmail, listPeople, resolveLead, type Person } from '@/lib/prelim'
 import { stampIssuedForTender, tenderCopyName } from '@/lib/prelim/tender-stamp'
 

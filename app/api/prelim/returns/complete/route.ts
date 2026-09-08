@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { deleteDriveItemByUrl } from '@/lib/services/graph'
-import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+import { sendPrelimMail as sendMail, brandedEmail } from '@/lib/prelim/mail'
 import { prelimAuth, isErr } from '@/lib/prelim'
 import { fromLabel } from '@/lib/prelim/status'
 

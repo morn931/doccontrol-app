@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getFileBytesByUrl, uploadBytesToLibrary, resolveDriveItemByUrl, getDriveItemContentBytes } from '@/lib/services/graph'
-import { sendMail, brandedEmail } from '@/lib/coreflow-mail'
+import { sendPrelimMail as sendMail, brandedEmail } from '@/lib/prelim/mail'
 import { splitEmails } from '@/lib/utils/emails'
 import { prelimAuth, isErr } from '@/lib/prelim'
 
