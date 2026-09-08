@@ -95,7 +95,7 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
   }
   for (let from = 0; ; from += 500) {
     let q = db.from('mddr_entries')
-      .select('id, normalized_document_number, weighting_total, progress_source, revision, target_revision')
+      .select('id, normalized_document_number, weighting_total, progress_source, revision, target_revision, linked_document_id, linked_version_id')
       .eq('is_active', true)
       .not('normalized_document_number', 'is', null)
       .order('id', { ascending: true })   // stable order for offset pagination
@@ -118,6 +118,14 @@ export async function syncProgress(db: any, opts: { packageCode?: string } = {})
       //  · 'register'       — set from an uploaded SDDR/CDDL (ABB packages).
       //  · 'rules_of_credit'— hard-coded Rules-of-Credit (Siemens K125 / PPE K124).
       const progressOwnedElsewhere = e.progress_source === 'register' || e.progress_source === 'rules_of_credit'
+      // The link to the reviewed file is NOT progress — always write it on a match so
+      // the document is openable and visible under "With documents produced"
+      // (fix 2026-09-08: register-/rules-owned rows with reviewed files were never
+      // linked, hiding them from Document Search).
+      if (e.linked_version_id !== info.versionId || e.linked_document_id !== info.documentId) {
+        update.linked_document_id = info.documentId
+        update.linked_version_id = info.versionId
+      }
       if (!progressOwnedElsewhere) {
         const outcome = worstCaseOutcome(info.outcomes)
         const prog = computeProgress({ hasSubmission: true, latestOutcome: outcome, latestRevision: info.revision })
