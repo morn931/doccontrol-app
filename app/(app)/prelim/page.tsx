@@ -84,9 +84,16 @@ export default async function PrelimSessionsPage() {
                 </div>
                 <div className="shrink-0 text-right text-xs text-slate-600 tabular-nums">
                   <div><b className="text-slate-900">{s.total}</b> drawings</div>
+                  {/* The high-level read: how far the session is to tender, then only the states that
+                      actually hold drawings — a row of zeros says nothing. */}
+                  <div className="mt-0.5">
+                    <span className="font-semibold text-emerald-700">{s.by.ready_for_tender} of {s.total} ready for tender</span>
+                    {s.total > 0 && <span className="ml-2 inline-block align-middle h-1.5 w-24 rounded bg-slate-100 overflow-hidden"><span className="block h-full bg-emerald-500" style={{ width: `${Math.round((s.by.ready_for_tender / s.total) * 100)}%` }} /></span>}
+                  </div>
                   <div className="text-slate-400 flex flex-wrap justify-end gap-x-2">
-                    {STATUS_ORDER.map((k, i) => <span key={k} className={s.by[k] ? STATUS_TONE[k] : 'text-slate-300'}>{i > 0 ? '· ' : ''}{s.by[k]} {STATUS_LABEL[k].toLowerCase().replace('returned from drawing office / document control / lead', 'returned')}</span>)}
+                    {STATUS_ORDER.filter(k => k !== 'ready_for_tender' && s.by[k] > 0).map((k, i) => <span key={k} className={STATUS_TONE[k]}>{i > 0 ? '· ' : ''}{s.by[k]} {STATUS_LABEL[k].toLowerCase().replace('returned from drawing office / document control / lead', 'returned, awaiting a call')}</span>)}
                     {s.handed > 0 && <span className="text-teal-700">· {s.handed} handed over</span>}
+                    {STATUS_ORDER.every(k => k === 'ready_for_tender' || !s.by[k]) && s.handed === 0 && <span className="text-slate-300">nothing else in progress</span>}
                   </div>
                   {s.last_sync_note && <div className="text-[10px] text-slate-300 mt-0.5" title={s.last_sync_note}>folder synced {new Date(s.last_synced_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>}
                 </div>
