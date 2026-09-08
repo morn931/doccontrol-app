@@ -25,6 +25,9 @@ export default async function AconexReviewPage() {
       const { data, error } = await supabase
         .from('aconex_review_doc')
         .select(cols)
+        // Superseded revisions (older DocumentIds of a re-issued document) stay in the
+        // table for history but are not "documents in someone's court".
+        .neq('court', 'SUPERSEDED')
         .order('court', { ascending: true })
         .order('days_in_court', { ascending: false })
         .range(from, from + 999)

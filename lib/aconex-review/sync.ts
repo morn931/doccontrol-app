@@ -177,6 +177,7 @@ export type PackageResult = {
   refreshed: number         // metadata rows written (new + changed + stale)
   notInPackage: number      // search over-matches dropped after metadata
   missingFromAconex: number // rows we hold that the search no longer lists
+  superseded: number        // of those, newly marked SUPERSEDED this run
   cddlMatched: number | null
   cddlError: string | null
   stoppedEarly: boolean
@@ -198,7 +199,7 @@ export async function runAconexReviewSync(db: any, opts: Opts): Promise<SyncResu
   const ranAt = new Date().toISOString()
   const dryRun = !!opts.dryRun
   const msLeft = () => opts.budgetMs - (Date.now() - startedAt)
-  const stalePerRun = opts.stalePerRun ?? 600
+  const stalePerRun = opts.stalePerRun ?? 1000   // ~100s per package at 40/call; both packages re-read fully in ~5 nights
   const pkgs = (opts.packages && opts.packages.length ? opts.packages : [...TRACKED_PACKAGES])
     .map(p => p.toUpperCase())
   const results: PackageResult[] = []
@@ -206,7 +207,7 @@ export async function runAconexReviewSync(db: any, opts: Opts): Promise<SyncResu
   for (const pkg of pkgs) {
     const r: PackageResult = {
       package: pkg, listed: 0, inPackage: 0, newDocs: 0, changed: 0, staleRefreshed: 0, refreshed: 0,
-      notInPackage: 0, missingFromAconex: 0, cddlMatched: null, cddlError: null, stoppedEarly: false, error: null,
+      notInPackage: 0, missingFromAconex: 0, superseded: 0, cddlMatched: null, cddlError: null, stoppedEarly: false, error: null,
     }
     results.push(r)
     try {
@@ -227,11 +228,11 @@ export async function runAconexReviewSync(db: any, opts: Opts): Promise<SyncResu
       const fullyListed = !r.stoppedEarly
 
       // 2. what we already hold for this package
-      type Held = { doc_id: string; revision: string | null; date_modified: string | null; synced_at: string | null; doc_owner: string | null; cddl_due: string | null; cddl_pct: number | null; docno: string }
+      type Held = { doc_id: string; revision: string | null; date_modified: string | null; synced_at: string | null; doc_owner: string | null; cddl_due: string | null; cddl_pct: number | null; docno: string; court: string | null }
       const held = new Map<string, Held>()
       for (let from = 0; ; from += 1000) {
         const { data, error } = await db.from('aconex_review_doc')
-          .select('doc_id,revision,date_modified,synced_at,doc_owner,cddl_due,cddl_pct,docno')
+          .select('doc_id,revision,date_modified,synced_at,doc_owner,cddl_due,cddl_pct,docno,court')
           .eq('project_id', RDMC_PROJECT_ID).eq('package_code', pkg)
           .order('doc_id', { ascending: true }).range(from, from + 999)
         if (error) throw new Error(`aconex_review_doc read: ${error.message}`)
@@ -254,7 +255,32 @@ export async function runAconexReviewSync(db: any, opts: Opts): Promise<SyncResu
         .sort((a, b) => (a.synced_at ?? '').localeCompare(b.synced_at ?? ''))
         .slice(0, stalePerRun)
         .map(h => h.doc_id)
-      if (fullyListed) r.missingFromAconex = [...held.keys()].filter(id => !listed.has(id)).length
+      if (fullyListed) {
+        // Aconex issues a NEW DocumentId for every revision, so a row whose id the full
+        // register listing no longer returns is a superseded revision (or a removed
+        // document). Left untouched, those rows stack up on the board — 1,327 document
+        // numbers carried 2+ rows by 2026-09-08, e.g. CTMP-0015 as both "Rev -" and
+        // "Rev A". Never deleted (history is the point of the mirror); marked so the
+        // board can leave them out. Only decided on a COMPLETE listing — a partial one
+        // proves nothing.
+        const missing = [...held.values()].filter(h => !listed.has(h.doc_id))
+        r.missingFromAconex = missing.length
+        const toMark = missing.filter(h => h.court !== 'SUPERSEDED')
+        const marks = toMark.map(h => ({
+          project_id: RDMC_PROJECT_ID, package_code: pkg, doc_id: h.doc_id, docno: h.docno,
+          court: 'SUPERSEDED', court_label: 'Superseded revision',
+          court_basis: `No longer listed in the Aconex register for ${pkg} on ${ranAt.slice(0, 10)} — a newer revision carries its own DocumentId, or the document was removed.`,
+          overdue: false,
+        }))
+        if (!dryRun) {
+          for (let i = 0; i < marks.length; i += 500) {
+            const { error } = await db.from('aconex_review_doc').upsert(marks.slice(i, i + 500), { onConflict: 'project_id,doc_id' })
+            if (error) throw new Error(`superseded upsert: ${error.message}`)
+          }
+        }
+        for (const h of toMark) h.court = 'SUPERSEDED'
+        r.superseded = toMark.length
+      }
 
       // 4. metadata → court → upsert, 40 per call, until the clock says stop
       const queue = [...toFetch, ...stale]
@@ -293,6 +319,7 @@ export async function runAconexReviewSync(db: any, opts: Opts): Promise<SyncResu
             doc_id: String(row.doc_id), revision: String(row.revision ?? ''), date_modified: (row.date_modified as string) ?? null,
             synced_at: row.synced_at as string, doc_owner: (row.doc_owner as string) ?? null,
             cddl_due: (row.cddl_due as string) ?? null, cddl_pct: (row.cddl_pct as number) ?? null, docno: String(row.docno),
+            court: String(row.court),
           })
         }
         r.refreshed += rows.length
@@ -328,11 +355,12 @@ export async function runAconexReviewSync(db: any, opts: Opts): Promise<SyncResu
         r.cddlError = 'skipped — no budget left'
       }
 
-      r.inPackage = held.size
+      r.inPackage = [...held.values()].filter(h => h.court !== 'SUPERSEDED').length
 
       // 6. the run record the tracker page reads for "Last synced"
       if (!dryRun) {
         const note = `vercel cron: listed ${r.listed}, new ${r.newDocs}, changed ${r.changed}, stale re-read ${r.staleRefreshed}` +
+          (r.superseded ? `, superseded ${r.superseded}` : '') +
           (r.cddlMatched != null ? `, cddl ${r.cddlMatched}` : '') +
           (r.cddlError ? ` (cddl: ${r.cddlError.slice(0, 80)})` : '') +
           (r.stoppedEarly ? ' — stopped on the clock' : '')
