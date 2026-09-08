@@ -73,7 +73,9 @@ function stampPage(page: PDFPage, bold: PDFFont, reg: PDFFont, dateText: string)
   const [ax, ay] = place(vx0, vy0), [bx, by] = place(vx0 + bw, vy0 + bh)
   page.drawRectangle({
     x: Math.min(ax, bx), y: Math.min(ay, by), width: Math.abs(bx - ax), height: Math.abs(by - ay),
-    color: WHITE, borderColor: RED, borderWidth: border, opacity: 0.94,
+    // white fill at 47% (Morné, 8 Sep: half as opaque as before) so what is under the stamp
+    // stays readable; the red border and the red text stay fully opaque
+    color: WHITE, borderColor: RED, borderWidth: border, opacity: 0.47, borderOpacity: 1,
   })
   // text lines, centred in the box; each drawn at its baseline, rotated with the page
   const rotate = degrees(rot)
