@@ -82,7 +82,9 @@ export default async function AconexReviewPage() {
           <div className="text-xs text-slate-400 text-right">
             <div>Last synced</div>
             <div className="font-medium text-slate-600">
-              {new Date(sync.ran_at).toLocaleString('en-ZA')}
+              {/* Server-rendered on Vercel (UTC) — pin to Central Africa Time so the
+                  wall-clock reads right in the office instead of two hours behind. */}
+              {new Date(sync.ran_at).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} CAT
             </div>
           </div>
         )}
