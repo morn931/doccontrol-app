@@ -10,6 +10,7 @@
 // working copies with a hash check when asked. Errors are recorded on the session, never
 // thrown into the page.
 import { createServiceClient } from '@/lib/supabase/server'
+import { deleteDriveItemByUrl } from '@/lib/services/graph'
 import { listFolderTree, pullFilesIntoSession, type PullSession } from './pull'
 
 export const SYNC_EVERY_MS = 90 * 1000
@@ -27,7 +28,7 @@ export async function syncSession(session: PullSession & { last_synced_at?: stri
     const db = createServiceClient()
     try {
       const files = await listFolderTree(session, session.source_folder)
-      const { data: docs } = await db.from('prelim_document').select('id, source_file_url, source_file_name').eq('session_id', session.id)
+      const { data: docs } = await db.from('prelim_document').select('id, source_file_url, source_file_name, working_file_url, routing, returned_at, markup_committed_at, markup_layer, markup_comments, outcome, tender_stamped_file_url').eq('session_id', session.id)
       const known = new Set((docs ?? []).map((d: any) => d.source_file_url))
       const inTree = new Set(files.map(f => f.webUrl))
       const byName = new Map<string, typeof files>()
@@ -42,11 +43,25 @@ export async function syncSession(session: PullSession & { last_synced_at?: stri
           known.add(hits[0].webUrl); repointed++
         }
       }
+      // a file taken OUT of the tender tree leaves the session — but only while nobody has
+      // worked on it (Morné, 8 Sep: the sessions look at the tender tree and nothing else).
+      // A drawing the room marked, called or had returned stays, and the note says so.
+      let dropped = 0, orphaned = 0
+      for (const d of (docs ?? []) as any[]) {
+        if (inTree.has(d.source_file_url)) continue
+        const byNameHits = byName.get(String(d.source_file_name).toLowerCase()) ?? []
+        if (byNameHits.length) continue   // re-pointed above, or ambiguous — leave it
+        const touched = d.routing || d.returned_at || d.markup_committed_at || (d.markup_layer && Object.keys(d.markup_layer).length) || (Array.isArray(d.markup_comments) && d.markup_comments.length) || (d.outcome && d.outcome !== 'pending') || d.tender_stamped_file_url
+        if (touched) { orphaned++; continue }
+        await db.from('prelim_quality_run').delete().eq('prelim_document_id', d.id)
+        const { error } = await db.from('prelim_document').delete().eq('id', d.id)
+        if (!error) { dropped++; deleteDriveItemByUrl(d.working_file_url).catch(() => null) }
+      }
       // pull what is new
       const fresh = files.filter(f => !known.has(f.webUrl))
       const results = fresh.length ? await pullFilesIntoSession(session, fresh, byEmail) : []
       const pulled = results.filter(r => r.ok && !r.skipped).length, failed = results.filter(r => !r.ok).length
-      const note = `${new Date().toISOString().slice(0, 16)}Z: ${files.length} in folder · pulled ${pulled} · re-pointed ${repointed}${failed ? ` · failed ${failed}: ${results.filter(r => !r.ok).slice(0, 3).map(r => `${r.name} (${r.error})`).join('; ')}` : ''}`
+      const note = `${new Date().toISOString().slice(0, 16)}Z: ${files.length} in folder · pulled ${pulled} · re-pointed ${repointed}${dropped ? ` · ${dropped} left the folder and were removed` : ''}${orphaned ? ` · ${orphaned} left the folder but had been worked on, kept` : ''}${failed ? ` · failed ${failed}: ${results.filter(r => !r.ok).slice(0, 3).map(r => `${r.name} (${r.error})`).join('; ')}` : ''}`
       await db.from('prelim_session').update({ last_synced_at: new Date().toISOString(), last_sync_note: note }).eq('id', session.id)
       return { pulled, repointed, failed, skipped: false }
     } catch (e: any) {
