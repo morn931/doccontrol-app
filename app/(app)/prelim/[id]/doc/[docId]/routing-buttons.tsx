@@ -11,7 +11,7 @@ const LABEL: Record<Routing, string> = { drawing_office: 'To drawing office', le
 
 // The three calls a reviewer makes on a drawing in the tender push — see migration 053.
 // One call per drawing: after it is made, the chosen one stays lit and all three lock.
-export default function RoutingButtons({ docId, routing, routingTo, routingToEmail, routingAt, routingBy, mailedAt, attached, error, open, canManage, tenderCopyUrl, tenderCopyName, tenderStampError }: {
+export default function RoutingButtons({ docId, routing, routingTo, routingToEmail, routingAt, routingBy, mailedAt, attached, error, open, canManage, tenderCopyUrl, tenderCopyName, tenderStampError, beforeSend }: {
   docId: string; routing: Routing | null; routingTo: string | null; routingToEmail: string | null; routingAt: string | null; routingBy: string | null
   mailedAt: string | null; attached: boolean | null; error: string | null; open: boolean; canManage: boolean
   tenderCopyUrl?: string | null; tenderCopyName?: string | null; tenderStampError?: string | null
@@ -29,9 +29,20 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
   const locked = !!routing || !open
 
   async function send(action: Routing, toEmail?: string) {
+    if (action === 'lead' && !toEmail) {
+      // Always choose the lead first. The CDDL's responsible person, where it resolves, is
+      // preselected; nothing is sent until the person confirms in the picker.
+      setBusy(action); setErr(''); setMsg('')
+      try {
+        const res = await fetch(`/api/prelim/documents/${docId}/routing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'lead', suggestOnly: true }) })
+        const d = await res.json()
+        if (!res.ok) { setErr(d.error ?? 'Could not look up the lead.'); return }
+        setPick({ reason: d.reason, owner: d.owner, candidates: d.candidates ?? [], people: d.people ?? [] }); setChosen(d.suggested ?? d.candidates?.[0]?.email ?? '')
+      } catch (e: any) { setErr(e.message) } finally { setBusy(null) }
+      return
+    }
     if (!toEmail) {
       const ask = action === 'drawing_office' ? 'Send this marked-up drawing to the drawing office?'
-                : action === 'lead' ? 'Send this marked-up drawing to its PPE responsible person?'
                 : 'Mark this drawing ready for tender? A copy stamped "ISSUED FOR TENDER ONLY" on every page is filed beside the source in COLAB. No mail is sent.'
       if (!confirm(ask)) return
     }
@@ -102,12 +113,12 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
       {pick && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPick(null)}>
           <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl space-y-3" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-900">Who is the lead for this drawing?</h3>
+            <h3 className="font-semibold text-slate-900">Send to which lead?</h3>
             <p className="text-sm text-slate-600">{pick.reason}</p>
             <label className="block text-xs font-medium text-slate-600">Choose a person
               <select className="input mt-1" value={chosen} onChange={e => { setChosen(e.target.value); setFree('') }}>
                 <option value="">—</option>
-                {pick.candidates.length > 0 && <optgroup label="Named on the CDDL">{pick.candidates.map(p => <option key={p.email} value={p.email}>{p.name} — {p.email}</option>)}</optgroup>}
+                {pick.candidates.length > 0 && <optgroup label="Suggested from the CDDL">{pick.candidates.map(p => <option key={p.email} value={p.email}>{p.name} — {p.email}</option>)}</optgroup>}
                 <optgroup label="Everyone in CoreDocs">{pick.people.filter(p => !pick.candidates.some(c => c.email === p.email)).map(p => <option key={p.email} value={p.email}>{p.name} — {p.email}</option>)}</optgroup>
               </select>
             </label>

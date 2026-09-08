@@ -85,6 +85,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
       if (d.cddl_doc_id) { const { data: c } = await db.from('cddl_doc').select('doc_owner').eq('id', d.cddl_doc_id).maybeSingle(); owner = (c as any)?.doc_owner ?? null }
       else if (d.document_number) { const { data: c } = await db.from('cddl_doc').select('doc_owner').ilike('docno', d.document_number).limit(1).maybeSingle(); owner = (c as any)?.doc_owner ?? null }
       const { resolved, candidates } = resolveLead(owner, people)
+      if (body?.suggestOnly === true) {
+        // The picker always opens first (Morné, 7 Sep): hand back the suggestion and the roster.
+        return NextResponse.json({
+          needLead: true, suggested: resolved?.email ?? null, owner,
+          reason: resolved ? `The CDDL names ${resolved.name} as the responsible person — confirm, or choose someone else.`
+                : !owner ? (d.cddl_doc_id || d.document_number ? 'The CDDL has no responsible person on this document — choose who it goes to.' : 'This drawing is not on the CDDL — choose who it goes to.')
+                : candidates.length ? `The CDDL names "${owner}" — more than one person, or initials only. Choose who it goes to.` : `The CDDL names "${owner}", who has no CoreDocs account. Choose who it goes to.`,
+          candidates: resolved ? [resolved, ...candidates.filter(c => c.email !== resolved.email)] : candidates, people,
+        })
+      }
       if (!resolved) {
         return NextResponse.json({
           needLead: true,
