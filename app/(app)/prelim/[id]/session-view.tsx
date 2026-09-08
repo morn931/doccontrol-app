@@ -36,18 +36,22 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
   const [showPull, setShowPull] = useState(docs.length === 0)
   // Quality check: one request per drawing, run in sequence with a live count, so a session
   // of thirty never sits behind a single long request and a failure on one is one line.
-  const [qc, setQc] = useState<{ running: boolean; done: number; total: number; failed: string[] }>({ running: false, done: 0, total: 0, failed: [] })
+  const [qc, setQc] = useState<{ running: boolean; done: number; total: number; failed: string[]; skipped: number }>({ running: false, done: 0, total: 0, failed: [], skipped: 0 })
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [openOnly, setOpenOnly] = useState(true)
   const [qualityOpen, setQualityOpen] = useState(false)
 
-  async function checkQuality(targets: Doc[]) {
+  // force = re-read even if already checked and unchanged (the per-row Re-check). The session
+  // button leaves force off, so it only reads drawings never checked or re-saved since.
+  async function checkQuality(targets: Doc[], force = false) {
     if (!targets.length) return
-    setQc({ running: true, done: 0, total: targets.length, failed: [] }); setErr('')
+    setQc({ running: true, done: 0, total: targets.length, failed: [], skipped: 0 }); setErr('')
     const failed: string[] = []
+    let skipped = 0
     for (const d of targets) {
       try {
-        const res = await fetch(`/api/prelim/documents/${d.id}/quality`, { method: 'POST' })
+        const res = await fetch(`/api/prelim/documents/${d.id}/quality${force ? '?force=1' : ''}`, { method: 'POST' })
+        if (res.ok) { const j = await res.clone().json().catch(() => ({})); if (j?.skipped) { skipped++; setQc(s => ({ ...s, skipped })) } }
         if (!res.ok) { const j = await res.json().catch(() => ({})); failed.push(`${d.document_number ?? d.source_file_name}: ${j.error ?? res.status}`) }
       } catch (e: any) { failed.push(`${d.document_number ?? d.source_file_name}: ${e.message}`) }
       setQc(s => ({ ...s, done: s.done + 1, failed }))
@@ -131,8 +135,8 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
           </div>
           <div className="flex gap-2 flex-wrap">
             {open && docs.length > 0 && (
-              <button onClick={() => checkQuality(docs.filter(d => !d.handed_over_batch_id))} disabled={qc.running} className="btn-primary text-xs" title="Read every drawing's SOURCE file in COLAB and list the quality defects to fix before internal review">
-                {qc.running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />} {qc.running ? `Checking ${qc.done} of ${qc.total}…` : 'Check quality'}
+              <button onClick={() => checkQuality(docs.filter(d => !d.handed_over_batch_id))} disabled={qc.running} className="btn-primary text-xs" title="Read the SOURCE file in COLAB of every drawing not yet checked, or saved since its last check. Already-checked, unchanged drawings are skipped — use Re-check on a row to force one.">
+                {qc.running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />} {qc.running ? `Checking ${qc.done} of ${qc.total}…${qc.skipped ? ` (${qc.skipped} unchanged, skipped)` : ''}` : 'Check quality'}
               </button>
             )}
             {canManage && open && <button onClick={() => setShowPull(v => !v)} className="btn-secondary text-xs"><Download className="h-3.5 w-3.5" /> {showPull ? 'Hide folder' : 'Pull drawings'}</button>}
@@ -149,6 +153,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
         </div>
         {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
         {qc.failed.length > 0 && !qc.running && <p className="mt-2 text-xs text-amber-700">Could not check {qc.failed.length}: {qc.failed.join(' · ')}</p>}
+        {!qc.running && qc.total > 0 && <p className="mt-2 text-xs text-slate-500">Last run: {qc.total - qc.skipped - qc.failed.length} read · {qc.skipped} already checked and unchanged, skipped{qc.failed.length ? ` · ${qc.failed.length} failed` : ''}.</p>}
       </div>
 
       {/* ── Quality issues — the helper's job list ─────────────────────────────── */}
@@ -185,7 +190,7 @@ export default function SessionView({ session, docs, canManage }: { session: Ses
                       </div>
                       <div className="text-xs text-slate-500 truncate">{d.title} · checked {d.quality_checked_at ? new Date(d.quality_checked_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}{d.quality_source_modified_at ? ` · source saved ${new Date(d.quality_source_modified_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}</div>
                     </div>
-                    <button onClick={() => checkQuality([d])} disabled={qc.running || !open} className="btn-secondary text-xs py-1 px-2.5">Re-check</button>
+                    <button onClick={() => checkQuality([d], true)} disabled={qc.running || !open} title="Read this drawing's source again even if it has not changed" className="btn-secondary text-xs py-1 px-2.5">Re-check</button>
                   </div>
                   {isOpen && n > 0 && (
                     <ol className="mx-6 mb-3 ml-12 space-y-1.5 text-sm">

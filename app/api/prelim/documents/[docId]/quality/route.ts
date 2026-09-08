@@ -10,12 +10,16 @@ export const maxDuration = 120
 // The session page calls this per document with a progress count, so a session of thirty
 // never sits behind one long request. Every run is kept (prelim_quality_run) and the latest
 // is written onto the document for the table.
-export async function POST(_req: Request, { params }: { params: Promise<{ docId: string }> }) {
+// ?force=1 re-reads a drawing that is already checked and unchanged (the per-row Re-check);
+// without it, such a drawing is skipped — so "Check quality" over a session only spends reads
+// on drawings never checked or re-saved since (Morné, 8 Sep).
+export async function POST(req: Request, { params }: { params: Promise<{ docId: string }> }) {
+  const force = new URL(req.url).searchParams.get('force') === '1'
   const auth = await prelimAuth('view'); if (isErr(auth)) return auth
   const { docId } = await params
   const db = createServiceClient()
   const { data: doc } = await db.from('prelim_document')
-    .select('id, document_number, revision, title, discipline, document_type, source_file_name, source_file_url, cddl_doc_id, prelim_session!inner(status)')
+    .select('id, document_number, revision, title, discipline, document_type, source_file_name, source_file_url, cddl_doc_id, quality_checked_at, quality_source_modified_at, quality_open, prelim_session!inner(status)')
     .eq('id', docId).maybeSingle()
   const d = doc as any
   if (!d) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -40,6 +44,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ docId:
     name = item.name
     const meta = await graphFetch(`/drives/${item.driveId}/items/${item.id}?$select=lastModifiedDateTime`)
     if (meta.ok) modified = (await meta.json()).lastModifiedDateTime ?? null
+    if (!force && d.quality_checked_at && d.quality_source_modified_at && modified && new Date(modified) <= new Date(d.quality_source_modified_at)) {
+      return NextResponse.json({ skipped: true, open: d.quality_open ?? 0, checked_at: d.quality_checked_at, reason: 'already checked and the source has not been saved since' })
+    }
     const isPdf = /\.pdf$/i.test(item.name)
     converted = !isPdf
     bytes = await getDriveItemContentBytes(item.driveId, item.id, isPdf ? undefined : 'pdf')
