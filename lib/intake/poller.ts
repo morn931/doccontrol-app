@@ -124,6 +124,11 @@ async function ingestBatch(db: any, site: any, files: any[], summary: PollSummar
       revision,
       revision_sort: (parsed as any).revisionSort ?? revision,
       source_site_url: site.site_url ?? null,
+      // Drop-off-relative path of the ingested file, in the shape moveFileToRejectedFolder
+      // expects on reject: "<DropOffLibrary>/<file.pdf>". The poller lists the drop-off
+      // library root (listDropoffPdfs → root/children), so the file sits at the library root.
+      // Without this, a later reject has no path to move and the file is silently left behind.
+      source_file_url: site.dropoff_library ? `${site.dropoff_library}/${f.name}` : null,
       central_file_url: centralUrl,
       doc_unique_id: f.id,
       storage_provider: 'sharepoint',

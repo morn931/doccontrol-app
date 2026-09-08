@@ -274,39 +274,85 @@ export async function moveFileToRejectedFolder(
     }
 
     if (!src || !driveId) return { ok: true, status: 'already_gone' }   // not in any drop-off library
-    if (String(src.parentReference?.path ?? '').endsWith('/' + rejectedFolder)) return { ok: true, status: 'already_moved' }
+    return await relocateToRejectedFolder(driveId, src, rejectedFolder)
+  } catch (e: any) {
+    return { ok: false, status: 'error', detail: e?.message ?? String(e) }
+  }
+}
 
-    // 2 — ensure the Rejected Files folder exists in this drive's root (get-or-create)
-    let folderId: string | null = null
-    const g = await graphFetch(`/drives/${driveId}/root:/${encodeURIComponent(rejectedFolder)}?$select=id`)
-    if (g.ok) folderId = (await g.json()).id
-    else {
-      const mk = await graphFetch(`/drives/${driveId}/root/children`, {
-        method: 'POST',
-        body: JSON.stringify({ name: rejectedFolder, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
-      })
-      if (mk.ok) folderId = (await mk.json()).id
-      else {
-        const g2 = await graphFetch(`/drives/${driveId}/root:/${encodeURIComponent(rejectedFolder)}?$select=id`)
-        if (g2.ok) folderId = (await g2.json()).id
-      }
-    }
-    if (!folderId) return { ok: false, status: 'error', detail: 'could not create/find the Rejected Files folder' }
+/** Move an already-resolved source driveItem into its drive's "Rejected Files" folder
+ *  (get-or-create), suffixing the name on a clash. Idempotent: an item already in that
+ *  folder is 'already_moved'. Shared by the path-based and name-based reject moves so the
+ *  folder handling lives in ONE place. */
+async function relocateToRejectedFolder(
+  driveId: string, src: any, rejectedFolder: string,
+): Promise<MoveResult> {
+  if (String(src.parentReference?.path ?? '').endsWith('/' + rejectedFolder)) return { ok: true, status: 'already_moved' }
 
-    // 3 — same-drive move; on a name clash in the folder, suffix the name
-    const move = (name?: string) => graphFetch(`/drives/${driveId}/items/${src.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ parentReference: { id: folderId }, ...(name ? { name } : {}) }),
+  // ensure the Rejected Files folder exists in this drive's root (get-or-create)
+  let folderId: string | null = null
+  const g = await graphFetch(`/drives/${driveId}/root:/${encodeURIComponent(rejectedFolder)}?$select=id`)
+  if (g.ok) folderId = (await g.json()).id
+  else {
+    const mk = await graphFetch(`/drives/${driveId}/root/children`, {
+      method: 'POST',
+      body: JSON.stringify({ name: rejectedFolder, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
     })
-    let mv = await move()
-    if (mv.status === 409) {
-      const dot = String(src.name).lastIndexOf('.')
-      const base = dot > 0 ? src.name.slice(0, dot) : src.name
-      const ext = dot > 0 ? src.name.slice(dot) : ''
-      mv = await move(`${base} (rejected ${Date.now()})${ext}`)
+    if (mk.ok) folderId = (await mk.json()).id
+    else {
+      const g2 = await graphFetch(`/drives/${driveId}/root:/${encodeURIComponent(rejectedFolder)}?$select=id`)
+      if (g2.ok) folderId = (await g2.json()).id
     }
-    if (mv.ok) return { ok: true, status: 'moved' }
-    return { ok: false, status: 'error', detail: `move: ${mv.status} ${(await mv.text()).slice(0, 200)}` }
+  }
+  if (!folderId) return { ok: false, status: 'error', detail: 'could not create/find the Rejected Files folder' }
+
+  // same-drive move; on a name clash in the folder, suffix the name
+  const move = (name?: string) => graphFetch(`/drives/${driveId}/items/${src.id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ parentReference: { id: folderId }, ...(name ? { name } : {}) }),
+  })
+  let mv = await move()
+  if (mv.status === 409) {
+    const dot = String(src.name).lastIndexOf('.')
+    const base = dot > 0 ? src.name.slice(0, dot) : src.name
+    const ext = dot > 0 ? src.name.slice(dot) : ''
+    mv = await move(`${base} (rejected ${Date.now()})${ext}`)
+  }
+  if (mv.ok) return { ok: true, status: 'moved' }
+  return { ok: false, status: 'error', detail: `move: ${mv.status} ${(await mv.text()).slice(0, 200)}` }
+}
+
+/** Fallback for rows ingested without a source_file_url path (the in-app poller records
+ *  source_site_url but historically not the file's path): locate the vendor's rejected file
+ *  BY NAME in the site's drop-off libraries and move it into that library's "Rejected Files"
+ *  folder. Idempotent and HONEST — it reports success ONLY when the file was actually moved,
+ *  is already in a Rejected Files folder, or is genuinely absent from every drop-off library.
+ *  It checks each drop-off library's ROOT (where vendors drop, and where the poller reads),
+ *  mirroring moveFileToRejectedFolder's own resolution. */
+export async function moveFileToRejectedFolderByName(
+  siteUrl: string, fileName: string, rejectedFolder = 'Rejected Files',
+): Promise<MoveResult> {
+  try {
+    if (!fileName) return { ok: false, status: 'error', detail: 'no file name to locate' }
+    const siteId = await getSiteId(siteUrl)
+    const drRes = await graphFetch(`/sites/${siteId}/drives`)
+    const drives: any[] = drRes.ok ? ((await drRes.json()).value ?? []) : []
+    const isDropOff = (n: string) => /^from\b/i.test(n) || /drop/i.test(n)
+    const encName = encodeURIComponent(fileName)
+    const encRejected = encodeURIComponent(rejectedFolder)
+
+    let alreadyMoved = false
+    for (const d of drives) {
+      if (!isDropOff(d.name ?? '')) continue
+      // (a) still sitting in the drop-off root — move it
+      const rootHit = await graphFetch(`/drives/${d.id}/root:/${encName}?$select=id,name,parentReference`)
+      if (rootHit.ok) return await relocateToRejectedFolder(d.id, await rootHit.json(), rejectedFolder)
+      // (b) already in this library's Rejected Files folder — a prior move (or a manual one)
+      const rejHit = await graphFetch(`/drives/${d.id}/root:/${encRejected}/${encName}?$select=id`)
+      if (rejHit.ok) alreadyMoved = true
+    }
+    if (alreadyMoved) return { ok: true, status: 'already_moved' }
+    return { ok: true, status: 'already_gone' }   // not present in any drop-off library
   } catch (e: any) {
     return { ok: false, status: 'error', detail: e?.message ?? String(e) }
   }

@@ -28,7 +28,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
-import { sendEmail, deleteDriveItemByUrl, moveFileToRejectedFolder } from '@/lib/services/graph'
+import { sendEmail, deleteDriveItemByUrl, moveFileToRejectedFolder, moveFileToRejectedFolderByName } from '@/lib/services/graph'
 import { closeApproverPicksRow } from '@/lib/services/sharepoint-lists'
 import { batchRejectedEmail } from '@/lib/services/email-templates'
 import { logActivity } from '@/lib/activity'
@@ -111,7 +111,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!vendorEmail) warnings.push('No vendor email entered, on the batch, or on the package vendor — enter one to notify the vendor.')
   else if (vendorEmailFromFallback) warnings.push(`Batch has no vendor email — using the package vendor contact (${vendorEmail}).`)
   if (bucketFiles.length === 0) warnings.push('No PPE bucket file URLs recorded for the selected documents — nothing to delete from the approval library.')
-  if (vendorFiles.length === 0) warnings.push('No vendor source-file references recorded — the FROM VENDOR copy cannot be auto-moved to Rejected Files; the vendor must move/remove it before re-uploading.')
+  // Documents that carry a site + file name but no stored drop-off path — the move falls back
+  // to locating them by name in the drop-off library.
+  const byNameFallback = targetDocs.filter(d => d.source_site_url && !d.source_file_url && d.file_name)
+  if (vendorFiles.length === 0 && byNameFallback.length === 0)
+    warnings.push('No vendor source references recorded — the drop-off copy cannot be auto-moved to Rejected Files; the vendor must move/remove it before re-uploading.')
+  else if (byNameFallback.length > 0)
+    warnings.push(`${byNameFallback.length} document(s) have no stored drop-off path — they will be located by file name in the drop-off library and moved if found (and only marked moved if they actually were).`)
   if (wholeBatch && !b.sp_approver_picks_id) warnings.push('No stored Approver Picks row id — it will be located by batch GUID, or skipped if this was a new-app-only batch.')
 
   const manifest = {
@@ -177,10 +183,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     let sDone = !!d.reject_source_deleted
     if (!sDone) {
-      if (!(d.source_site_url && d.source_file_url)) sDone = true
-      else {
+      if (!d.source_site_url) {
+        // No vendor drop-off site recorded at all (e.g. an internal-engineering document) —
+        // there was never a vendor copy to move, so this is genuinely nothing-to-do.
+        sDone = true
+      } else if (d.source_file_url) {
+        // Path known — move the exact item intake recorded.
         const r = await moveFileToRejectedFolder(d.source_site_url, d.source_file_url)
         if (r.ok) sDone = true; else dErrs.push(`vendor: ${r.detail}`)
+      } else if (d.file_name) {
+        // Path missing (some poller-ingested rows) but we know the site + file name —
+        // locate the file BY NAME in the drop-off library and move it. Success only when it
+        // was actually moved / is already in Rejected Files / is genuinely absent — NEVER
+        // merely because the path field was empty.
+        const r = await moveFileToRejectedFolderByName(d.source_site_url, d.file_name)
+        if (r.ok) sDone = true; else dErrs.push(`vendor: ${r.detail}`)
+      } else {
+        // No path and no file name — the file cannot be located; leave it un-done so a
+        // controller can see it and retry rather than being told it moved.
+        dErrs.push('vendor: no source file path or file name recorded — the drop-off copy could not be located to move')
       }
     }
 
