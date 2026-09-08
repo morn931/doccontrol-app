@@ -168,11 +168,11 @@ export async function resolveDriveItemByUrl(fileUrl: string): Promise<{ id: stri
  *  files too big to pipe through a Vercel function response (~4.5MB cap). */
 export async function getDriveItemMetaByUrl(
   fileUrl: string,
-): Promise<{ size?: number; downloadUrl?: string } | null> {
+): Promise<{ size?: number; downloadUrl?: string; lastModifiedDateTime?: string } | null> {
   const res = await graphFetch(`/shares/${shareId(fileUrl)}/driveItem`)
   if (!res.ok) return null
   const j = await res.json()
-  return { size: typeof j.size === 'number' ? j.size : undefined, downloadUrl: j['@microsoft.graph.downloadUrl'] }
+  return { size: typeof j.size === 'number' ? j.size : undefined, downloadUrl: j['@microsoft.graph.downloadUrl'], lastModifiedDateTime: j.lastModifiedDateTime }
 }
 
 /** Result of a delete attempt. Idempotent by design: a file that is already gone is a

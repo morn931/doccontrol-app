@@ -1041,3 +1041,14 @@ revision table at bottom left (PPE frame: rows are empty on a tender issue), sli
 everything else keeps top right. Trialled on A3, A1 and a /Rotate 270 sheet before shipping.
 `scripts/prelim-restamp.mjs --write` re-made every existing stamped copy in place, keeping each
 copy's original stamp date.
+
+### 2026-09-08 (5) — One row per document number per session
+
+Bernice saved her corrected `…IIDX-0001_A.pdf` BESIDE the original `…IIDX-0001.pdf` in the COLAB
+tender folder; the sync pulled it as a second drawing and the Returns picker offered the number
+twice. `syncSession()` now treats a file whose number the session already holds as the SAME
+drawing: if it is newer than the row's last pull/return it is applied as a return (working copy
+replaced, source re-pointed to the new file, buttons unlocked, `returned_from` = the desk it was
+sent to, history entry `by: 'folder'`), otherwise it is ignored and counted in the sync note.
+The one-off for IIDX-0001 is `scripts/_fix-iidx-0001.mjs`. Bernice's proper door is still the
+Returns page, but the folder now works too.

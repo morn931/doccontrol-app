@@ -10,7 +10,8 @@
 // working copies with a hash check when asked. Errors are recorded on the session, never
 // thrown into the page.
 import { createServiceClient } from '@/lib/supabase/server'
-import { deleteDriveItemByUrl } from '@/lib/services/graph'
+import { deleteDriveItemByUrl, getDriveItemMetaByUrl, getFileBytesByUrl, getDriveItemContentBytes, resolveDriveItemByUrl, putFileBytesResumable } from '@/lib/services/graph'
+import { parseDocumentFileName } from '@/lib/utils/document-number-parser'
 import { listFolderTree, pullFilesIntoSession, type PullSession } from './pull'
 
 export const SYNC_EVERY_MS = 90 * 1000
@@ -28,7 +29,7 @@ export async function syncSession(session: PullSession & { last_synced_at?: stri
     const db = createServiceClient()
     try {
       const files = await listFolderTree(session, session.source_folder)
-      const { data: docs } = await db.from('prelim_document').select('id, source_file_url, source_file_name, working_file_url, routing, returned_at, markup_committed_at, markup_layer, markup_comments, outcome, tender_stamped_file_url').eq('session_id', session.id)
+      const { data: docs } = await db.from('prelim_document').select('id, document_number, source_file_url, source_file_name, working_file_url, working_file_name, routing, routing_to_email, routing_to_name, routing_at, routing_by_email, routing_mailed_at, routing_history, returned_at, markup_committed_at, markup_layer, markup_comments, outcome, tender_stamped_file_url, created_at').eq('session_id', session.id)
       const known = new Set((docs ?? []).map((d: any) => d.source_file_url))
       const inTree = new Set(files.map(f => f.webUrl))
       const byName = new Map<string, typeof files>()
@@ -57,11 +58,54 @@ export async function syncSession(session: PullSession & { last_synced_at?: stri
         const { error } = await db.from('prelim_document').delete().eq('id', d.id)
         if (!error) { dropped++; deleteDriveItemByUrl(d.working_file_url).catch(() => null) }
       }
-      // pull what is new
-      const fresh = files.filter(f => !known.has(f.webUrl))
+      // ONE ROW PER DOCUMENT NUMBER PER SESSION. A second file carrying a number the session
+      // already holds (Bernice saved "…IIDX-0001_A.pdf" beside "…IIDX-0001.pdf", 8 Sep) is not a
+      // new drawing: if it is newer than the drawing's last pull/return it is applied as a RETURN
+      // — replaces the working copy, becomes the source, unlocks the buttons — otherwise skipped.
+      const norm = (v: string | null | undefined) => String(v ?? '').replace(/\s+/g, '').toUpperCase()
+      const byNumber = new Map<string, any>()
+      for (const d of (docs ?? []) as any[]) if (d.document_number) byNumber.set(norm(d.document_number), d)
+      const removedIds = new Set<string>()
+      let returnedByFolder = 0, sameNumberSkipped = 0
+      const fresh: typeof files = []
+      for (const f of files) {
+        if (known.has(f.webUrl)) continue
+        const parsed = parseDocumentFileName(f.name)
+        const no = parsed.normalizedDocumentNumber ? norm(parsed.normalizedDocumentNumber) : ''
+        const row = no && /^[A-Z0-9]{4,}-?/.test(no) ? byNumber.get(no) : null
+        if (!row || removedIds.has(row.id)) { fresh.push(f); continue }
+        try {
+          const meta = await getDriveItemMetaByUrl(f.webUrl)
+          const fileTime = meta && (meta as any).lastModifiedDateTime ? new Date((meta as any).lastModifiedDateTime).getTime() : 0
+          const rowTime = new Date(row.returned_at ?? row.created_at).getTime()
+          if (!fileTime || fileTime <= rowTime) { sameNumberSkipped++; continue }
+          // newer file for a number we hold → treat as a return
+          const isPdf = /\.pdf$/i.test(f.name)
+          let bytes: ArrayBuffer
+          if (isPdf) bytes = await getFileBytesByUrl(f.webUrl)
+          else { const it = await resolveDriveItemByUrl(f.webUrl); if (!it?.driveId) throw new Error('could not resolve'); bytes = await getDriveItemContentBytes(it.driveId, it.id, 'pdf') }
+          await putFileBytesResumable(row.working_file_url, new Uint8Array(bytes))
+          const now = new Date().toISOString()
+          const from = row.routing === 'drawing_office' || row.routing === 'document_control' || row.routing === 'lead' ? row.routing : null
+          const history: any[] = Array.isArray(row.routing_history) ? row.routing_history : []
+          history.push({ at: now, event: 'returned', by: 'folder', file: f.name, file_url: f.webUrl, note: 'a newer file with this number appeared in the tender folder and replaced the working copy',
+            was: row.routing ? { routing: row.routing, to: row.routing_to_email, to_name: row.routing_to_name, at: row.routing_at, by: row.routing_by_email, mailed_at: row.routing_mailed_at } : null,
+            comments: Array.isArray(row.markup_comments) ? row.markup_comments : [] })
+          await db.from('prelim_document').update({
+            source_file_url: f.webUrl, source_file_name: f.name,
+            returned_at: now, returned_by_email: byEmail, returned_from: from, returned_file_name: f.name, returned_file_url: row.working_file_url,
+            markup_layer: null, markup_comments: null, markup_committed_at: null,
+            routing: null, routing_at: null, routing_by_email: null, routing_to_email: null, routing_to_name: null, routing_mailed_at: null, routing_attached: null, routing_error: null,
+            tender_stamped_at: null, tender_stamped_file_name: null, tender_stamped_file_url: null, tender_stamp_error: null,
+            routing_history: history,
+          }).eq('id', row.id)
+          if (row.tender_stamped_file_url) deleteDriveItemByUrl(row.tender_stamped_file_url).catch(() => null)
+          known.add(f.webUrl); returnedByFolder++
+        } catch { fresh.push(f) }
+      }
       const results = fresh.length ? await pullFilesIntoSession(session, fresh, byEmail) : []
       const pulled = results.filter(r => r.ok && !r.skipped).length, failed = results.filter(r => !r.ok).length
-      const note = `${new Date().toISOString().slice(0, 16)}Z: ${files.length} in folder · pulled ${pulled} · re-pointed ${repointed}${dropped ? ` · ${dropped} left the folder and were removed` : ''}${orphaned ? ` · ${orphaned} left the folder but had been worked on, kept` : ''}${failed ? ` · failed ${failed}: ${results.filter(r => !r.ok).slice(0, 3).map(r => `${r.name} (${r.error})`).join('; ')}` : ''}`
+      const note = `${new Date().toISOString().slice(0, 16)}Z: ${files.length} in folder · pulled ${pulled} · re-pointed ${repointed}${returnedByFolder ? ` · ${returnedByFolder} newer file(s) applied as returns` : ''}${sameNumberSkipped ? ` · ${sameNumberSkipped} older duplicate(s) by number ignored` : ''}${dropped ? ` · ${dropped} left the folder and were removed` : ''}${orphaned ? ` · ${orphaned} left the folder but had been worked on, kept` : ''}${failed ? ` · failed ${failed}: ${results.filter(r => !r.ok).slice(0, 3).map(r => `${r.name} (${r.error})`).join('; ')}` : ''}`
       await db.from('prelim_session').update({ last_synced_at: new Date().toISOString(), last_sync_note: note }).eq('id', session.id)
       return { pulled, repointed, failed, skipped: false }
     } catch (e: any) {
