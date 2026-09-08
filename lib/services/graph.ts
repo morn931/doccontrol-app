@@ -754,7 +754,8 @@ export async function createSessionForSitePath(
 export async function createLibraryUploadSession(
   relPath: string,
   libraryName: string = INTERNAL_REVIEW_LIBRARY,
-  siteUrl: string = INTERNAL_REVIEW_SITE_URL
+  siteUrl: string = INTERNAL_REVIEW_SITE_URL,
+  conflict: 'rename' | 'replace' = 'rename',
 ): Promise<{ uploadUrl: string }> {
   const siteId  = await getSiteId(siteUrl)
   const driveId = await getLibraryDriveId(siteId, libraryName)
@@ -762,7 +763,7 @@ export async function createLibraryUploadSession(
   const res = await graphFetch(
     `/sites/${siteId}/drives/${driveId}/root:/${enc}:/createUploadSession`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename' } }) }
+      body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': conflict } }) }
   )
   if (!res.ok) throw new Error(`createUploadSession for "${relPath}" failed (${res.status}): ${await res.text()}`)
   const data = await res.json()

@@ -7,8 +7,9 @@ import { prelimAuth, isErr, sessionFolder } from '@/lib/prelim'
 const norm = (s: string) => s.replace(/\s+/g, '').toUpperCase()
 
 // Step 1 of a return: match the dropped file to a drawing in an open session, then hand
-// back a pre-authorised SharePoint upload URL so the browser PUTs the bytes straight to the
-// session's Returned folder (no Vercel body cap). Nothing is written until step 2.
+// back a pre-authorised SharePoint upload URL so the browser PUTs the bytes straight OVER
+// the drawing's working copy (same path, replace) — the session folder only ever holds the
+// latest file (Morné, 7 Sep: the marked-up copy lives on in the email). No Vercel body cap.
 //
 // Match order: the caller's explicit docId (the picker) → the document number in the
 // filename → the exact filename the drawing was pulled or sent as. Anything else, or more
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
 
   const db = createServiceClient()
   const { data: docs } = await db.from('prelim_document')
-    .select('id, document_number, revision, title, source_file_name, working_file_name, routing, routing_at, returned_at, prelim_session!inner(id, title, status)')
+    .select('id, document_number, revision, title, source_file_name, working_file_name, working_file_url, routing, routing_at, returned_at, prelim_session!inner(id, title, status)')
     .eq('prelim_session.status', 'open').limit(2000)
   const all = (docs ?? []) as any[]
   const compact = (d: any) => ({ id: d.id, document_number: d.document_number, revision: d.revision, title: d.title, session: d.prelim_session.title, routing: d.routing })
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
 
   try {
     const folder = sessionFolder(hit.prelim_session.title, hit.prelim_session.id)
-    const { uploadUrl } = await createLibraryUploadSession(`${folder}/Returned/${fileName}`)
+    const { uploadUrl } = await createLibraryUploadSession(`${folder}/${hit.working_file_name}`, undefined, undefined, 'replace')
     return NextResponse.json({ uploadUrl, doc: compact(hit), wasSent: hit.routing === 'drawing_office' || hit.routing === 'lead' })
   } catch (e: any) { return NextResponse.json({ error: `SharePoint upload session failed: ${e?.message ?? e}` }, { status: 502 }) }
 }

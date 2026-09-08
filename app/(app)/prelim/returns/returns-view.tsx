@@ -82,8 +82,8 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
         <h1 className="text-xl font-bold text-slate-900">Return from Drawing Office / Lead Engineer</h1>
         <p className="text-sm text-slate-500 mt-1 max-w-3xl">
           When the drawing office or the lead engineer has finished the corrections, drop the corrected <b>PDF</b> here. It is matched to its drawing by
-          the document number in the filename, becomes that drawing&rsquo;s working copy in the session, and the three before-tender buttons unlock so the
-          reviewer can check it and call it <b>Ready for tender</b> — or send it out again.
+          the document number in the filename, <b>replaces</b> that drawing&rsquo;s working copy in the session folder (the marked-up version lives on in the email that went out), and the
+          three before-tender buttons unlock so the reviewer can check it and call it <b>Ready for tender</b> — or send it out again.
         </p>
         <div
           onDragOver={e => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}

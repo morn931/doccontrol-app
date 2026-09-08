@@ -13,6 +13,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ docId:
   const auth = await prelimAuth('view'); if (isErr(auth)) return auth
   const { docId } = await params
   const body = await req.json().catch(() => ({}))
+  const db0 = createServiceClient()
+  // Autosave of the notes field alone — the To drawing office / To Lead email reads it.
+  if (body?.noteOnly === true) {
+    const { data: d0 } = await db0.from('prelim_document').select('id, prelim_session!inner(status)').eq('id', docId).maybeSingle()
+    if (!d0) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if ((d0 as any).prelim_session?.status !== 'open') return NextResponse.json({ error: 'This session is closed.' }, { status: 409 })
+    const { error } = await db0.from('prelim_document').update({ outcome_note: String(body?.note ?? '').trim() || null }).eq('id', docId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
   const outcome = String(body?.outcome ?? '') as typeof OUTCOMES[number]
   if (!OUTCOMES.includes(outcome)) return NextResponse.json({ error: 'Outcome must be ready, rework, withdrawn or pending.' }, { status: 400 })
   const note = String(body?.note ?? '').trim() || null

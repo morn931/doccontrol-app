@@ -983,3 +983,20 @@ working copy is untouched — it is what goes into internal review afterwards. U
 file both delete the stamped copy. A stamp failure still records the call and says so
 (`tender_stamp_error`); the session row shows "no stamped copy" in red. Morné intends to reuse the
 stamp later for documents not handled through this app (the Aconex-current ones); not built.
+
+### 2026-09-07 (5) — What leaves the room carries the marks; the session folder holds one file
+
+The first live test sent the drawing office a CLEAN file: the room had drawn text, shapes and
+comments but never pressed Save draft or Save to SharePoint, so neither the layer nor the file
+held them and the server's "unsaved marks" guard saw nothing. Fixed at the root:
+- **To drawing office / To Lead flatten the canvas first.** `prelim-markup.tsx` composes
+  `PdfMarkup` (which now exposes `hasMarks()` and `saveToSharePoint(): Promise<boolean>`) with
+  the routing bar; the button calls it before the POST and refuses to send if it fails. The
+  server guard on `markup_layer` stays as belt and braces.
+- **Notes to the Drawing office / Engineer** (was "Note from the room"): autosaved on a 600 ms
+  debounce and on blur (`PATCH outcome {noteOnly}`), mirrored in `lib/prelim/note-sync.ts` so the
+  send button can `flush()` an in-flight save and post the latest text; the email prints it
+  between "Attached" and "Quality issues found".
+- **A returned file replaces the working copy IN PLACE** (`createLibraryUploadSession(..., 'replace')`
+  at the working path) — no `Returned/` subfolder; the session folder only ever holds the latest
+  file, the marked-up version lives on in the email. Ready for tender then stamps that latest file.

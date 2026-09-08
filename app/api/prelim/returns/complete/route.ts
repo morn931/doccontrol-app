@@ -17,6 +17,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const docId = String(body?.docId ?? ''), webUrl = String(body?.webUrl ?? ''), fileName = String(body?.fileName ?? '')
   if (!docId || !webUrl.startsWith('https://') || !fileName) return NextResponse.json({ error: 'Missing upload details.' }, { status: 400 })
+  void webUrl   // the upload replaced the working copy in place; its URL is what we already hold
 
   const db = createServiceClient()
   const { data: doc } = await db.from('prelim_document').select('*, prelim_session!inner(id, title, status)').eq('id', docId).maybeSingle()
@@ -30,11 +31,12 @@ export async function POST(req: Request) {
   history.push({
     at: now, event: 'returned', by: auth.email, file: fileName, file_url: webUrl,
     was: d.routing ? { routing: d.routing, to: d.routing_to_email, to_name: d.routing_to_name, at: d.routing_at, by: d.routing_by_email, mailed_at: d.routing_mailed_at } : null,
-    marked_copy: d.working_file_url, comments: Array.isArray(d.markup_comments) ? d.markup_comments : [],
+    marked_copy: null, note: 'working copy replaced in place; the marked-up version survives only in the email sent out', comments: Array.isArray(d.markup_comments) ? d.markup_comments : [],
   })
   const { error } = await db.from('prelim_document').update({
-    returned_at: now, returned_by_email: auth.email, returned_from: from, returned_file_name: fileName, returned_file_url: webUrl,
-    prior_working_file_url: d.working_file_url, working_file_url: webUrl, working_file_name: fileName,
+    returned_at: now, returned_by_email: auth.email, returned_from: from, returned_file_name: fileName, returned_file_url: d.working_file_url,
+    // replaced IN PLACE: same item, same name, new bytes — the URL does not change
+    prior_working_file_url: null,
     markup_layer: null, markup_comments: null, markup_committed_at: null,
     routing: null, routing_at: null, routing_by_email: null, routing_to_email: null, routing_to_name: null, routing_mailed_at: null, routing_attached: null, routing_error: null,
     tender_stamped_at: null, tender_stamped_file_name: null, tender_stamped_file_url: null, tender_stamp_error: null,

@@ -15,7 +15,7 @@ const SCALE = 1.4
 // canvas dimension exceeds this; normal documents are unaffected.
 const MAX_DIM = 10000
 
-export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase, allowDraftSave = true, readOnly = false, exposeApi, toolbarExtra }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string; allowDraftSave?: boolean; readOnly?: boolean; exposeApi?: (api: { jumpTo: (c: any) => void }) => void; toolbarExtra?: React.ReactNode }) {
+export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, endpointBase, allowDraftSave = true, readOnly = false, exposeApi, toolbarExtra }: { src?: string; fileName?: string; reviewTaskId?: string; initialColor?: string; endpointBase?: string; allowDraftSave?: boolean; readOnly?: boolean; exposeApi?: (api: { jumpTo: (c: any) => void; hasMarks: () => boolean; saveToSharePoint: () => Promise<boolean> }) => void; toolbarExtra?: React.ReactNode }) {
   // toolbarExtra: a caller-supplied bar rendered directly under the toolbar (Prelim Review's
   // routing buttons) — it stays with the toolbar in full-screen mode.
   // readOnly hides the drawing/save toolbar — for the originator viewing the flattened doc and
@@ -111,7 +111,10 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
 
   // Hand an external checklist (the originator's comment-checklist) an imperative jump. jumpTo only
   // closes over stable refs, so exposing it once the pages exist is enough.
-  useEffect(() => { if (ready) exposeApi?.({ jumpTo }) }, [ready])   // eslint-disable-line react-hooks/exhaustive-deps
+  // hasMarks/saveToSharePoint let a caller (Prelim Review's send buttons) flatten the canvas
+  // into the file before it goes anywhere, without the person having to press save first.
+  const hasMarks = () => fabsRef.current.some(f => (f?.getObjects?.() ?? []).length > 0)
+  useEffect(() => { if (ready) exposeApi?.({ jumpTo, hasMarks, saveToSharePoint }) }, [ready])   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
@@ -448,12 +451,12 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
   }
 
   // ── Phase 3: commit mark-ups back to the authoritative SharePoint file ───────
-  async function saveToSharePoint() {
-    if (!apiBase || !src) return
+  async function saveToSharePoint(): Promise<boolean> {
+    if (!apiBase || !src) return false
     setSaving(true); setStatus('Saving to SharePoint…')
     await save()                                  // persist captured comments first
     const bytes = await flattenBytes()
-    if (!bytes) { setSaving(false); return }
+    if (!bytes) { setSaving(false); return false }
     const res = await fetch(`${apiBase}/markup/commit`, {
       method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: bytes as BlobPart,
     })
@@ -465,6 +468,7 @@ export default function PdfMarkup({ src, fileName, reviewTaskId, initialColor, e
       setStatus('Could not save to SharePoint. ' + ((await res.json().catch(() => ({})))?.error ?? ''))
     }
     setSaving(false)
+    return res.ok
   }
 
   function fitWidth() {

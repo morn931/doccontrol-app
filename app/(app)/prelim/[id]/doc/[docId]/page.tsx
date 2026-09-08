@@ -3,9 +3,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
-import PdfMarkup from '@/components/markup/pdf-markup'
 import OutcomePanel from './outcome-panel'
-import RoutingButtons from './routing-buttons'
+import PrelimMarkup from './prelim-markup'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,12 +48,12 @@ export default async function PrelimDocPage({ params }: { params: Promise<{ id: 
         <h1 className="text-xl font-bold text-slate-900">{(doc as any).document_number ?? (doc as any).title ?? (doc as any).source_file_name}{(doc as any).revision ? <span className="text-slate-400 font-normal text-base"> rev {(doc as any).revision}</span> : null}</h1>
         <p className="text-slate-500 text-xs mt-0.5">
           {(doc as any).title && (doc as any).document_number ? `${(doc as any).title} · ` : ''}
-          Everyone in the room draws on the same layer. <b>Save draft</b> keeps it editable; <b>☁ Save to SharePoint</b> writes the marks into the working copy — that file is what <b>To drawing office</b> and <b>To Lead</b> mail, and what hand-over sends into internal review afterwards.
+          Everyone in the room draws on the same layer. <b>To drawing office</b> and <b>To Lead</b> first write whatever is drawn into the working copy, then mail that file — so what leaves here always carries the marks. <b>Save draft</b> keeps marks editable between sittings; <b>☁ Save to SharePoint</b> writes them into the file without sending.
         </p>
       </div>
       <OutcomePanel docId={docId} sessionId={id} outcome={(doc as any).outcome} note={(doc as any).outcome_note} reworkTo={(doc as any).rework_to_email} handedOver={!!(doc as any).handed_over_batch_id} handedOverBatchId={(doc as any).handed_over_batch_id} open={open} canManage={canManage} />
-      <PdfMarkup src={`/api/prelim/documents/${docId}/file`} fileName={((doc as any).working_file_name ?? 'document').replace(/\.pdf$/i, '')} endpointBase={`/api/prelim/documents/${docId}`} initialColor={myColor} readOnly={!open}
-        toolbarExtra={<RoutingButtons docId={docId} routing={(doc as any).routing ?? null} routingTo={(doc as any).routing_to_name ?? null} routingToEmail={(doc as any).routing_to_email ?? null} routingAt={(doc as any).routing_at ?? null} routingBy={(doc as any).routing_by_email ?? null} mailedAt={(doc as any).routing_mailed_at ?? null} attached={(doc as any).routing_attached ?? null} error={(doc as any).routing_error ?? null} open={s.status === 'open'} canManage={canManage} tenderCopyUrl={(doc as any).tender_stamped_file_url ?? null} tenderCopyName={(doc as any).tender_stamped_file_name ?? null} tenderStampError={(doc as any).tender_stamp_error ?? null} />} />
+      <PrelimMarkup docId={docId} fileName={((doc as any).working_file_name ?? 'document').replace(/\.pdf$/i, '')} myColor={myColor} readOnly={!open}
+        routing={{ routing: (doc as any).routing ?? null, routingTo: (doc as any).routing_to_name ?? null, routingToEmail: (doc as any).routing_to_email ?? null, routingAt: (doc as any).routing_at ?? null, routingBy: (doc as any).routing_by_email ?? null, mailedAt: (doc as any).routing_mailed_at ?? null, attached: (doc as any).routing_attached ?? null, error: (doc as any).routing_error ?? null, open: s.status === 'open', canManage, tenderCopyUrl: (doc as any).tender_stamped_file_url ?? null, tenderCopyName: (doc as any).tender_stamped_file_name ?? null, tenderStampError: (doc as any).tender_stamp_error ?? null }} />
     </div>
   )
 }

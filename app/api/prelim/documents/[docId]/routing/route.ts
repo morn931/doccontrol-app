@@ -14,6 +14,7 @@ const ATTACH_LIMIT = 3 * 1024 * 1024
 export const maxDuration = 60
 
 type Action = 'drawing_office' | 'lead' | 'ready_for_tender'
+const isDoText = (a: string) => a === 'drawing_office' ? 'drawing office' : 'engineer'
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 
 // Where a prelim-reviewed drawing goes next (migration 053). For the tender push this is
@@ -121,6 +122,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
     : bytes ? `<p><b>Drawing:</b> the marked-up PDF is ${sizeMb} MB, too large to attach — open it here: <a href="${esc(d.working_file_url)}">${esc(d.working_file_name)}</a></p>`
             : `<p style="color:#b45309"><b>Drawing:</b> the marked-up PDF could not be read for attachment (${esc(attachErr)}) — open it here: <a href="${esc(d.working_file_url)}">${esc(d.working_file_name)}</a></p>`
 
+  // Notes to the drawing office / engineer: the field on the drawing page. The button sends
+  // the latest text with the request; the saved column is the fallback.
+  const noteText = (typeof body?.note === 'string' ? body.note : (d.outcome_note ?? '')).trim()
+  if (typeof body?.note === 'string' && noteText !== (d.outcome_note ?? '').trim()) await db.from('prelim_document').update({ outcome_note: noteText || null }).eq('id', docId)
+  const noteHtml = noteText
+    ? `<p style="margin:14px 0 0"><b>Notes to the ${isDoText(action)}:</b></p><p style="margin:4px 0 0;white-space:pre-wrap;border-left:3px solid #0097A3;padding:6px 10px;background:#f0fdfa">${esc(noteText)}</p>`
+    : ''
   const isDo = action === 'drawing_office'
   const heading = isDo ? 'Drawing requires mark-ups' : 'Prelim review — drawing for your attention'
   const opening = isDo
@@ -131,6 +139,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ docId: 
     bodyHtml: `${opening}
       <p style="margin:12px 0"><b>Drawing:</b> ${esc(label)}${d.revision ? ` rev ${esc(d.revision)}` : ''}${d.title && d.document_number ? `<br/><b>Title:</b> ${esc(d.title)}` : ''}<br/><b>Prelim session:</b> ${esc(d.prelim_session.title)}${d.prelim_session.area ? ` (${esc(d.prelim_session.area)})` : ''}<br/><b>Reviewed by:</b> ${esc(auth.name ?? auth.email)}</p>
       ${fileLine}
+      ${noteHtml}
       <h3 style="font-size:14px;margin:16px 0 6px">Quality issues found</h3>
       ${qualityHtml}
       ${commentsHtml}`,

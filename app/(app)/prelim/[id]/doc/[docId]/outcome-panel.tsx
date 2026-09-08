@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { noteStore } from '@/lib/prelim/note-sync'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Loader2, Send, ExternalLink } from 'lucide-react'
@@ -14,6 +15,25 @@ export default function OutcomePanel({ docId, sessionId, outcome, note, reworkTo
   const router = useRouter()
   const [o, setO] = useState<Outcome>(outcome)
   const [n, setN] = useState(note ?? '')
+  const [noteState, setNoteState] = useState<'' | 'saving' | 'saved' | 'failed'>('')
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => { noteStore.set(note ?? '') }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  // The note goes into the To drawing office / To Lead email, so it must be on the server
+  // before the button is pressed: autosave on a short debounce and on blur, and let the
+  // buttons wait for an in-flight save (noteStore.flush).
+  function saveNote(value: string) {
+    if (!open) return
+    setNoteState('saving')
+    const p = fetch(`/api/prelim/documents/${docId}/outcome`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ noteOnly: true, note: value }) })
+      .then(r => setNoteState(r.ok ? 'saved' : 'failed')).catch(() => setNoteState('failed'))
+    noteStore.track(p)
+  }
+  function onNote(value: string) {
+    setN(value); noteStore.set(value)
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => saveNote(value), 600)
+  }
+  function onNoteBlur() { if (timer.current) { clearTimeout(timer.current); timer.current = null; saveNote(n) } }
   const [email, setEmail] = useState(reworkTo ?? '')
   const [busy, setBusy] = useState<'save' | 'handover' | null>(null)
   const [msg, setMsg] = useState('')
@@ -58,7 +78,10 @@ export default function OutcomePanel({ docId, sessionId, outcome, note, reworkTo
       {open && (
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] items-start">
           <div className="space-y-2">
-            <input className="input" placeholder="Note from the room (optional)" value={n} onChange={e => setN(e.target.value)} />
+            <div>
+              <input className="input" placeholder="Notes to the Drawing office / Engineer — goes into the email with the marked-up drawing" value={n} onChange={e => onNote(e.target.value)} onBlur={onNoteBlur} />
+              <p className="mt-0.5 text-[11px] text-slate-400">Notes to the Drawing office / Engineer{noteState === 'saving' ? ' · saving…' : noteState === 'saved' ? ' · saved' : noteState === 'failed' ? ' · could not save' : ''}</p>
+            </div>
             {o === 'rework' && <input className="input" placeholder="Engineer's email — they get the comment list" value={email} onChange={e => setEmail(e.target.value)} />}
           </div>
           <div className="flex gap-2">

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Mail, UserCheck, CheckCircle2, Undo2 } from 'lucide-react'
+import { noteStore } from '@/lib/prelim/note-sync'
 
 export type Routing = 'drawing_office' | 'lead' | 'ready_for_tender'
 type Person = { email: string; name: string; role: string }
@@ -14,6 +15,8 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
   docId: string; routing: Routing | null; routingTo: string | null; routingToEmail: string | null; routingAt: string | null; routingBy: string | null
   mailedAt: string | null; attached: boolean | null; error: string | null; open: boolean; canManage: boolean
   tenderCopyUrl?: string | null; tenderCopyName?: string | null; tenderStampError?: string | null
+  /** Flatten the canvas into the working copy before a send; true = go, string = refuse with that message */
+  beforeSend?: () => Promise<true | string>
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<Routing | 'undo' | null>(null)
@@ -34,7 +37,13 @@ export default function RoutingButtons({ docId, routing, routingTo, routingToEma
     }
     setBusy(action); setErr(''); setMsg('')
     try {
-      const res = await fetch(`/api/prelim/documents/${docId}/routing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, toEmail: toEmail || undefined }) })
+      if (action !== 'ready_for_tender' && beforeSend) {
+        setMsg('Saving the marks into the file…')
+        const r = await beforeSend()
+        if (r !== true) { setErr(r); setMsg(''); return }
+      }
+      await noteStore.flush()
+      const res = await fetch(`/api/prelim/documents/${docId}/routing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, toEmail: toEmail || undefined, note: noteStore.get() }) })
       const d = await res.json()
       if (res.status === 409 && d.needLead) { setPick({ reason: d.reason, owner: d.owner, candidates: d.candidates ?? [], people: d.people ?? [] }); setChosen(d.candidates?.[0]?.email ?? ''); return }
       if (!res.ok) { setErr(d.error ?? 'Could not record the call.'); router.refresh(); return }
