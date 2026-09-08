@@ -45,11 +45,16 @@ function stampPage(page: PDFPage, bold: PDFFont, reg: PDFFont, dateText: string)
     }
   }
 
+  // A DRAWING (landscape sheet, A3 or larger) carries the stamp in the revision table at
+  // bottom left — the rows there are empty on a tender issue, and top right was covering
+  // legends and key plans (Morné, 8 Sep). A document (portrait, or smaller than A3) keeps
+  // the stamp top right, where a report or schedule has nothing to lose.
+  const drawing = isDrawingPage(W, H)
   // sizes: relative to the visual width, clamped so an A4 stays legible and an A0 stays a stamp
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
-  const s1 = clamp(W * 0.020, 11, 46)       // ISSUED FOR TENDER ONLY
-  const s2 = clamp(W * 0.0095, 6.5, 22)     // the restriction line
-  const s3 = clamp(W * 0.0095, 6.5, 22)     // the date
+  const s1 = clamp(W * (drawing ? 0.0155 : 0.020), 11, 46)   // ISSUED FOR TENDER ONLY
+  const s2 = clamp(W * (drawing ? 0.0075 : 0.0095), 6.5, 22) // the restriction line
+  const s3 = clamp(W * (drawing ? 0.0075 : 0.0095), 6.5, 22) // the date
   const pad = s1 * 0.55
   const margin = clamp(W * 0.012, 8, 36)
   const border = clamp(s1 * 0.09, 1, 4)
@@ -59,7 +64,10 @@ function stampPage(page: PDFPage, bold: PDFFont, reg: PDFFont, dateText: string)
   const line3W = reg.widthOfTextAtSize(line3, s3)
   const bw = Math.max(line1W, line2W, line3W) + pad * 2
   const bh = pad + s1 * 1.15 + s2 * 1.5 + s3 * 1.4 + pad * 0.8
-  const vx0 = W - margin - bw, vy0 = margin   // visual top-left of the box
+  // visual top-left of the box: top right for a document; inside the revision table,
+  // bottom left, for a drawing (the PPE frame's rev rows sit above the bottom border)
+  const vx0 = drawing ? W * 0.045 : W - margin - bw
+  const vy0 = drawing ? H - H * 0.034 - bh : margin
 
   // the box: map two opposite visual corners, normalise
   const [ax, ay] = place(vx0, vy0), [bx, by] = place(vx0 + bw, vy0 + bh)
@@ -79,6 +87,10 @@ function stampPage(page: PDFPage, bold: PDFFont, reg: PDFFont, dateText: string)
   centred(TENDER_STAMP_LINE_2, reg, s2, vy);  vy += s2 * 1.5
   centred(line3, reg, s3, vy)
 }
+
+/** Landscape and at least A3 wide (1190 pt) = a drawing sheet with a title block and a
+ *  revision table. Everything else is treated as a document. */
+export const isDrawingPage = (visualW: number, visualH: number) => visualW > visualH && visualW >= 1150
 
 /** "<name>.pdf" → "<name> - ISSUED FOR TENDER.pdf" */
 export const tenderCopyName = (fileName: string) => fileName.replace(/\.pdf$/i, '') + ' - ISSUED FOR TENDER.pdf'
