@@ -22,6 +22,7 @@ const COLS = [
   'progress_milestone', 'progress_source', 'earned_value', 'issued_for', 'as_built_required',
   'certified_final_required', 'schedule_status', 'aconex_doc_status', 'aconex_review_status',
   'comments', 'remarks', 'vendor_comments', 'is_awarded', 'is_active', 'sector', 'file_link',
+  'linked_version_id',   // review-system file (nightly sync) — opens via /api/mddr/open fallback
 ].join(',')
 
 // The revision of the document ACTUALLY on file = the suffix of the stored file

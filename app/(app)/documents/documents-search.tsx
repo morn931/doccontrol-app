@@ -329,7 +329,7 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
                   <p className="text-xs text-slate-500 mt-1 line-clamp-2 bg-slate-50 rounded px-2 py-1">{r.ai_text.replace(/\s+/g, ' ').slice(0, 240)}…</p>
                 )}
               </div>
-              {r.file_link
+              {(r.file_link || r.linked_version_id)
                 ? <a href={EP.open(r.id)} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs py-1.5 px-3 shrink-0"><ExternalLink className="h-3.5 w-3.5" /> Open</a>
                 : <span className="text-xs text-slate-300 shrink-0 mt-1.5">no file</span>}
             </div>
@@ -341,8 +341,8 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
                     <div className="px-3 py-2 text-xs text-slate-400 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> loading revisions…</div>
                   ) : revRows.length === 0 ? (
                     <div className="px-3 py-2 text-xs text-slate-400 flex items-center justify-between">
-                      <span>No prior revisions tracked{r.file_link ? ' — current file:' : ''}</span>
-                      {r.file_link && <a href={EP.open(r.id)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-navy-600 hover:bg-navy-50 hover:underline"><ExternalLink className="h-3.5 w-3.5" /> Open</a>}
+                      <span>No prior revisions tracked{(r.file_link || r.linked_version_id) ? ' — current file:' : ''}</span>
+                      {(r.file_link || r.linked_version_id) && <a href={EP.open(r.id)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-navy-600 hover:bg-navy-50 hover:underline"><ExternalLink className="h-3.5 w-3.5" /> Open</a>}
                     </div>
                   ) : revRows.map((rv: any, i: number) => (
                     <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs">
@@ -351,7 +351,7 @@ export default function DocumentsSearch({ apiBase = '', shareMode = false }: { a
                       {rv.status && <span className="text-slate-500">{rv.status}</span>}
                       {rv.date && <span className="text-slate-400">{fmtD(rv.date)}</span>}
                       {shareMode
-                        ? (i === 0 && r.file_link
+                        ? (i === 0 && (r.file_link || r.linked_version_id)
                             ? <a href={EP.open(r.id)} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-navy-600 hover:bg-navy-50 hover:underline"><ExternalLink className="h-3.5 w-3.5" /> Open</a>
                             : <span className="ml-auto text-slate-300">—</span>)
                         : (rv.url
