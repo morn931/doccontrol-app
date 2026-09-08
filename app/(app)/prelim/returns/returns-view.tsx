@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Upload, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Upload, Loader2, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react'
 import { STATUS_LABEL, STATUS_CLS, fromLabel, type PrelimStatus } from '@/lib/prelim/status'
 
 type Row = {
@@ -22,22 +22,6 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [items, setItems] = useState<Item[]>([])
   const [over, setOver] = useState(false)
-  const [readyBusy, setReadyBusy] = useState<string | null>(null)
-  const [readyMsg, setReadyMsg] = useState<Record<string, string>>({})
-  // The last check after a correction comes back: Ready for tender from this list stamps the
-  // RETURNED file and files it as the tender copy, replacing whatever was in COLAB's
-  // Issued for Tender folder for this drawing (same name, replace on conflict).
-  async function readyForTender(d: Row) {
-    if (!confirm(`Mark ${d.document_number ?? d.title} ready for tender?\n\nThe returned file is stamped "ISSUED FOR TENDER ONLY" on every page and filed in COLAB under Issued for Tender, replacing any earlier stamped copy of this drawing.`)) return
-    setReadyBusy(d.id); setReadyMsg(m => ({ ...m, [d.id]: '' }))
-    try {
-      const res = await fetch(`/api/prelim/documents/${d.id}/routing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'ready_for_tender' }) })
-      const j = await res.json()
-      if (!res.ok) { setReadyMsg(m => ({ ...m, [d.id]: j.error ?? 'Could not mark ready.' })); router.refresh(); return }
-      setReadyMsg(m => ({ ...m, [d.id]: `Stamped copy filed${j.tenderCopy?.pages ? ` (${j.tenderCopy.pages} page${j.tenderCopy.pages === 1 ? '' : 's'})` : ''}.` }))
-      router.refresh()
-    } catch (e: any) { setReadyMsg(m => ({ ...m, [d.id]: e.message })) } finally { setReadyBusy(null) }
-  }
   const upd = (file: File, patch: Partial<Item>) => setItems(list => list.map(i => i.file === file ? { ...i, ...patch } : i))
 
   async function process(file: File, docId?: string) {
@@ -83,7 +67,7 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
         <p className="text-sm text-slate-500 mt-1 max-w-3xl">
           When the drawing office, Document Control or the lead engineer has finished the corrections, drop the corrected <b>PDF</b> here. It is matched to its drawing by
           the document number in the filename, <b>replaces</b> that drawing&rsquo;s working copy in the session folder (the marked-up version lives on in the email that went out), and the
-          three before-tender buttons unlock so the reviewer can check it and call it <b>Ready for tender</b> — or send it out again.
+          before-tender buttons unlock. Press <b>Re-review</b> to open it in the review screen: from there send it out again, or press <b>Ready for tender</b> — the stamp is only ever affixed there.
         </p>
         <div
           onDragOver={e => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
@@ -135,7 +119,7 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-100">
-                <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Session</th><th className="px-4 py-2">Returned</th><th className="px-4 py-2">Status now</th><th className="px-4 py-2 text-right">Last check</th>
+                <th className="px-4 py-2">Document</th><th className="px-4 py-2">Title</th><th className="px-4 py-2">Session</th><th className="px-4 py-2">Returned</th><th className="px-4 py-2">Status now</th><th className="px-4 py-2 text-right">Re-review</th>
               </tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {docs.map(d => (
@@ -157,15 +141,13 @@ export default function ReturnsView({ docs }: { docs: Row[] }) {
                       {d.routing === 'ready_for_tender' && (d.tender_stamped_file_url
                         ? <div className="text-xs mt-0.5"><a href={d.tender_stamped_file_url} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline">stamped copy ↗</a></div>
                         : <div className="text-xs text-red-600 mt-0.5" title={d.tender_stamp_error ?? undefined}>no stamped copy</div>)}
-                      {readyMsg[d.id] && <div className={`text-xs mt-0.5 ${/could not|fail|error/i.test(readyMsg[d.id]) ? 'text-red-600' : 'text-emerald-700'}`}>{readyMsg[d.id]}</div>}
                     </td>
                     <td className="px-4 py-2 text-right whitespace-nowrap">
-                      {!d.routing && (
-                        <button onClick={() => readyForTender(d)} disabled={readyBusy !== null} title="Stamp the returned file ISSUED FOR TENDER ONLY and file it in COLAB, replacing any earlier stamped copy" className="btn-primary text-xs py-1 px-2.5 mr-2">
-                          {readyBusy === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Ready for tender
-                        </button>
-                      )}
-                      <Link href={`/prelim/${d.session_id}/doc/${d.id}`} className="btn-secondary text-xs py-1 px-2.5">Open</Link>
+                      {/* Re-review opens the corrected file in the review screen. From there the reviewer
+                          sends it out again or presses Ready for tender — the stamp is affixed there, never here. */}
+                      <Link href={`/prelim/${d.session_id}/doc/${d.id}`} className={`inline-flex items-center gap-1 text-xs py-1 px-2.5 ${d.routing ? 'btn-secondary' : 'btn-primary'}`} title="Open the corrected drawing in the review screen">
+                        <RotateCcw className="h-3.5 w-3.5" /> {d.routing ? 'Open' : 'Re-review'}
+                      </Link>
                     </td>
                   </tr>
                 ))}
