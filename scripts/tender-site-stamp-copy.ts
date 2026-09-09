@@ -72,6 +72,15 @@ async function main() {
   const srcSite = await g(`/sites/${new URL(SRC_SITE).hostname}:${new URL(SRC_SITE).pathname}`)
   const live = (await g(`/sites/${srcSite.id}/drives?$select=id,name`)).value.find((x: any) => x.name === 'LIVE DOCUMENTS').id as string
 
+  // A document sitting in an OPEN prelim session without a "ready for tender" call is under
+  // review (or recalled — scripts/prelim-recall.mjs) and must not be put in the pack by this
+  // pass, whatever the register says about it. The reviewer's stamp is what brings it in.
+  const { createClient } = await import('@supabase/supabase-js')
+  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } })
+  const { data: underReview } = await sb.from('prelim_document').select('document_number, routing, prelim_session!inner(status)').eq('prelim_session.status', 'open').limit(5000)
+  const held = new Set((underReview ?? []).filter((r: any) => r.document_number && r.routing !== 'ready_for_tender').map((r: any) => stemOf(r.document_number)))
+  console.log(`held back — in an open prelim session and not yet Ready for tender: ${held.size}`)
+
   // what the site already holds, by document number (re-read now: the morning copy added 263)
   const inSite = new Set<string>()
   async function walk(p: string) { let u = `/drives/${out}/root:/${enc(p)}:/children?$select=name,folder&$top=999`; while (u) { const j = await g(u); for (const k of j.value ?? []) { if (k.folder) await walk(`${p}/${k.name}`); else inSite.add(stemOf(k.name)) } u = j['@odata.nextLink'] } }
@@ -150,6 +159,7 @@ async function main() {
       const d = work.shift()!
       const { folder, section, note } = placement(d)
       const rec: any = { docNo: d.docNo, originator: d.originator, package: d.package, section, folder: folder.slice(ROOT.length + 1), note }
+      if (held.has(stemOf(d.docNo))) { skipped++; rec.result = 'held — under review in prelim'; results.push(rec); continue }
       if (inSite.has(stemOf(d.docNo))) { skipped++; rec.result = 'already in site'; results.push(rec); continue }
       if (!WRITE) { rec.result = 'would stamp+copy'; results.push(rec); done++; console.log(`  S${section}  ${d.docNo.padEnd(28)} ${d.originator.padEnd(6)} → ${folder.slice(ROOT.length + 1)}${note ? `   ⚠ ${note}` : ''}`); continue }
       try {
