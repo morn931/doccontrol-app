@@ -1066,3 +1066,38 @@ attachment shape; the four prelim routes (routing, returns/complete, outcome, ha
 The rest of CoreDocs stays on projects@. **Open:** find out WHY projects@ stopped delivering
 (Defender → Restricted entities in the coreflow.build tenant; Quarantine in PPE's) — every
 other Coreflow app still sends through it.
+
+## 2026-09-09 — projects@coreflow.build was RESTRICTED for 15 hours, and now the platform reads its own outbox
+
+**What happened.** 8 Sep 16:20 SAST, Exchange Online Protection put the platform sender
+`projects@coreflow.build` on **Restricted entities** (behavioural detection — not a counted limit:
+the outbound policy is default with `BlockUserForToday`, and the block outlived midnight UTC).
+Graph kept returning **202** to every `sendMail`, so every app recorded its mail as sent, while
+every message bounced back INTO the projects@ Inbox as
+`550 5.1.8 Access denied, bad outbound sender AS(42004)`. Lost until 07:40 on 9 Sep: two RDMC
+CoreClient invitations, two K137 PPC sign-off requests, review notices, the 04:30 chase, the
+digests, the morning brief. **No tenant alert fired** — coreflow140 has no alert policy for it.
+Fix was one click on the Restricted entities page (Morné); delivery resumed within minutes.
+Diagnosis path that worked: OWA → open the projects@ shared mailbox → "Undeliverable" from
+Microsoft Outlook; and `Connect-ExchangeOnline -UserPrincipalName MorneCronje@coreflow.build;
+Get-MessageTraceV2 -SenderAddress projects@coreflow.build` (Status Failed from 14:35Z).
+
+**The self-check — `/api/cron/mail-bounce-check`, hourly at :10** (`lib/mail-bounce-check.ts`).
+Reads the projects@ mailbox through the same Coreflow Mail Sender app, keeps postmaster NDRs newer
+than `system_settings.mail_bounce_check_last_seen`, parses the DSN code, the failed recipient and
+the original subject (RFC 2047 decoded), and **alerts `MAIL_BOUNCE_ALERT_TO` (default mornec@)
+from the PPE tenant via `lib/prelim/mail.ts`** — a different sender in a different tenant, so the
+alert cannot be lost to the fault it reports. 5.1.8 / 5.7.7xx are flagged as SENDER BLOCKED with
+the unblock steps in the mail; other codes are reported as recipient-side. If the check itself
+cannot read the mailbox (Mail.Read missing, token, Graph) it says so, once a day, from the PPE
+tenant, and returns 503. Last run summary: `system_settings.mail_bounce_check_last_run`.
+
+⚠ **Needs one admin action in the coreflow140 tenant before it can run:** Entra → App
+registrations → **Coreflow Mail Sender** → API permissions → add Microsoft Graph **application**
+permission **`Mail.Read`** → **Grant admin consent**. The existing `ApplicationAccessPolicy`
+(`coreflow-mail-senders` group, member projects@) scopes Mail.Read to that one mailbox. Until
+granted, the cron alerts "cannot read" once a day and nothing else.
+
+**Prelim Review still sends as mornec@ via the PPE tenant** (`lib/prelim/mail.ts`) — move it back to
+`lib/coreflow-mail.ts` once projects@ has run clean for a few days. Also worth turning on in Defender
+(Policies & rules → Alert policy): **"User restricted from sending email"**, recipient mornec@.

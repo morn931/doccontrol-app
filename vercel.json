@@ -67,6 +67,10 @@
     {
       "path": "/api/cron/intake-poll",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/mail-bounce-check",
+      "schedule": "10 * * * *"
     }
   ],
   "git": {

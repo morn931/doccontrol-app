@@ -29,7 +29,9 @@ const MODULE = 'CoreDocs'
 
 let _t: { token: string; exp: number } | null = null
 
-async function getGraphToken(): Promise<string> {
+// Exported for the hourly bounce self-check (lib/mail-bounce-check.ts), which reads the
+// projects@ Inbox with the same app. Nothing else should need it.
+export async function getGraphToken(): Promise<string> {
   if (_t && Date.now() < _t.exp - 60_000) return _t.token
   const res = await fetch(
     `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
