@@ -97,6 +97,9 @@ for (const f of item(2)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/02 Section
   for (const f of a2) {
     if (isTemplate(f)) { plan(live, f, REF); continue }
     if (/-XXXX/.test(f.name)) { superseded.push(f) ; continue }
+    // The 1-Sep DRAFT preamble is superseded by 6105AK124-6200-GSPC-0001 Rev C (9 Sep), which
+    // combines it with Marnus's Methods of Measurement Rev B. Never carry the draft again.
+    if (/Preamble and Method of Measurement - DRAFT/i.test(f.name)) { superseded.push(f); continue }
     const sub = /GBOM/.test(f.name) ? 'Bills of Quantities' : /ESCH|MTO/i.test(f.name) ? 'Cable Schedules and MTO' : 'Preamble and Method of Measurement'
     plan(live, f, `${ROOT}/03 Section 2 - Schedule A2 - Unit Prices and BoQ/${sub}`)
   }
