@@ -24,9 +24,24 @@ for (const d of docs) {
   const isPdf = /\.pdf$/i.test(src.name)
   const bytes = await (await fetch(`${G}/drives/${src.parentReference.driveId}/items/${src.id}/content${isPdf ? '' : '?format=pdf'}`, { headers: H })).arrayBuffer()
   const wc = await (await fetch(`${G}/shares/${shareId(d.working_file_url)}/driveItem?$select=id,parentReference`, { headers: H })).json()
-  const up = await fetch(`${G}/drives/${wc.parentReference.driveId}/items/${wc.id}/content`, { method: 'PUT', headers: { ...H, 'Content-Type': 'application/pdf' }, body: bytes })
-  if (!up.ok) throw new Error(`working copy PUT ${up.status}: ${(await up.text()).slice(0, 200)}`)
-  console.log(`  working copy replaced from source (${(bytes.byteLength / 1024).toFixed(0)} KB)`)
+  if (wc?.id) {
+    const up = await fetch(`${G}/drives/${wc.parentReference.driveId}/items/${wc.id}/content`, { method: 'PUT', headers: { ...H, 'Content-Type': 'application/pdf' }, body: bytes })
+    if (!up.ok) throw new Error(`working copy PUT ${up.status}: ${(await up.text()).slice(0, 200)}`)
+    console.log(`  working copy replaced from source (${(bytes.byteLength / 1024).toFixed(0)} KB)`)
+  } else {
+    // The working copy is GONE (9 Sep 2026: 6292-ISCH-0001 — the app showed "Could not load the
+    // document from SharePoint" while the source sat in COLAB). Re-create it at the recorded path.
+    const u = new URL(d.working_file_url); const rel = decodeURIComponent(u.pathname).replace(/^\/sites\/DocumentControl\/Internal Reviews\//, '')
+    const site = await (await fetch(`${G}/sites/ppetechcoza.sharepoint.com:/sites/DocumentControl`, { headers: H })).json()
+    const drv = (await (await fetch(`${G}/sites/${site.id}/drives?$select=id,name`, { headers: H })).json()).value.find(x => x.name === 'Internal Reviews')
+    const enc = p => p.split('/').map(encodeURIComponent).join('/')
+    const s = await fetch(`${G}/drives/${drv.id}/root:/${enc(rel)}:/createUploadSession`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }) })
+    if (!s.ok) throw new Error(`working copy upload session ${s.status}: ${(await s.text()).slice(0, 200)}`)
+    const { uploadUrl } = await s.json()
+    const r = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Length': String(bytes.byteLength), 'Content-Range': `bytes 0-${bytes.byteLength - 1}/${bytes.byteLength}` }, body: bytes })
+    if (!r.ok) throw new Error(`working copy upload ${r.status}`)
+    console.log(`  working copy was MISSING — re-created from source (${(bytes.byteLength / 1024).toFixed(0)} KB)`)
+  }
   // 2. stamped tender copy, if any
   if (d.tender_stamped_file_url) {
     const it = await (await fetch(`${G}/shares/${shareId(d.tender_stamped_file_url)}/driveItem?$select=id,parentReference`, { headers: H })).json()
