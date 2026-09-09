@@ -1101,3 +1101,14 @@ granted, the cron alerts "cannot read" once a day and nothing else.
 **Prelim Review still sends as mornec@ via the PPE tenant** (`lib/prelim/mail.ts`) — move it back to
 `lib/coreflow-mail.ts` once projects@ has run clean for a few days. Also worth turning on in Defender
 (Policies & rules → Alert policy): **"User restricted from sending email"**, recipient mornec@.
+
+### 2026-09-09 (later) — a source RE-SAVED IN PLACE after the Ready-for-tender call
+
+`lib/prelim/sync.ts` deliberately ignores an in-place re-save (same name, same URL) — so when
+Bennie replaced four ISCH cable schedules in COLAB after they were called Ready for tender, the
+tool did NOT flag them: the call stood, but the working copy, the COLAB stamped copy and the
+tender-pack copy all still held the OLD content. **`scripts/prelim-reissue.mjs <docno…> --write`**
+refreshes all three from the current source (hash-checked, re-stamped today, pack copies replaced
+by item id), keeps `routing = ready_for_tender`, bumps `tender_stamped_at` and writes an
+`reissued_in_place` entry to `routing_history`. Sources are never written to. Use it whenever an
+engineer says "I replaced the file in COLAB with the same name".
