@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import { stampIssuedForTender, tenderStampDate, tenderCopyName } from '../lib/prelim/tender-stamp'
 for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const t = line.trim(); if (!t || t.startsWith('#') || !t.includes('=')) continue; const i = t.indexOf('='); const k = t.slice(0, i).trim(); if (!(k in process.env)) process.env[k] = t.slice(i + 1).trim().replace(/^["']|["']$/g, '') }
 const WRITE = process.argv.includes('--write')
-const INPUT = 'C:/Users/mornec/AppData/Local/Temp/claude/k480/tender-issued-missing-picks.json'
+const INPUT = process.argv.find(a => a.startsWith('--input='))?.slice(8) ?? 'C:/Users/mornec/AppData/Local/Temp/claude/k480/tender-issued-missing-picks.json'
 const DST_SITE = 'https://ppetechcoza.sharepoint.com/sites/K480SWP-006TenderPack'
 const ROOT = 'K480 SWP-006 Power and Balance of Plant'
 const DRAWING = /^(LAY|GAD|SEC|DIA|DTL|PFD|FND|PLN|SLD)$/
@@ -64,7 +64,8 @@ async function main() {
   const worker = async () => {
     while (work.length) {
       const p = work.shift()!
-      const { folder, section } = placement(p.docNo)
+      // a pick may name its own destination (folder 08 vendor documents), else the area/discipline rule
+      const { folder, section } = p.folder ? { folder: `${ROOT}/${p.folder}`, section: 0 } : placement(p.docNo)
       const rec: any = { docNo: p.docNo, package: p.originator === 'PPE' ? 'K124' : p.package, section, folder: folder.slice(ROOT.length + 1), source: `${p.pick.site}/${p.pick.lib}${p.pick.path}`, rev: p.pick.rev }
       if (inSite.has(stemOf(p.docNo))) { skipped++; rec.result = 'already in site'; results.push(rec); continue }
       if (!WRITE) { console.log(`  S${section}  ${p.docNo.padEnd(27)} rev ${String(p.pick.rev).padEnd(2)} ← ${rec.source.slice(0, 80)}\n        → ${rec.folder}`); done++; rec.result = 'would copy'; results.push(rec); continue }
