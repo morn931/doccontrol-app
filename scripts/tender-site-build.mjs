@@ -12,9 +12,9 @@
 // but SEVEN as already held by Fluor. Folders 01–07 are those seven, in Fluor's order and
 // under Fluor's names. Sections 4 and 5 carry their supporting documents beneath the EDL,
 // laid out exactly as Vossie's COLAB handover tree is (5 areas × discipline), so a stamped
-// "ISSUED FOR TENDER" copy lands in the same place it came from. 08 holds the vendor
-// documents Marnus/Josef ruled into the pack (ABB NER, ABB control drawings). 90 is
-// reference only and is NOT part of what Fluor receives.
+// "ISSUED FOR TENDER" copy lands in the same place it came from. Vendor documents ruled into
+// the pack are filed by area too (folder 08 was built and then dropped on 9 Sep — it would
+// only have duplicated them). 90 is reference only and is NOT part of what Fluor receives.
 import fs from 'node:fs'
 for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const t = line.trim(); if (!t || t.startsWith('#') || !t.includes('=')) continue; const i = t.indexOf('='); const k = t.slice(0, i).trim(); if (!(k in process.env)) process.env[k] = t.slice(i + 1).trim().replace(/^["']|["']$/g, '') }
 const WRITE = process.argv.includes('--write')
@@ -45,9 +45,6 @@ const TREE = [
   '07 Section 5 - Drawings (EDL)',
   '07 Section 5 - Drawings (EDL)/Supporting drawings',
   ...byArea('07 Section 5 - Drawings (EDL)/Supporting drawings'),
-  '08 Vendor documents referenced in the pack',
-  '08 Vendor documents referenced in the pack/ABB',
-  '08 Vendor documents referenced in the pack/Orient',
   '90 Reference - Fluor K480 templates and Doc Matrix (not part of the pack)',
 ]
 
@@ -69,11 +66,14 @@ Fluor's B9RD RFT Doc Matrix lists 53 items; Fluor holds 46. PPE owes SEVEN, fold
   05  Section 3 - Exhibit 3B - Company Furnished Material and Equipment
   06  Section 4 - Specifications and Plans (EDL)      EDL workbook + supporting documents
   07  Section 5 - Drawings (EDL)                      same EDL workbook + supporting drawings
-  08  Vendor documents referenced in the pack (ABB NER datasheet and GA, ABB control drawings)
   90  Reference - Fluor's templates and Doc Matrix. NOT part of the pack.
 
 Supporting documents under 06 and 07 are filed by substation and discipline, in the same
-order as the COLAB handover tree, and are the stamped "ISSUED FOR TENDER" copies.
+order as the COLAB handover tree, and are the stamped "ISSUED FOR TENDER" copies. Vendor
+documents (ABB, Siemens) ruled into the pack are filed the same way, by area, alongside PPE's.
+
+The EDL workbook in 06 and 07 (B9RD_K480_EDL_SWP006.xlsx) is Fluor's Exhibit Four format,
+generated from the live register; its last column names the folder each document sits in here.
 
 Access: Morne Cronje and Marnus Meyer (owners). Others - internal or Fluor - are added by
 name, deliberately, when the pack is ready for them.

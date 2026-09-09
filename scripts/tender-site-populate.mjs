@@ -106,8 +106,13 @@ for (const f of item(2)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/02 Section
 }
 for (const f of item(4)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/04 Section 3 - Exhibit 3A - Technical Scope of Work`)
 for (const f of item(5)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/05 Section 3 - Exhibit 3B - Company Furnished Material and Equipment`)
-for (const f of item(6).filter(f => f.path.split('/').length === 4)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/06 Section 4 - Specifications and Plans (EDL)`)
-for (const f of item(7).filter(f => f.path.split('/').length === 4)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/07 Section 5 - Drawings (EDL)`)
+// The 2-Sep DRAFT EDL is superseded (9 Sep) by the live export from CoreReports
+// (/api/export-swp006-edl — Fluor's format, vendor rows, PLH for the unreceived, and the
+// pack location column). It is placed in 06 and 07 by scripts/tender-site-edl.mjs; the draft
+// must not come back on a re-run.
+const isDraftEdl = f => /EDL_SWP006_PPE_DRAFT/i.test(f.name)
+for (const f of item(6).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/06 Section 4 - Specifications and Plans (EDL)`)
+for (const f of item(7).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/07 Section 5 - Drawings (EDL)`)
 // Fluor's own pack + the SDDC form → reference
 for (const f of await walk(live, 'K480 SWP-006 Power and Balance of Plant/03 SOURCE MATERIAL')) plan(live, f, REF)
 
