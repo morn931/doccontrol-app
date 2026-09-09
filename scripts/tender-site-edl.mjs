@@ -11,7 +11,8 @@ const WRITE = process.argv.includes('--write')
 const EXPORT = process.env.SWP006_EDL_EXPORT_URL || 'https://reports.coreflow.build/api/export-swp006-edl?token=f6c68725d7673c6a090acc40442ff6d2b33b032f'
 const NAME = 'B9RD_K480_EDL_SWP006.xlsx'
 const ROOT = 'K480 SWP-006 Power and Balance of Plant'
-const FOLDERS = ['06 Section 4 - Specifications and Plans (EDL)', '07 Section 5 - Drawings (EDL)']
+// One folder for both sections since 9 Sep (Marnus + Morné); Fluor's Exhibit Four is one workbook.
+const FOLDERS = ['06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)']
 
 const res = await fetch(EXPORT)
 if (!res.ok) { console.error(`export failed: ${res.status} ${(await res.text()).slice(0, 200)}`); process.exit(1) }

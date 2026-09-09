@@ -12,14 +12,15 @@ const DST_SITE = 'https://ppetechcoza.sharepoint.com/sites/K480SWP-006TenderPack
 const ROOT = 'K480 SWP-006 Power and Balance of Plant'
 const DRAWING = /^(LAY|GAD|SEC|DIA|DTL|PFD|FND|PLN|SLD)$/
 const AREA: Record<string, string> = { '0000': '1. Substations BOP Project Site Wide', '9134': '1. Substations BOP Project Site Wide', '6200': '2. Plant Main Substation', '6212': '2. Plant Main Substation', '6260': '2. Plant Main Substation', '6243': '2. Plant Main Substation', '6253': '2. Plant Main Substation', '6254': '2. Plant Main Substation', '6256': '2. Plant Main Substation', '6262': '2. Plant Main Substation', '6263': '2. Plant Main Substation', '6264': '2. Plant Main Substation', '6286': '3. Mining Substation', '6242': '4. Power Station Substation', '6251': '4. Power Station Substation', '6241': '5. Solar PV Substation', '6290': '5. Solar PV Substation', '6292': '5. Solar PV Substation' }
+const SECTION_4_5 = '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'
 const DISC: Record<string, string> = { C: '2. Civil and Structural', S: '2. Civil and Structural', W: '2. Civil and Structural', E: '3. Electrical', F: '1. Automation', A: '1. Automation', I: '4. Instrumentation', M: '5. Mechanical and Piping', P: '5. Mechanical and Piping' }
-const SITEWIDE: Record<string, string> = { C: '2. Civil and Structural General Standards and Specs', S: '2. Civil and Structural General Standards and Specs', W: '2. Civil and Structural General Standards and Specs', E: '3. Electrical General Standards and Specs', F: '1. Automation General Standards and Specs', A: '1. Automation General Standards and Specs', I: '6. Instrumentation General Standards and Specs', M: '5. Mechanical General Standards and Specs', P: '5. Mechanical General Standards and Specs' }
+const SITEWIDE: Record<string, string> = { C: '2. Civil and Structural General Standards and Specs', S: '2. Civil and Structural General Standards and Specs', W: '2. Civil and Structural General Standards and Specs', E: '5. Electrical General Standards and Specs', F: '1. Automation General Standards and Specs', A: '1. Automation General Standards and Specs', I: '6. Instrumentation General Standards and Specs', M: '8. Underground Services General Standards and Specs', P: '8. Underground Services General Standards and Specs' }
 const stemOf = (s: string) => (s.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1]?.replace(/-(\d{4})-([A-Z])-([A-Z0-9]{3})-/i, '-$1-$2$3-') ?? s.trim()).toUpperCase()
 function placement(docNo: string, k038SiteWide = true) {
   const m = docNo.match(/6105A[A-Z0-9]+-(\d{4})-([A-Z])([A-Z0-9]{3})-\d{4}/i)
   const code = m?.[1] ?? '', letter = (m?.[2] ?? 'E').toUpperCase(), type = (m?.[3] ?? '').toUpperCase()
-  const section = DRAWING.test(type) ? 5 : 4
-  const base = section === 5 ? '07 Section 5 - Drawings (EDL)/Supporting drawings' : '06 Section 4 - Specifications and Plans (EDL)/Supporting documents'
+  const section = DRAWING.test(type) ? 5 : 4 // log only; one folder for both sections since 9 Sep
+  const base = SECTION_4_5
   let area = AREA[code]
   if (code === '0100') area = k038SiteWide && /^6105AK038/i.test(docNo) ? '1. Substations BOP Project Site Wide' : '1. Substations BOP Project Site Wide'
   if (!area) area = '1. Substations BOP Project Site Wide'

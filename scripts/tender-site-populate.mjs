@@ -31,6 +31,7 @@ const ROOT = 'K480 SWP-006 Power and Balance of Plant'
 const COLAB_ROOT = 'SWP006 TENDER HANDOVER DOCUMENTS'
 const LIVE_ROOT = 'K480 SWP-006 Power and Balance of Plant/01 PPE DELIVERABLES - the seven outstanding items'
 const DRAWING = /^(LAY|GAD|SEC|DIA|DTL|PFD|FND|PLN|SLD)$/
+const SECTION_4_5 = '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'
 
 const retry = async (fn, n = 5) => { for (let i = 0; ; i++) { try { return await fn() } catch (e) { if (i >= n || /^4(0[0-9]|1[0-9]|2[0-8])\b/.test(String(e.message))) throw e; await new Promise(r => setTimeout(r, 1500 * (i + 1))) } } }
 const tok = (await retry(async () => (await fetch(`https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}/oauth2/v2.0/token`, { method: 'POST', body: new URLSearchParams({ client_id: process.env.MICROSOFT_CLIENT_ID, client_secret: process.env.MICROSOFT_CLIENT_SECRET, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }) })).json())).access_token
@@ -79,9 +80,10 @@ for (const f of stamped) {
   const code = f.name.match(/-([A-Z])([A-Z]{3})-\d{4}/)
   const type = code?.[2] ?? null
   if (!type) unclassified++
-  const isDrawing = type ? DRAWING.test(type) : true
-  const base = isDrawing ? '07 Section 5 - Drawings (EDL)/Supporting drawings' : '06 Section 4 - Specifications and Plans (EDL)/Supporting documents'
-  plan(colab, f, [ROOT, base, area, disc].filter(Boolean).join('/'))
+  // 9 Sep (Marnus + Morné): ONE folder for Sections 4 and 5, mirroring the COLAB tree exactly —
+  // a stamped copy lands in the same <area>/<discipline> it has in COLAB.
+  void type; void DRAWING
+  plan(colab, f, [ROOT, SECTION_4_5, area, disc].filter(Boolean).join('/'))
 }
 
 // Source B — the seven deliverables
@@ -114,14 +116,15 @@ for (const f of item(5)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/05 Section
 // pack location column). It is placed in 06 and 07 by scripts/tender-site-edl.mjs; the draft
 // must not come back on a re-run.
 const isDraftEdl = f => /EDL_SWP006_PPE_DRAFT/i.test(f.name)
-for (const f of item(6).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/06 Section 4 - Specifications and Plans (EDL)`)
-for (const f of item(7).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/07 Section 5 - Drawings (EDL)`)
+for (const f of item(6).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/${SECTION_4_5}`)
+for (const f of item(7).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/${SECTION_4_5}`)
 // Fluor's own pack + the SDDC form → reference
 for (const f of await walk(live, 'K480 SWP-006 Power and Balance of Plant/03 SOURCE MATERIAL')) plan(live, f, REF)
 
 // ---- the 31-Aug supporting snapshot vs the stamped set: report only ----
 // K038 numbers carry digits in the type code (ED01, ID12) — [A-Z0-9]{4}, or they vanish from the report
 const stem = n => n.match(/^(6105A[A-Z0-9]+-\d{4}-[A-Z0-9]{4}-\d{4})/)?.[1] ?? null
+const stemOf = s => (s.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1]?.replace(/-(\d{4})-([A-Z])-([A-Z0-9]{3})-/i, '-$1-$2$3-') ?? '').toUpperCase()
 const stampedStems = new Set(stamped.map(f => stem(f.name)).filter(Boolean))
 const snapshot = liveFiles.filter(f => f.path.includes('/6 - Section 4') && f.path.includes('/Supporting documents/') && /\.pdf$/i.test(f.name))
 const notStamped = snapshot.filter(f => stem(f.name) && !stampedStems.has(stem(f.name)))
@@ -137,6 +140,10 @@ const doCopy = async (q) => {
   // source and a size test re-copies (and fails on) every xlsx/docx every run. The site is a
   // curated copy — an existing name is the file. Delete it there to force a fresh copy.
   if (listing.has(q.name)) { skipped++; return }
+  // …and by DOCUMENT NUMBER too: an issued copy taken from CoreDocs/ENG2 may already sit in the
+  // folder under a different file name (other revision suffix). One document, one file.
+  const qs = stemOf(q.name)
+  if (qs && [...listing.keys()].some(n => stemOf(n) === qs)) { skipped++; return }
   const pid = await folderId(q.destFolder)
   if (!WRITE) { console.log(`  would copy  ${q.srcPath.slice(0, 90)}\n         →  ${q.destFolder.slice(ROOT.length + 1)}/`); copied++; return }
   try {

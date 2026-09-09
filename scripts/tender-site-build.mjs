@@ -27,7 +27,7 @@ const ROOT = 'K480 SWP-006 Power and Balance of Plant'
 
 const AREAS = ['1. Substations BOP Project Site Wide', '2. Plant Main Substation', '3. Mining Substation', '4. Power Station Substation', '5. Solar PV Substation']
 const DISCIPLINES = ['1. Automation', '2. Civil and Structural', '3. Electrical', '4. Instrumentation', '5. Mechanical and Piping']
-const SITEWIDE = ['1. Automation General Standards and Specs', '2. Civil and Structural General Standards and Specs', '3. Electrical General Standards and Specs', '4. EHS and Fire Protection General Standards', '5. Mechanical General Standards and Specs', '6. Instrumentation General Standards and Specs']
+const SITEWIDE = ['1. Automation General Standards and Specs', '2. Civil and Structural General Standards and Specs', '3. E-House General Standards and Specs', '4. EHS and Fire Protection General Standards', '5. Electrical General Standards and Specs', '6. Instrumentation General Standards and Specs', '7. Site Conditions General Standards', '8. Underground Services General Standards and Specs']
 const byArea = (prefix) => AREAS.flatMap(a => a.startsWith('1.') ? SITEWIDE.map(s => `${prefix}/${a}/${s}`) : DISCIPLINES.map(d => `${prefix}/${a}/${d}`))
 
 const TREE = [
@@ -39,12 +39,10 @@ const TREE = [
   '03 Section 2 - Schedule A2 - Unit Prices and BoQ/Preamble and Method of Measurement',
   '04 Section 3 - Exhibit 3A - Technical Scope of Work',
   '05 Section 3 - Exhibit 3B - Company Furnished Material and Equipment',
-  '06 Section 4 - Specifications and Plans (EDL)',
-  '06 Section 4 - Specifications and Plans (EDL)/Supporting documents',
-  ...byArea('06 Section 4 - Specifications and Plans (EDL)/Supporting documents'),
-  '07 Section 5 - Drawings (EDL)',
-  '07 Section 5 - Drawings (EDL)/Supporting drawings',
-  ...byArea('07 Section 5 - Drawings (EDL)/Supporting drawings'),
+  // 9 Sep (Marnus + Morné): ONE folder for Sections 4 and 5, mirroring the COLAB handover tree
+  // exactly (Fluor's Exhibit Four is one workbook for both). Folder names are COLAB's own.
+  '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)',
+  ...byArea('06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'),
   '90 Reference - Fluor K480 templates and Doc Matrix (not part of the pack)',
 ]
 
@@ -58,21 +56,25 @@ site (COLAB and LIVE DOCUMENTS); nothing is worked on here.
 Package name per Bing Mu (Fluor), 28 Aug 2026: "K480 - SWP 006 - Power / Balance of Plant".
 OHL scope is excluded from this Addendum (Blythe Tait, 28 Aug 2026).
 
-Fluor's B9RD RFT Doc Matrix lists 53 items; Fluor holds 46. PPE owes SEVEN, folders 01-07:
+Fluor's B9RD RFT Doc Matrix lists 53 items; Fluor holds 46. PPE owes SEVEN, in folders 01-06
+(Sections 4 and 5 share one folder):
   01  Tender Form 2 - Schedule Requirements
   02  Section 2 - Schedule A - Pricing Schedules
   03  Section 2 - Schedule A2 - Unit Prices and BoQ   (BoQs, cable schedules, cable MTO, preamble)
   04  Section 3 - Exhibit 3A - Technical Scope of Work
   05  Section 3 - Exhibit 3B - Company Furnished Material and Equipment
-  06  Section 4 - Specifications and Plans (EDL)      EDL workbook + supporting documents
-  07  Section 5 - Drawings (EDL)                      same EDL workbook + supporting drawings
+  06  Section 4 and 5 - Specifications, Plans and Drawings (EDL)
+      ONE folder for both sections (Fluor's Exhibit Four is one workbook): the EDL at the
+      top, then the five substation areas and their discipline folders EXACTLY as the
+      COLAB "SWP006 TENDER HANDOVER DOCUMENTS" tree, so a document sits in the same place
+      here as in the team's working tree. The EDL's last column names that folder.
   90  Reference - Fluor's templates and Doc Matrix. NOT part of the pack.
 
-Supporting documents under 06 and 07 are filed by substation and discipline, in the same
-order as the COLAB handover tree, and are the stamped "ISSUED FOR TENDER" copies. Vendor
-documents (ABB, Siemens) ruled into the pack are filed the same way, by area, alongside PPE's.
+Documents under 06 are the stamped "ISSUED FOR TENDER" copies, filed by substation area and
+discipline exactly as in COLAB. Vendor documents (ABB, Siemens) ruled into the pack are filed
+the same way, by area, alongside PPE's.
 
-The EDL workbook in 06 and 07 (B9RD_K480_EDL_SWP006.xlsx) is Fluor's Exhibit Four format,
+The EDL workbook at the top of 06 (B9RD_K480_EDL_SWP006.xlsx) is Fluor's Exhibit Four format,
 generated from the live register; its last column names the folder each document sits in here.
 
 Access: Morne Cronje and Marnus Meyer (owners). Others - internal or Fluor - are added by
