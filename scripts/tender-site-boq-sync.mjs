@@ -13,6 +13,12 @@
 import fs from 'node:fs'
 for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const t = line.trim(); if (!t || t.startsWith('#') || !t.includes('=')) continue; const i = t.indexOf('='); const k = t.slice(0, i).trim(); if (!(k in process.env)) process.env[k] = t.slice(i + 1).trim().replace(/^["']|["']$/g, '') }
 const WRITE = process.argv.includes('--write')
+// 10 Sep, 11:00: the four GBOM Bills in the pack are STRUCTURE-MASTERED there (formulas repaired,
+// external links broken, Fluor Schedule A summary sheet added — %TEMP%/claude/k480/boq-repair.py).
+// A Working Folder file must never be copied over them again; content changes come across through
+// the values merge instead. Only the ESCH cable schedules still sync as whole files.
+//   --include-boq   copies GBOM files too (only if the repaired structure is to be discarded)
+const INCLUDE_BOQ = process.argv.includes('--include-boq')
 const SRC_ROOT = 'PLANT WIDE SUBSTATIONS (PPE Working Folder)/Document Register'
 const ROOT = 'K480 SWP-006 Power and Balance of Plant', F03 = `${ROOT}/03 Section 2 - Schedule A2 - Unit Prices and BoQ`
 const DEST = { GBOM: `${F03}/Bills of Quantities`, ESCH: `${F03}/Cable Schedules and MTO` }
@@ -28,7 +34,8 @@ const k138 = await g('/sites/ppetechcoza.sharepoint.com:/sites/K138-BalanceofPla
 const packSite = await g('/sites/ppetechcoza.sharepoint.com:/sites/K480SWP-006TenderPack'); const pd = (await g(`/sites/${packSite.id}/drives?$select=id,name`)).value.find(x => x.name === 'Documents').id
 
 // the source: one GBOM and one ESCH workbook per substation, xlsx/xlsm only
-const src = (await walk(colab, SRC_ROOT)).filter(f => /BOQ & Cable Schedule/i.test(f.path) && /\.(xlsx|xlsm)$/i.test(f.name) && /-(GBOM|ESCH)-\d{4}/i.test(f.name))
+const src = (await walk(colab, SRC_ROOT)).filter(f => /BOQ & Cable Schedule/i.test(f.path) && /\.(xlsx|xlsm)$/i.test(f.name) && /-(GBOM|ESCH)-\d{4}/i.test(f.name) && (INCLUDE_BOQ || !/-GBOM-/i.test(f.name)))
+if (!INCLUDE_BOQ) console.log('GBOM Bills skipped — structure-mastered in the pack since 10 Sep (values merge instead); --include-boq to override')
 const pack = (await walk(pd, F03)).filter(f => /\.(xlsx|xlsm)$/i.test(f.name))
 const byStem = new Map(); for (const f of pack) { const s = stemOf(f.name); if (s) { if (!byStem.has(s)) byStem.set(s, []); byStem.get(s).push(f) } }
 const STATE = 'C:/Users/mornec/AppData/Local/Temp/claude/k480/boq-sync-state.json'

@@ -24,6 +24,12 @@ const arg = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : nu
 const REASON = arg('--reason') ?? 'Removed — superseded'
 const BY = arg('--by') ?? 'mornec@ppetech.co.za'
 const docnos = args.filter(a => /^6105A/i.test(a))
+// --file=<source file name> (repeatable): only the rows carrying that source file — for a SHEET of
+// a document whose number is shared with the surviving pack (PPFD-0001 Sh1of2/Sh2of2, 10 Sep)
+const FILES = args.filter(a => a.startsWith('--file=')).map(a => a.slice(7).toLowerCase())
+// --session=<part of the session title>: only the row in THAT session — for a drawing pulled into
+// two sessions from two COLAB folders (0100-FLAY-0001 in Main Consumer AND Solar PV, 10 Sep)
+const SESSION = args.find(a => a.startsWith('--session='))?.slice(10).toLowerCase() ?? ''
 if (!docnos.length) { console.error('usage: node scripts/prelim-remove.mjs <docno...> [--reason "..."] [--by email] [--colab] [--write]'); process.exit(1) }
 
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
@@ -47,7 +53,8 @@ async function walk(p) { let u = `/drives/${drv}/root:/${enc(p)}:/children?$sele
 await walk('K480 SWP-006 Power and Balance of Plant')
 
 for (const dn of docnos) {
-  const { data: rows } = await sb.from('prelim_document').select('*, prelim_session!inner(id, title, status)').ilike('document_number', `${dn}%`).eq('prelim_session.status', 'open')
+  const { data: rows0 } = await sb.from('prelim_document').select('*, prelim_session!inner(id, title, status)').ilike('document_number', `${dn}%`).eq('prelim_session.status', 'open')
+  const rows = (rows0 ?? []).filter(r => (!FILES.length || FILES.includes(String(r.source_file_name).toLowerCase())) && (!SESSION || String(r.prelim_session.title).toLowerCase().includes(SESSION)))
   if (!rows?.length) { console.log(`\n${dn}: not in any open session`); continue }
   for (const d of rows) {
     console.log(`\n${d.document_number} rev ${d.revision ?? '—'}  (${d.prelim_session.title})`)
@@ -56,7 +63,9 @@ for (const dn of docnos) {
     await delByUrl('stamped copy', d.tender_stamped_file_url)
     if (COLAB) await delByUrl('COLAB source', d.source_file_url); else console.log(`  COLAB source left in place (add --colab to remove it; the sync will otherwise re-pull it)`)
     const stem = stemOf(d.document_number)
-    for (const f of packFiles.filter(f => stemOf(f.name) === stem)) { if (WRITE) { const r = await fetch(`${G}/drives/${drv}/items/${f.id}`, { method: 'DELETE', headers: H }); console.log(`  tender site copy deleted (${r.status}) ${f.path.slice(41)}`) } else console.log(`  would delete tender site copy ${f.path.slice(41)}`) }
+    // a row that was never stamped owns no copy in the pack — the copy there belongs to a
+    // surviving row with the same number (the combined PPFD pack, 10 Sep); leave it alone
+    for (const f of d.tender_stamped_file_url ? packFiles.filter(f => stemOf(f.name) === stem) : []) { if (WRITE) { const r = await fetch(`${G}/drives/${drv}/items/${f.id}`, { method: 'DELETE', headers: H }); console.log(`  tender site copy deleted (${r.status}) ${f.path.slice(41)}`) } else console.log(`  would delete tender site copy ${f.path.slice(41)}`) }
     if (WRITE) {
       await sb.from('audit_events').insert({ entity_type: 'prelim_document', entity_id: d.id, event_type: 'prelim_removed', actor_user_id: null, actor_email: BY, event_data: { sessionId: d.prelim_session.id, document: d.document_number, reason: REASON, routing: d.routing, routing_to: d.routing_to_email, routing_at: d.routing_at, routing_history: d.routing_history ?? null, comments: d.markup_comments ?? null, colab_source_removed: COLAB } }).then(r => { if (r.error) console.log('  audit:', r.error.message) })
       const { error } = await sb.from('prelim_document').delete().eq('id', d.id); console.log(`  prelim row deleted: ${error?.message ?? 'ok'}`)
