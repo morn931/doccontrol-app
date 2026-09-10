@@ -70,4 +70,6 @@ for (const f of src.sort((a, b) => a.name.localeCompare(b.name))) {
 // pack workbooks with no source any more (engineers renamed/renumbered) — reported, never deleted
 const srcStems = new Set(src.map(f => stemOf(f.name)))
 for (const f of pack.filter(f => stemOf(f.name) && !srcStems.has(stemOf(f.name)))) console.log(`  ?   ${f.name}  — in the pack, no matching workbook in the Working Folder`)
-console.log(`\n${WRITE ? 'done' : 'dry run'}: ${replaced} replaced · ${added} added · ${same} unchanged (source ${src.length} workbooks)${WRITE ? '' : '   — add --write'}`)
+const lockNote = locked ? ` · ${locked} LOCKED in Excel, not written (re-run later)` : ''
+console.log(`
+${WRITE ? 'done' : 'dry run'}: ${replaced} replaced · ${added} added · ${same} unchanged${lockNote} (source ${src.length} workbooks)${WRITE ? '' : '   — add --write'}`)
