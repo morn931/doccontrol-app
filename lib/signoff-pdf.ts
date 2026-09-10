@@ -5,7 +5,81 @@
  *   - stampSignature:     stamp a signatory's signature + date into their row.
  * The approval page is always the LAST page of the document.
  */
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb, degrees, type PDFPage } from 'pdf-lib'
+
+// ── Rotated pages ────────────────────────────────────────────────────────────
+// A page can carry /Rotate 90, 180 or 270: its content is stored one way and SHOWN turned.
+// pdf.js reports text positions, and pdf-lib draws, in the STORED (unrotated) space — so on a
+// rotated drawing "above the label" pointed sideways, and the stamp came out sideways too.
+// 6105AK124-6241-ELAY-0001 (2026-09-10, ticket 647b4156) is stored at /Rotate 270: Ian
+// Steynberg's signature was drawn turned 90°, small, in the neighbouring box, and the date ran
+// vertically across "CHECKED BY / I STEYNBERG".
+//
+// So on a rotated page the geometry is worked out in DISPLAY space — as the reader sees the
+// page — and converted back to stored space only to draw, with the ink turned to match.
+// Placements stay stored in stored space, as they always have been.
+//
+// ⚠ An UPRIGHT page never enters this path. Every function below keeps its original code for
+// rot 0 verbatim, so the 58 upright drawings signed before this change behave identically by
+// construction, not by arithmetic.
+
+/** A page's stored-space box and its display rotation (clockwise, as /Rotate means). */
+export type PageFrame = { rot: 0 | 90 | 180 | 270; x0: number; y0: number; w: number; h: number }
+
+const normRot = (a: number): PageFrame['rot'] => ((((Math.round(a / 90) * 90) % 360) + 360) % 360) as PageFrame['rot']
+
+function frameOfPage(page: PDFPage): PageFrame {
+  const box = page.getCropBox()
+  return { rot: normRot(page.getRotation().angle), x0: box.x, y0: box.y, w: box.width, h: box.height }
+}
+
+/** Stored → display (origin bottom-left of the page as shown). */
+export function toDisplay(f: PageFrame, x: number, y: number): { x: number; y: number } {
+  const u = x - f.x0, v = y - f.y0
+  switch (f.rot) {
+    case 90: return { x: v, y: f.w - u }
+    case 180: return { x: f.w - u, y: f.h - v }
+    case 270: return { x: f.h - v, y: u }
+    default: return { x: u, y: v }
+  }
+}
+
+/** Display → stored. The exact inverse of toDisplay. */
+export function toStored(f: PageFrame, X: number, Y: number): { x: number; y: number } {
+  let u: number, v: number
+  switch (f.rot) {
+    case 90: u = f.w - Y; v = X; break
+    case 180: u = f.w - X; v = f.h - Y; break
+    case 270: u = Y; v = f.h - X; break
+    default: u = X; v = Y
+  }
+  return { x: u + f.x0, y: v + f.y0 }
+}
+
+type Rect = { x: number; y: number; w: number; h: number }
+function rectVia(conv: (x: number, y: number) => { x: number; y: number }, r: Rect): Rect {
+  const a = conv(r.x, r.y), b = conv(r.x + r.w, r.y + r.h)
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) }
+}
+const rectToDisplay = (f: PageFrame, r: Rect) => rectVia((x, y) => toDisplay(f, x, y), r)
+const rectToStored = (f: PageFrame, r: Rect) => rectVia((x, y) => toStored(f, x, y), r)
+
+/** A nudge the signatory pressed (↑ ↓ ← →, in display terms) as a move in stored space. */
+export function nudgeToStored(f: PageFrame | null | undefined, dx: number, dy: number): { dx: number; dy: number } {
+  switch (f?.rot) {
+    case 90: return { dx: -dy, dy: dx }
+    case 180: return { dx: -dx, dy: -dy }
+    case 270: return { dx: dy, dy: -dx }
+    default: return { dx, dy }
+  }
+}
+
+/** The frame of a given 1-based page — for callers outside a rebuild (the nudge route). */
+export async function pageFrameOf(pdfBytes: ArrayBuffer | Uint8Array, page1: number): Promise<PageFrame> {
+  const doc = await PDFDocument.load(pdfBytes)
+  const pages = doc.getPages()
+  return frameOfPage(pages[Math.min(Math.max(page1, 1), pages.length) - 1] ?? pages[0])
+}
 
 const PAGE_W = 595.28   // A4 portrait
 const PAGE_H = 841.89
@@ -103,9 +177,11 @@ export async function stampSignature(
 // the name — not on an appended page. We locate the columns with pdfjs (text + position)
 // and stamp with pdf-lib. If the block isn't found, callers fall back to appendSignoffBlock.
 
-type Col = { x: number; y: number; w: number }
+// `frame` is present ONLY on a rotated page, and then x/y are in DISPLAY space. An upright
+// page's columns are exactly what they always were: stored-space x/y/w and nothing else.
+type Col = { x: number; y: number; w: number; frame?: PageFrame }
 
-async function pageOneWords(pdfBytes: ArrayBuffer | Uint8Array): Promise<{ str: string; x: number; y: number; w: number }[]> {
+async function pageOneWords(pdfBytes: ArrayBuffer | Uint8Array): Promise<{ words: { str: string; x: number; y: number; w: number }[]; frame: PageFrame }> {
   const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const src = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes)
   // pdf.js TRANSFERS/detaches the `data` buffer it's given. Hand it a fresh COPY each time so
@@ -117,8 +193,16 @@ async function pageOneWords(pdfBytes: ArrayBuffer | Uint8Array): Promise<{ str: 
     try {
       const page = await doc.getPage(1)
       const tc = await page.getTextContent()
-      return (tc.items as any[]).filter(i => typeof i.str === 'string')
-        .map(i => ({ str: i.str, x: i.transform[4], y: i.transform[5], w: i.width }))
+      const [vx0, vy0, vx1, vy1] = page.view as number[]
+      const frame: PageFrame = { rot: normRot(page.rotate ?? 0), x0: vx0, y0: vy0, w: vx1 - vx0, h: vy1 - vy0 }
+      const words = (tc.items as any[]).filter(i => typeof i.str === 'string').map(i => {
+        // `width` is measured along the text's own direction, so for a label that READS
+        // across the page as displayed it is already the display width.
+        if (frame.rot === 0) return { str: i.str, x: i.transform[4], y: i.transform[5], w: i.width }
+        const d = toDisplay(frame, i.transform[4], i.transform[5])
+        return { str: i.str, x: d.x, y: d.y, w: i.width }
+      })
+      return { words, frame }
     } finally { await doc.destroy() }
   }
   // Serverless-safe first (no system-font lookups / FontFace — Vercel has neither, which made
@@ -130,8 +214,8 @@ async function pageOneWords(pdfBytes: ArrayBuffer | Uint8Array): Promise<{ str: 
 /** Locate the PREPARED/CHECKED/APPROVED columns on the cover page. Returns null if the
  *  title block isn't present (→ caller uses the appended-block fallback). */
 export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array): Promise<Record<string, Col> | null> {
-  let words
-  try { words = await pageOneWords(pdfBytes) } catch { return null }
+  let words, frame: PageFrame
+  try { ({ words, frame } = await pageOneWords(pdfBytes)) } catch { return null }
   const cols: Record<string, Col> = {}
   for (const kw of ['PREPARED', 'CHECKED', 'APPROVED']) {
     // Match the actual title-block label "<KW> BY" — NOT any prose that merely contains
@@ -148,7 +232,7 @@ export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array):
         .filter(w => w.str.toUpperCase().includes(kw) && w.str.trim().length <= 15)
         .sort((a, b) => a.y - b.y)[0]
     }
-    if (m) cols[kw] = { x: m.x, y: m.y, w: m.w }
+    if (m) cols[kw] = frame.rot === 0 ? { x: m.x, y: m.y, w: m.w } : { x: m.x, y: m.y, w: m.w, frame }
   }
   return Object.keys(cols).length ? cols : null
 }
@@ -245,7 +329,11 @@ export function defaultPlacement(
   const col = key && cols ? cols[key] : null
   if (col) {
     const w = 104, h = 40   // signature box — sits in the title-block column above the name
-    return { page: 1, x: col.x + col.w / 2 - w / 2, y: col.y + 26, w, h }
+    const box = { x: col.x + col.w / 2 - w / 2, y: col.y + 26, w, h }
+    // A rotated page's column is in display space: "above the name" is worked out as the page
+    // is seen, and only the finished box goes back to stored space (w/h swap at 90/270).
+    if (col.frame) return { page: 1, ...rectToStored(col.frame, box) }
+    return { page: 1, ...box }
   }
   const g = rowGeom(blockRow)                 // appended page is added after the base
   return { page: basePageCount + 1, x: g.sigX, y: g.sigY, w: g.sigW, h: g.sigH }
@@ -269,7 +357,15 @@ function isAppendedRowBox(p: Placement): boolean {
  *  rendered at when no independent date position has been saved yet. Used as the starting point
  *  the first time a signatory nudges their date (so it starts exactly where it's currently
  *  showing, not somewhere new). */
-export function defaultDatePos(p: Placement): { x: number; y: number } {
+export function defaultDatePos(p: Placement, frame?: PageFrame | null): { x: number; y: number } {
+  // On a rotated page "16pt below the box" means below it AS SEEN — in stored space that is
+  // sideways, which is how the date ended up running vertically across a title block. The
+  // appended sheet is never rotated (pdf-lib adds it upright), so this never meets the branch
+  // below it.
+  if (frame && frame.rot !== 0) {
+    const d = rectToDisplay(frame, p)
+    return toStored(frame, d.x, d.y - 16)
+  }
   // On the appended approval sheet the date belongs in that sheet's OWN "Date" column — it prints
   // a Date header and a date rule at COL.date, and the pre-movable stampSignature filled it in
   // there. The relative offset below the box (added when dates became movable) left the Date
@@ -310,6 +406,11 @@ export async function rebuildSignedPdf(
     }
     const page = pages[Math.min(Math.max(s.page, 1), pages.length) - 1]
     if (!page) continue
+    const frame = frameOfPage(page)
+    if (frame.rot !== 0) {
+      await drawRotatedStamp(doc, page, frame, s, font, ink)
+      continue
+    }
     if (s.png?.byteLength) {
       try {
         const img = await embedStampImage(doc, s.png)
@@ -330,6 +431,40 @@ export async function rebuildSignedPdf(
     }
   }
   return doc.save()
+}
+
+/** One stamp on a ROTATED page. The same fit, the same offsets, the same date rule as the
+ *  upright path in rebuildSignedPdf — all worked out as the page is SEEN — then each mark is
+ *  anchored in stored space and turned by the page's rotation so it reads the right way up.
+ *  pdf-lib turns counter-clockwise and /Rotate turns the display clockwise: drawing at +rot is
+ *  exactly undone by the page's own turn. */
+async function drawRotatedStamp(
+  doc: PDFDocument, page: PDFPage, frame: PageFrame, s: StampSpec,
+  font: Awaited<ReturnType<PDFDocument['embedFont']>>, ink: ReturnType<typeof rgb>,
+): Promise<void> {
+  const turn = degrees(frame.rot)
+  const d = rectToDisplay(frame, s)                       // the box as the reader sees it
+  const at = (X: number, Y: number) => toStored(frame, X, Y)
+  const typed = () => {
+    if (!s.typedName) return
+    const o = at(d.x + 4, d.y + d.h / 2 - 5)
+    page.drawText(s.typedName, { x: o.x, y: o.y, size: 10, font, color: ink, rotate: turn })
+  }
+  if (s.png?.byteLength) {
+    try {
+      const img = await embedStampImage(doc, s.png)
+      const scale = Math.min(d.w / img.width, d.h / img.height)
+      const w = img.width * scale, h = img.height * scale
+      const o = at(d.x + (d.w - w) / 2, d.y + (d.h - h) / 2)
+      page.drawImage(img, { x: o.x, y: o.y, width: w, height: h, rotate: turn })
+    } catch { typed() }
+  } else typed()
+  if (s.dateStr) {
+    // A saved date position is stored-space like every placement; the default is "16pt below
+    // the box as seen" (defaultDatePos with the frame), never below it in stored space.
+    const dp = s.dateX != null && s.dateY != null ? { x: s.dateX, y: s.dateY } : defaultDatePos(s, frame)
+    page.drawText(s.dateStr, { x: dp.x, y: dp.y, size: 8, font, color: ink, rotate: turn })
+  }
 }
 
 // Page count of a PDF (for the appended-page index).

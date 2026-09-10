@@ -11,7 +11,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getPermissions, can, FK } from '@/lib/permissions'
 import { getFileBytesByUrl } from '@/lib/services/graph'
-import { pageSizeOf, defaultDatePos } from '@/lib/signoff-pdf'
+import { pageSizeOf, pageFrameOf, nudgeToStored, defaultDatePos } from '@/lib/signoff-pdf'
 import { rebuildBatchSignedPdf } from '@/lib/signoff-rebuild'
 
 export const dynamic = 'force-dynamic'
@@ -44,12 +44,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ taskId:
   const target: 'signature' | 'date' = body.target === 'date' ? 'date' : 'signature'
   const page = body.page != null ? Math.max(1, Math.floor(Number(body.page))) : (t.place_page ?? 1)
 
+  // The page is read ONCE — for the clamp and for its rotation. The arrows are pressed in
+  // DISPLAY terms (↑ is up as the signatory sees it); on a rotated drawing that is a different
+  // direction in stored space, and without converting it ↑ moved the signature sideways.
+  // No PDF to read → no clamp and no rotation, exactly as before.
+  const { data: batch } = await db.from('batches').select('signoff_pdf_url').eq('id', t.batch_id).single()
+  const url = (batch as any)?.signoff_pdf_url
+  let bytes: ArrayBuffer | Uint8Array | null = null
+  try { if (url) bytes = await getFileBytesByUrl(url) } catch { bytes = null }
+  const frame = bytes ? await pageFrameOf(bytes, page).catch(() => null) : null
+  const mv = nudgeToStored(frame, dx, dy)
+
   const db2Clamp = async (x: number, y: number, w: number, h: number) => {
-    const { data: batch } = await db.from('batches').select('signoff_pdf_url').eq('id', t.batch_id).single()
-    const url = (batch as any)?.signoff_pdf_url
-    if (!url) return { x, y }
+    if (!bytes) return { x, y }
     try {
-      const bytes = await getFileBytesByUrl(url)
       const sz = await pageSizeOf(bytes, page)
       return { x: Math.min(Math.max(0, x), Math.max(0, sz.w - w)), y: Math.min(Math.max(0, y), Math.max(0, sz.h - h)) }
     } catch { return { x, y } }
@@ -57,18 +65,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ taskId:
 
   if (target === 'date') {
     // First move ever for this signatory's date: start from wherever it's currently rendering
-    // (relative to the signature), not some arbitrary new spot.
+    // (relative to the signature), not some arbitrary new spot. The frame makes that the same
+    // spot rebuildSignedPdf draws it at on a rotated page.
     const base = (t.place_date_x != null && t.place_date_y != null)
       ? { x: t.place_date_x, y: t.place_date_y }
-      : defaultDatePos({ page: t.place_page, x: t.place_x, y: t.place_y, w: t.place_w, h: t.place_h })
-    const { x: ndx, y: ndy } = await db2Clamp(base.x + dx, base.y + dy, 0, 0)
+      : defaultDatePos({ page: t.place_page, x: t.place_x, y: t.place_y, w: t.place_w, h: t.place_h }, frame)
+    const { x: ndx, y: ndy } = await db2Clamp(base.x + mv.dx, base.y + mv.dy, 0, 0)
     await db.from('signoff_tasks').update({ place_date_x: ndx, place_date_y: ndy, updated_at: new Date().toISOString() }).eq('id', taskId)
     const rb = await rebuildBatchSignedPdf(db, t.batch_id)
     if (!rb.ok) return NextResponse.json({ error: rb.error ?? 'Could not re-stamp the date.' }, { status: 502 })
     return NextResponse.json({ ok: true, page, x: ndx, y: ndy, target })
   }
 
-  const { x: nx, y: ny } = await db2Clamp(t.place_x + dx, t.place_y + dy, t.place_w ?? 0, t.place_h ?? 0)
+  const { x: nx, y: ny } = await db2Clamp(t.place_x + mv.dx, t.place_y + mv.dy, t.place_w ?? 0, t.place_h ?? 0)
   await db.from('signoff_tasks').update({ place_page: page, place_x: nx, place_y: ny, updated_at: new Date().toISOString() }).eq('id', taskId)
   const rb = await rebuildBatchSignedPdf(db, t.batch_id)
   if (!rb.ok) return NextResponse.json({ error: rb.error ?? 'Could not re-stamp the signature.' }, { status: 502 })
