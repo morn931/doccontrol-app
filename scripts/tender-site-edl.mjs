@@ -10,7 +10,8 @@ for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const
 const WRITE = process.argv.includes('--write')
 // format=ppe since 10 Sep (Morné: our own Engineering Register layout with a document-type legend, not Fluor's)
 const EXPORT = process.env.SWP006_EDL_EXPORT_URL || 'https://reports.coreflow.build/api/export-swp006-edl?token=f6c68725d7673c6a090acc40442ff6d2b33b032f&format=ppe'
-const NAME = 'B9RD_K480_EDL_SWP006.xlsx'
+// 10 Sep (Morné): the register carries its own number, from the Scope of Works Appendix M
+const NAME = '6105AK124-6200-GLST-0001_A - K480 SWP006 Construction Tender Document Register.xlsx'
 const ROOT = 'K480 SWP-006 Power and Balance of Plant'
 // One folder for both sections since 9 Sep (Marnus + Morné); Fluor's Exhibit Four is one workbook.
 const FOLDERS = ['05 PART 3 - Sections 4 & 5 - Specifications, Plans & Drawings (EDL)']
@@ -26,7 +27,7 @@ const g = async u => { const r = await fetch(G + u, { headers: H }); if (!r.ok) 
 const enc = p => p.split('/').map(encodeURIComponent).join('/')
 const site = await g('/sites/ppetechcoza.sharepoint.com:/sites/K480SWP-006TenderPack'); const d = (await g(`/sites/${site.id}/drives?$select=id,name`)).value.find(x => x.name === 'Documents')
 for (const f of FOLDERS) {
-  const kids = (await g(`/drives/${d.id}/root:/${enc(`${ROOT}/${f}`)}:/children?$select=id,name,file`)).value.filter(k => k.file && /EDL_SWP006/i.test(k.name) && k.name !== NAME)
+  const kids = (await g(`/drives/${d.id}/root:/${enc(`${ROOT}/${f}`)}:/children?$select=id,name,file`)).value.filter(k => k.file && /EDL_SWP006|GLST-0001/i.test(k.name) && k.name !== NAME)
   for (const k of kids) { if (WRITE) { const r = await fetch(`${G}/drives/${d.id}/items/${k.id}`, { method: 'DELETE', headers: H }); console.log(`  removed old EDL (${r.status})  ${f}/${k.name}`) } else console.log(`  would remove  ${f}/${k.name}`) }
   if (!WRITE) { console.log(`  would write   ${f}/${NAME}`); continue }
   const s = await fetch(`${G}/drives/${d.id}/root:/${enc(`${ROOT}/${f}/${NAME}`)}:/createUploadSession`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }) })
