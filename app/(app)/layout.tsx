@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/header'
 import { Sidebar } from '@/components/layout/sidebar'
 import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer'
 import PageViewLogger from '@/components/page-view-logger'
+import TenderCelebration from '@/components/tender-celebration'
 import type { UserRole } from '@/lib/types/database'
 import { getPermissions, can, FK } from '@/lib/permissions'
 
@@ -46,6 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-[var(--page-bg)] flex flex-col">
       <Suspense fallback={null}><PageViewLogger /></Suspense>
+      <TenderCelebration email={profile?.email ?? user.email ?? ''} />
       <Header userName={name} role={role} />
 
       {/* CoreFlow platform-wide hero band — slate backdrop, contained artwork */}
