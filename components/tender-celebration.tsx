@@ -8,12 +8,14 @@ import { useEffect, useRef, useState } from 'react'
  * the screen, with fireworks popping in all colours." Every CoreDocs user counts.
  *
  * Shows ONCE per person (localStorage, keyed by email + day), on their first page
- * load on SHOW_ON (Central Africa Time), and goes away on Close or after 20 s.
+ * load on SHOW_ON (Central Africa Time), and goes away on Close or once the banner has crossed three times (42 s).
  * `?celebrate=1` previews it without spending the person's one showing.
  * After SHOW_ON this file is inert; delete it whenever.
  */
 const SHOW_ON = '2026-09-11'
-const AUTO_CLOSE_MS = 20_000
+const BANNER_PASS_S = 14
+const BANNER_PASSES = 3
+const AUTO_CLOSE_MS = BANNER_PASS_S * BANNER_PASSES * 1000   // three full crossings, then gone
 
 const COLORS = ['#ff3b3b', '#ffb703', '#ffe600', '#2ecc71', '#00c2ff', '#3d5afe', '#c77dff', '#ff5fa2', '#ffffff']
 
@@ -94,7 +96,7 @@ export default function TenderCelebration({ email }: { email: string }) {
       `}</style>
       <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, rgba(27,52,100,.08), rgba(27,52,100,.28))' }} />
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
-      <div style={{ position: 'absolute', top: '30%', left: 0, whiteSpace: 'nowrap', animation: 'tc-run 14s linear infinite', textAlign: 'center' }}>
+      <div style={{ position: 'absolute', top: '30%', left: 0, whiteSpace: 'nowrap', animation: `tc-run ${BANNER_PASS_S}s linear ${BANNER_PASSES}`, textAlign: 'center' }}>
         <div style={{ fontSize: 'clamp(48px, 7.5vw, 120px)', fontWeight: 900, letterSpacing: '.02em', color: '#e11d2e', lineHeight: 1.05,
           textShadow: '0 0 18px rgba(255,255,255,.9), 0 6px 0 #9f1220, 0 12px 30px rgba(0,0,0,.35)' }}>
           🎉 Congrats on the tender submission! 🎉
