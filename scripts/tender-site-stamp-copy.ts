@@ -32,9 +32,9 @@ const DRAWING = /^(LAY|GAD|SEC|DIA|DTL|PFD|FND|PLN|SLD)$/
 // 6260 sits in the 626x Plant Main run, 6290 beside 6292 Solar PV).
 const AREA: Record<string, string> = {
   '0000': '1. General Standards and Specifications', '9134': '1. General Standards and Specifications',
-  '6200': '2. Plant Main Substation', '6212': '2. Plant Main Substation', '6260': '2. Plant Main Substation', '6243': '2. Plant Main Substation', '6253': '2. Plant Main Substation', '6254': '2. Plant Main Substation', '6256': '2. Plant Main Substation', '6262': '2. Plant Main Substation', '6263': '2. Plant Main Substation', '6264': '2. Plant Main Substation',
+  '6200': '2. Main Consumer (Plant Main) Substation', '6212': '2. Main Consumer (Plant Main) Substation', '6260': '2. Main Consumer (Plant Main) Substation', '6243': '2. Main Consumer (Plant Main) Substation', '6253': '2. Main Consumer (Plant Main) Substation', '6254': '2. Main Consumer (Plant Main) Substation', '6256': '2. Main Consumer (Plant Main) Substation', '6262': '2. Main Consumer (Plant Main) Substation', '6263': '2. Main Consumer (Plant Main) Substation', '6264': '2. Main Consumer (Plant Main) Substation',
   '6286': '3. Mining Substation',
-  '6242': '4. Power Station Substation', '6251': '4. Power Station Substation',
+  '6242': '4. Main Intake (Power Station) Substation', '6251': '4. Main Intake (Power Station) Substation',
   '6241': '5. Solar PV Substation', '6290': '5. Solar PV Substation', '6292': '5. Solar PV Substation',
 }
 // 9 Sep (Marnus + Morné): ONE folder for Sections 4 and 5, mirroring COLAB's tree exactly.
@@ -55,7 +55,7 @@ function placement(d: Doc): { folder: string; section: 4 | 5; note?: string } {
   const section: 4 | 5 = DRAWING.test(type) ? 5 : 4 // kept for the log; the folder no longer splits on it
   const base = SECTION_4_5
   let area = AREA[code], note: string | undefined
-  if (code === '0100') area = /site ?wide|project/i.test(d.area) || /^6105AK038/i.test(d.docNo) ? '1. General Standards and Specifications' : '2. Plant Main Substation'
+  if (code === '0100') area = /site ?wide|project/i.test(d.area) || /^6105AK038/i.test(d.docNo) ? '1. General Standards and Specifications' : '2. Main Consumer (Plant Main) Substation'
   if (!area) { area = '1. General Standards and Specifications'; note = `area code ${code} not in the map — filed Site Wide` }
   const disc = area.startsWith('1.') ? (SITEWIDE[letter] ?? SITEWIDE.E) : (DISC[letter] ?? DISC.E)
   return { folder: `${ROOT}/${base}/${area}/${disc}`, section, note }

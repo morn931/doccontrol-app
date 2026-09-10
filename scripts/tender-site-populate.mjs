@@ -83,6 +83,9 @@ const SITEWIDE_MAP = {
   '4. EHS and Fire Protection General Standards': '7. HSE General Standards and Specs',
   '7. Site Conditions General Standards': '7. HSE General Standards and Specs',
   '8. Underground Services General Standards and Specs': '4. Mechanical General Standards and Specs',
+  // 10 Sep 14:50 — Marnus renamed two substation folders in the pack
+  '2. Plant Main Substation': '2. Main Consumer (Plant Main) Substation',
+  '4. Power Station Substation': '4. Main Intake (Power Station) Substation',
 }
 const reAddress = (dest) => dest.split('/').map(seg => SITEWIDE_MAP[seg] ?? seg).join('/')
 const queue = [] // { srcDrive, srcId, srcPath, destFolder, name, size }
