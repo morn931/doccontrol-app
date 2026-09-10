@@ -93,7 +93,11 @@ const isTemplate = f => /^TEMPLATE/i.test(f.name)
 const REF = `${ROOT}/90 Reference - Fluor K480 templates and Doc Matrix (not part of the pack)`
 const superseded = []
 for (const f of item(1)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/01 Tender Form 2 - Schedule Requirements`)
-for (const f of item(2)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/02 Section 2 - Schedule A - Pricing Schedules`)
+// Folder 02 is curated by hand since 10 Sep: Fluor's blank "K138 - Section 2 - Pricing Schedule A1"
+// is their template (Ulzhan Shona, May 2026), not a PPE deliverable — it lives in Reference; the
+// live Schedule A workbook from Blythe (4 Sep) was placed in 02 directly. Nothing from item 2 is
+// copied into 02 any more.
+for (const f of item(2)) if (isTemplate(f)) plan(live, f, REF)
 {
   const a2 = item(3).filter(f => f.path.split('/').length === 4) // files directly in folder 3
   for (const f of a2) {
