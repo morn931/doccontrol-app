@@ -27,6 +27,9 @@ const docnos = args.filter(a => /^6105A/i.test(a))
 // --file=<source file name> (repeatable): only the rows carrying that source file — for a SHEET of
 // a document whose number is shared with the surviving pack (PPFD-0001 Sh1of2/Sh2of2, 10 Sep)
 const FILES = args.filter(a => a.startsWith('--file=')).map(a => a.slice(7).toLowerCase())
+// --session=<part of the session title>: only the row in THAT session — for a drawing pulled into
+// two sessions from two COLAB folders (0100-FLAY-0001 in Main Consumer AND Solar PV, 10 Sep)
+const SESSION = args.find(a => a.startsWith('--session='))?.slice(10).toLowerCase() ?? ''
 if (!docnos.length) { console.error('usage: node scripts/prelim-remove.mjs <docno...> [--reason "..."] [--by email] [--colab] [--write]'); process.exit(1) }
 
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
@@ -51,7 +54,7 @@ await walk('K480 SWP-006 Power and Balance of Plant')
 
 for (const dn of docnos) {
   const { data: rows0 } = await sb.from('prelim_document').select('*, prelim_session!inner(id, title, status)').ilike('document_number', `${dn}%`).eq('prelim_session.status', 'open')
-  const rows = (rows0 ?? []).filter(r => !FILES.length || FILES.includes(String(r.source_file_name).toLowerCase()))
+  const rows = (rows0 ?? []).filter(r => (!FILES.length || FILES.includes(String(r.source_file_name).toLowerCase())) && (!SESSION || String(r.prelim_session.title).toLowerCase().includes(SESSION)))
   if (!rows?.length) { console.log(`\n${dn}: not in any open session`); continue }
   for (const d of rows) {
     console.log(`\n${d.document_number} rev ${d.revision ?? '—'}  (${d.prelim_session.title})`)
