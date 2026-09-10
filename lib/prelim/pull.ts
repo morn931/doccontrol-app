@@ -31,6 +31,11 @@ export async function listFolderTree(session: PullSession, folder: string, maxDe
   return files
 }
 
+// A file saved WITHOUT a revision suffix ("6105AK124-6262-EDIA-0001.pdf") that the CDDL mirror
+// does not know still carries its number in the name — keep it, or the row can never be
+// matched to the register, the pack or the tender list (14 such rows found 10 Sep).
+const bareNumber = (name: string) => name.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1]?.replace(/-(\d{4})-([A-Z])-([A-Z0-9]{3})-/i, '-$1-$2$3-').toUpperCase() ?? null
+
 export async function pullFilesIntoSession(session: PullSession, files: PullFile[], byEmail: string): Promise<PullResult[]> {
   const db = createServiceClient()
   const folder = sessionFolder(session.title, session.id)
@@ -57,7 +62,7 @@ export async function pullFilesIntoSession(session: PullSession, files: PullFile
       const { data: row, error } = await db.from('prelim_document').insert({
         session_id:        session.id,
         cddl_doc_id:       cddl?.id ?? null,
-        document_number:   cddl?.docno ?? (parsed.revision ? parsed.normalizedDocumentNumber : null),
+        document_number:   cddl?.docno ?? (parsed.revision ? parsed.normalizedDocumentNumber : bareNumber(f.name)),
         revision:          parsed.revision ?? cddl?.revision ?? null,
         title:             cddl?.title ?? name.replace(/\.[^.]+$/, ''),
         discipline:        cddl?.discipline ?? null,
