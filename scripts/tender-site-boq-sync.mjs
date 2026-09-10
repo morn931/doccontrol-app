@@ -3,8 +3,10 @@
 // is COLAB / PLANT WIDE SUBSTATIONS (PPE Working Folder) / Document Register / <substation> /
 // BOQ & Cable Schedule - <substation>/ — NOT the LIVE DOCUMENTS snapshot the populate used, and
 // not the SWP006 handover tree (which holds no spreadsheets). The engineers keep working on them,
-// so this is re-run periodically: a pack copy is replaced only when the source bytes differ
-// (quickXorHash), and takes the source's current file name. Anything overwritten is first
+// so this is re-run periodically: a pack copy is replaced only when the SOURCE bytes changed
+// since the last sync (SharePoint re-saves an Office file on upload, so the pack copy's own hash
+// never equals the source's — the source hash we last copied is kept in boq-sync-state.json),
+// and takes the source's current file name. A file locked in Excel (423) is retried, then reported. Anything overwritten is first
 // saved to %TEMP%/claude/k480/boq-backup/<timestamp>/ so a hand edit made in the pack is never lost.
 //   node scripts/tender-site-boq-sync.mjs            dry run
 //   node scripts/tender-site-boq-sync.mjs --write
@@ -29,14 +31,17 @@ const packSite = await g('/sites/ppetechcoza.sharepoint.com:/sites/K480SWP-006Te
 const src = (await walk(colab, SRC_ROOT)).filter(f => /BOQ & Cable Schedule/i.test(f.path) && /\.(xlsx|xlsm)$/i.test(f.name) && /-(GBOM|ESCH)-\d{4}/i.test(f.name))
 const pack = (await walk(pd, F03)).filter(f => /\.(xlsx|xlsm)$/i.test(f.name))
 const byStem = new Map(); for (const f of pack) { const s = stemOf(f.name); if (s) { if (!byStem.has(s)) byStem.set(s, []); byStem.get(s).push(f) } }
+const STATE = 'C:/Users/mornec/AppData/Local/Temp/claude/k480/boq-sync-state.json'
+const state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : {}
 const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-'), BK = `C:/Users/mornec/AppData/Local/Temp/claude/k480/boq-backup/${stamp}/`
-let replaced = 0, added = 0, same = 0
+let replaced = 0, added = 0, same = 0, locked = 0
 for (const f of src.sort((a, b) => a.name.localeCompare(b.name))) {
   const s = stemOf(f.name), type = /GBOM/i.test(s) ? 'GBOM' : 'ESCH', dest = DEST[type]
   const existing = byStem.get(s) ?? []
   const cur = existing[0]
   const line = `${s.padEnd(26)} source ${f.mod.slice(0, 16)} ${f.by.padEnd(17)} ${String(f.size).padStart(8)} b`
-  if (cur && cur.hash === f.hash) { same++; console.log(`  =   ${line}  · pack copy identical`); continue }
+  const st = state[s]
+  if (cur && st && st.sourceHash === f.hash && existing.some(e => e.name === st.packName)) { same++; console.log(`  =   ${line}  · unchanged since last sync ${st.syncedAt.slice(0, 16)}`); continue }
   if (!cur) { added++; console.log(`  +   ${line}  · not in pack → ${f.name}`) }
   else { replaced++; console.log(`  ↻   ${line}  · pack copy ${cur.mod.slice(0, 16)} ${cur.by} ${cur.size} b (${cur.name}) → replaced by ${f.name}`) }
   if (!WRITE) continue
@@ -47,11 +52,20 @@ for (const f of src.sort((a, b) => a.name.localeCompare(b.name))) {
     if (old.name !== f.name) { const d = await fetch(`${G}/drives/${pd}/items/${old.id}`, { method: 'DELETE', headers: H }); console.log(`        removed old pack copy ${old.name} (${d.status}), backed up to ${BK}`) }
     else console.log(`        backed up ${old.name} to ${BK}`)
   }
-  const s2 = await fetch(`${G}/drives/${pd}/root:/${enc(`${dest}/${f.name}`)}:/createUploadSession`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }) })
-  if (!s2.ok) throw new Error(`upload session ${s2.status} ${f.name}`)
-  const { uploadUrl } = await s2.json()
-  const r = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Length': String(bytes.length), 'Content-Range': `bytes 0-${bytes.length - 1}/${bytes.length}` }, body: bytes })
-  console.log(`        written (${r.status})  ${dest.slice(F03.length + 1)}/${f.name}`)
+  let status = 0
+  for (let attempt = 1; attempt <= 4 && !(status >= 200 && status < 300); attempt++) {
+    if (attempt > 1) await new Promise(r => setTimeout(r, 4000 * attempt))
+    const s2 = await fetch(`${G}/drives/${pd}/root:/${enc(`${dest}/${f.name}`)}:/createUploadSession`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'replace' } }) })
+    if (!s2.ok) { status = s2.status; continue }
+    const { uploadUrl } = await s2.json()
+    const r = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Length': String(bytes.length), 'Content-Range': `bytes 0-${bytes.length - 1}/${bytes.length}` }, body: bytes })
+    status = r.status
+  }
+  if (status >= 200 && status < 300) {
+    state[s] = { sourceHash: f.hash, sourceName: f.name, sourceModified: f.mod, packName: f.name, syncedAt: new Date().toISOString() }
+    fs.writeFileSync(STATE, JSON.stringify(state, null, 1))
+    console.log(`        written (${status})  ${dest.slice(F03.length + 1)}/${f.name}`)
+  } else { locked++; if (cur) replaced--; else added--; console.log(`        ⚠ NOT written (${status}${status === 423 ? ' — locked, someone has it open in Excel' : ''})  ${f.name}; pack still holds ${cur ? cur.name : 'nothing'}`) }
 }
 // pack workbooks with no source any more (engineers renamed/renumbered) — reported, never deleted
 const srcStems = new Set(src.map(f => stemOf(f.name)))
