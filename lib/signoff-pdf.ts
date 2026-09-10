@@ -255,7 +255,14 @@ export function defaultPlacement(
  *  appendSignoffBlock drew for it) rather than in a title-block column or somewhere nudged. */
 function isAppendedRowBox(p: Placement): boolean {
   const near = (a: number, b: number) => Math.abs(a - b) < 0.5
-  return near(p.x, COL.sig) && near(p.w, SIG_W) && near(p.h, SIG_H)
+  // HEIGHT as well as x/w/h. A nudge moves place_x/place_y and never w/h, so a pure up/down
+  // nudge keeps x = COL.sig — testing x/w/h alone let it pass as "untouched", and its date then
+  // jumped into the Date column 12–36pt off the rule. rowGeom puts row i's box at
+  // sigY = HEADER_Y − 20 − i·ROW_H − SIG_H − 10, so an untouched box is a whole number of rows
+  // below the first. Anything else was moved, and keeps the relative offset below.
+  const rows = (HEADER_Y - 30 - SIG_H - p.y) / ROW_H
+  const onARow = rows > -0.01 && Math.abs(rows - Math.round(rows)) * ROW_H < 0.5
+  return near(p.x, COL.sig) && near(p.w, SIG_W) && near(p.h, SIG_H) && onARow
 }
 
 /** Where the date sits by default, relative to a signature placement — same spot it's always
