@@ -16,6 +16,6 @@ async function walk(p) { let u = `/drives/${d.id}/root:/${enc(p)}:/children?$sel
 await walk(ROOT)
 fs.writeFileSync(T + 'site-walk.json', JSON.stringify(files, null, 1)); console.log('site files:', files.length)
 // the live EDL, for the cross-check
-const edl = await fetch(process.env.SWP006_EDL_EXPORT_URL || 'https://reports.coreflow.build/api/export-swp006-edl?token=f6c68725d7673c6a090acc40442ff6d2b33b032f')
+const edl = await fetch(process.env.SWP006_EDL_EXPORT_URL || 'https://reports.coreflow.build/api/export-swp006-edl?token=f6c68725d7673c6a090acc40442ff6d2b33b032f&format=ppe')
 fs.writeFileSync(T + 'edl-final.xlsx', Buffer.from(await edl.arrayBuffer()))
 execSync(`python "${T}xcheck.py" && python "${T}build-manifest.py"`, { stdio: 'inherit', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } })
