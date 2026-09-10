@@ -257,10 +257,17 @@ export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array):
 //   CHECKED  → CHECKED BY.
 //   APPROVED → ENGINEERING MANAGER — read off the drawing (M. Meyer is named there and signs
 //              Approved on ELAY), not separately ruled. Confirm before extending it.
+//   DISCIPLINE → DISCIPLINE LEAD — a role added by Morné 2026-09-10: EGAD-0003/0004 name Ian
+//              Steynberg on that row, and he had been sent the chain as a second "Checked".
+// The first three are the ANCHORS that identify the layout; DISCIPLINE LEAD is read where the
+// block carries it and never required, so a stacked block without that row is still recognised.
 const STACKED_ROWS: [string, RegExp][] = [
   ['PREPARED', /^DRAWN BY$/i],
   ['CHECKED', /^CHECKED BY$/i],
   ['APPROVED', /^ENGINEERING MANAGER$/i],
+]
+const STACKED_OPTIONAL_ROWS: [string, RegExp][] = [
+  ['DISCIPLINE', /^DISCIPLINE LEAD$/i],
 ]
 
 type Seg = [number, number, number, number]   // x1, y1, x2, y2 — straight lines only
@@ -343,7 +350,9 @@ async function findStackedCells(
   let segs: Seg[]
   try { segs = await pageOneSegments(pdfBytes, frame) } catch { return null }
   const cols: Record<string, Col> = {}
-  for (const [key, w] of labels) {
+  const optional = STACKED_OPTIONAL_ROWS.map(([key, re]) => [key, find(re)] as const)
+    .filter(([, w]) => w && Math.abs(w.x - checked.x) <= 3 && Math.abs(w.y - checked.y) <= 150)
+  for (const [key, w] of [...labels, ...optional]) {
     const cell = cellBeside(w!, segs)
     if (!cell) continue
     cols[key] = frame.rot === 0 ? { x: w!.x, y: w!.y, w: w!.w, cell } : { x: w!.x, y: w!.y, w: w!.w, frame, cell }
@@ -351,7 +360,11 @@ async function findStackedCells(
   return Object.keys(cols).length ? cols : null
 }
 
-const ROLE_TO_COL: [string, string][] = [['prepar', 'PREPARED'], ['compil', 'PREPARED'], ['check', 'CHECKED'], ['review', 'CHECKED'], ['approv', 'APPROVED']]
+// First fragment that the role label contains wins. 'discipline' comes first so "Discipline Lead"
+// is never caught by a later fragment. DISCIPLINE exists only on a stacked title block: on a
+// side-by-side datasheet it has no column, and the start guard refuses the chain with that role
+// named — as it would any role the document has nowhere to sign.
+const ROLE_TO_COL: [string, string][] = [['discipline', 'DISCIPLINE'], ['prepar', 'PREPARED'], ['compil', 'PREPARED'], ['check', 'CHECKED'], ['review', 'CHECKED'], ['approv', 'APPROVED']]
 
 /** The title-block column a free-text role label signs in, or null if it maps to none.
  *  A document WITH a title block has nowhere to put an unmapped role, so callers that
@@ -362,7 +375,7 @@ export function roleColumnKey(roleLabel: string | null | undefined): string | nu
 }
 
 /** The role labels a title-block document accepts — shown to the user when one is rejected. */
-export const TITLE_BLOCK_ROLES = ['Prepared', 'Checked', 'Reviewed', 'Approved'] as const
+export const TITLE_BLOCK_ROLES = ['Prepared', 'Checked', 'Reviewed', 'Discipline Lead', 'Approved'] as const
 
 /** Stamp a signature into the title-block column matching the signatory's role, above the
  *  name. Returns placed:false if the block/column isn't found (caller falls back). */

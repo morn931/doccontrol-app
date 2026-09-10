@@ -110,8 +110,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (notFound.length && notFound.length < signatories.length) {
         const found = Object.keys(hasTitleBlock)
         return NextResponse.json({
-          error: `This document's title block was only partly read: found ${found.length ? found.join(', ') : 'no columns'}. `
-            + `No column to sign in for ${notFound.map((s: any) => `"${s.role}" (${s.email})`).join(', ')}. `
+          error: `This document's title block has no place to sign for ${notFound.map((s: any) => `"${s.role}" (${s.email})`).join(', ')} — `
+            + `the rows it carries are ${found.length ? found.join(', ') : 'none that could be read'}. `
             + `Signing now would put those signatures on an extra approval page while the rest sign on the drawing.`,
         }, { status: 400 })
       }

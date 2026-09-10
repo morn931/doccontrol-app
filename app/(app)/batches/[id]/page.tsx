@@ -645,7 +645,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
               The native file is untouched. Preview the PDF first — especially for Excel.
             </p>
 
-            <datalist id="signoff-roles"><option value="Prepared" /><option value="Checked" /><option value="Approved" /><option value="Reviewed" /></datalist>
+            <datalist id="signoff-roles"><option value="Prepared" /><option value="Checked" /><option value="Approved" /><option value="Reviewed" /><option value="Discipline Lead" /></datalist>
             <div className="space-y-2">
               {signatories.map((s, i) => (
                 <div key={i} className="flex gap-2 items-center">
