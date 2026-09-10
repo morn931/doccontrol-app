@@ -10,7 +10,7 @@ import fs from 'node:fs'
 for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const t = line.trim(); if (!t || t.startsWith('#') || !t.includes('=')) continue; const i = t.indexOf('='); const k = t.slice(0, i).trim(); if (!(k in process.env)) process.env[k] = t.slice(i + 1).trim().replace(/^["']|["']$/g, '') }
 const { stampIssuedForTender, tenderStampDate, tenderCopyName } = await import('../lib/prelim/tender-stamp.ts')
 const WRITE = process.argv.includes('--write')
-const ROOT = 'K480 SWP-006 Power and Balance of Plant', SEC = '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'
+const ROOT = 'K480 SWP-006 Power and Balance of Plant', SEC = '05 PART 3 - Sections 4 & 5 - Specifications, Plans & Drawings (EDL)'
 const tok = (await (await fetch(`https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}/oauth2/v2.0/token`, { method: 'POST', body: new URLSearchParams({ client_id: process.env.MICROSOFT_CLIENT_ID, client_secret: process.env.MICROSOFT_CLIENT_SECRET, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }) })).json()).access_token
 const H = { Authorization: `Bearer ${tok}` }, G = 'https://graph.microsoft.com/v1.0'
 const g = async u => { const r = await fetch(u.startsWith('http') ? u : G + u, { headers: H }); if (!r.ok) throw new Error(`${r.status} ${u.slice(0, 100)}`); return r.json() }

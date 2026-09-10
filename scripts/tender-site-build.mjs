@@ -31,18 +31,18 @@ const SITEWIDE = ['1. Automation General Standards and Specs', '2. Civil and Str
 const byArea = (prefix) => AREAS.flatMap(a => a.startsWith('1.') ? SITEWIDE.map(s => `${prefix}/${a}/${s}`) : DISCIPLINES.map(d => `${prefix}/${a}/${d}`))
 
 const TREE = [
-  '01 Tender Form 2 - Schedule Requirements',
-  '02 Section 2 - Schedule A - Pricing Schedules',
-  '03 Section 2 - Schedule A2 - Unit Prices and BoQ',
-  '03 Section 2 - Schedule A2 - Unit Prices and BoQ/Bills of Quantities',
-  '03 Section 2 - Schedule A2 - Unit Prices and BoQ/Cable Schedules and MTO',
-  '03 Section 2 - Schedule A2 - Unit Prices and BoQ/Preamble and Method of Measurement',
-  '04 Section 3 - Exhibit 3A - Technical Scope of Work',
+  '02 PART 2 - Tender Form 2 - Schedule Requirements',
+  '01 PART 2 - Tender Form 1 - Pricing Schedules',
+  '03 PART 3 - Section 2 - Schedule A - Pricing Schedules',
+  '03 PART 3 - Section 2 - Schedule A - Pricing Schedules/Bills of Quantities',
+  '03 PART 3 - Section 2 - Schedule A - Pricing Schedules/Cable Schedules and MTO',
+  '03 PART 3 - Section 2 - Schedule A - Pricing Schedules/Preamble and Method of Measurement',
+  '04 PART 3 - Section 3 - Technical Scope of Work',
   '05 Section 3 - Exhibit 3B - Company Furnished Material and Equipment',
   // 9 Sep (Marnus + Morné): ONE folder for Sections 4 and 5, mirroring the COLAB handover tree
   // exactly (Fluor's Exhibit Four is one workbook for both). Folder names are COLAB's own.
-  '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)',
-  ...byArea('06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'),
+  '05 PART 3 - Sections 4 & 5 - Specifications, Plans & Drawings (EDL)',
+  ...byArea('05 PART 3 - Sections 4 & 5 - Specifications, Plans & Drawings (EDL)'),
   '90 Reference - Fluor K480 templates and Doc Matrix (not part of the pack)',
 ]
 

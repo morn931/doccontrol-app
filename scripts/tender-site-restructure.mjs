@@ -18,7 +18,7 @@ import fs from 'node:fs'
 for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const t = line.trim(); if (!t || t.startsWith('#') || !t.includes('=')) continue; const i = t.indexOf('='); const k = t.slice(0, i).trim(); if (!(k in process.env)) process.env[k] = t.slice(i + 1).trim().replace(/^["']|["']$/g, '') }
 const WRITE = process.argv.includes('--write')
 const ROOT = 'K480 SWP-006 Power and Balance of Plant'
-export const NEW = '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'
+export const NEW = '05 PART 3 - Sections 4 & 5 - Specifications, Plans & Drawings (EDL)'
 const OLD = ['06 Section 4 - Specifications and Plans (EDL)', '07 Section 5 - Drawings (EDL)']
 const COLAB_ROOT = 'SWP006 TENDER HANDOVER DOCUMENTS'
 

@@ -31,7 +31,7 @@ const ROOT = 'K480 SWP-006 Power and Balance of Plant'
 const COLAB_ROOT = 'SWP006 TENDER HANDOVER DOCUMENTS'
 const LIVE_ROOT = 'K480 SWP-006 Power and Balance of Plant/01 PPE DELIVERABLES - the seven outstanding items'
 const DRAWING = /^(LAY|GAD|SEC|DIA|DTL|PFD|FND|PLN|SLD)$/
-const SECTION_4_5 = '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'
+const SECTION_4_5 = '05 PART 3 - Sections 4 & 5 - Specifications, Plans & Drawings (EDL)'
 
 const retry = async (fn, n = 5) => { for (let i = 0; ; i++) { try { return await fn() } catch (e) { if (i >= n || /^4(0[0-9]|1[0-9]|2[0-8])\b/.test(String(e.message))) throw e; await new Promise(r => setTimeout(r, 1500 * (i + 1))) } } }
 const tok = (await retry(async () => (await fetch(`https://login.microsoftonline.com/${process.env.MICROSOFT_TENANT_ID}/oauth2/v2.0/token`, { method: 'POST', body: new URLSearchParams({ client_id: process.env.MICROSOFT_CLIENT_ID, client_secret: process.env.MICROSOFT_CLIENT_SECRET, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }) })).json())).access_token
@@ -105,12 +105,17 @@ for (const f of stamped) {
 }
 
 // Source B — the seven deliverables
-const liveFiles = await walk(live, LIVE_ROOT)
+// 10 Sep 14:00: Marnus curates folders 01–04 and 90 by hand now (he removed the Fluor templates,
+// the ESOW .docx and the conformance workbook deliberately). The LIVE DOCUMENTS deliverables are
+// therefore no longer carried across by default — only COLAB's stamped copies into 05.
+//   --deliverables   also copy the LIVE DOCUMENTS deliverables (the original hand-over behaviour)
+const DELIVERABLES = process.argv.includes('--deliverables')
+const liveFiles = DELIVERABLES ? await walk(live, LIVE_ROOT) : []
 const item = (n) => liveFiles.filter(f => f.path.split('/')[2]?.startsWith(`${n} - `))
 const isTemplate = f => /^TEMPLATE/i.test(f.name)
 const REF = `${ROOT}/90 Reference - Fluor K480 templates and Doc Matrix (not part of the pack)`
 const superseded = []
-for (const f of item(1)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/01 Tender Form 2 - Schedule Requirements`)
+for (const f of item(1)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/02 PART 2 - Tender Form 2 - Schedule Requirements`)
 // Folder 02 is curated by hand since 10 Sep: Fluor's blank "K138 - Section 2 - Pricing Schedule A1"
 // is their template (Ulzhan Shona, May 2026), not a PPE deliverable — it lives in Reference; the
 // live Schedule A workbook from Blythe (4 Sep) was placed in 02 directly. Nothing from item 2 is
@@ -124,14 +129,15 @@ for (const f of item(2)) if (isTemplate(f)) plan(live, f, REF)
     // The 1-Sep DRAFT preamble is superseded by 6105AK124-6200-GSPC-0001 Rev C (9 Sep), which
     // combines it with Marnus's Methods of Measurement Rev B. Never carry the draft again.
     if (/Preamble and Method of Measurement - DRAFT/i.test(f.name)) { superseded.push(f); continue }
-    const sub = /GBOM/.test(f.name) ? 'Bills of Quantities' : /ESCH|MTO/i.test(f.name) ? 'Cable Schedules and MTO' : 'Preamble and Method of Measurement'
-    plan(live, f, `${ROOT}/03 Section 2 - Schedule A2 - Unit Prices and BoQ/${sub}`)
+    if (/ESCH|MTO/i.test(f.name)) { superseded.push(f); continue }   // 10 Sep: cable schedules are issued PDFs in folder 05 now, not Excel in 03
+    const sub = /GBOM/.test(f.name) ? 'Bills of Quantities' : 'Preamble and Method of Measurement'
+    plan(live, f, `${ROOT}/03 PART 3 - Section 2 - Schedule A - Pricing Schedules/${sub}`)
   }
   // the NUMBERED BoQs and cable schedules only ever existed in item 6's supporting snapshot
   const numbered = liveFiles.filter(f => f.path.includes('/6 - Section 4') && /\.(xlsx|xlsm)$/i.test(f.name) && /(GBOM|ESCH)-\d{4}/.test(f.name))
-  for (const f of numbered) plan(live, f, `${ROOT}/03 Section 2 - Schedule A2 - Unit Prices and BoQ/${/GBOM/.test(f.name) ? 'Bills of Quantities' : 'Cable Schedules and MTO'}`)
+  for (const f of numbered.filter(f => /GBOM/.test(f.name))) plan(live, f, `${ROOT}/03 PART 3 - Section 2 - Schedule A - Pricing Schedules/Bills of Quantities`)
 }
-for (const f of item(4)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/04 Section 3 - Exhibit 3A - Technical Scope of Work`)
+for (const f of item(4)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/04 PART 3 - Section 3 - Technical Scope of Work`)
 // Marnus removed folder 05 and the DRAFT Exhibit 3B on 10 Sep. Until a final Exhibit 3B exists
 // only the Fluor template goes to Reference; the draft is not carried again.
 for (const f of item(5)) if (isTemplate(f)) plan(live, f, REF)
@@ -140,10 +146,10 @@ for (const f of item(5)) if (isTemplate(f)) plan(live, f, REF)
 // pack location column). It is placed in 06 and 07 by scripts/tender-site-edl.mjs; the draft
 // must not come back on a re-run.
 const isDraftEdl = f => /EDL_SWP006_PPE_DRAFT/i.test(f.name)
-for (const f of item(6).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/${SECTION_4_5}`)
-for (const f of item(7).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/${SECTION_4_5}`)
+if (DELIVERABLES) for (const f of item(6).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/${SECTION_4_5}`)
+if (DELIVERABLES) for (const f of item(7).filter(f => f.path.split('/').length === 4 && !isDraftEdl(f))) plan(live, f, isTemplate(f) ? REF : `${ROOT}/${SECTION_4_5}`)
 // Fluor's own pack + the SDDC form → reference
-for (const f of await walk(live, 'K480 SWP-006 Power and Balance of Plant/03 SOURCE MATERIAL')) plan(live, f, REF)
+if (DELIVERABLES) for (const f of await walk(live, 'K480 SWP-006 Power and Balance of Plant/03 SOURCE MATERIAL')) plan(live, f, REF)
 
 // ---- the 31-Aug supporting snapshot vs the stamped set: report only ----
 // K038 numbers carry digits in the type code (ED01, ID12) — [A-Z0-9]{4}, or they vanish from the report

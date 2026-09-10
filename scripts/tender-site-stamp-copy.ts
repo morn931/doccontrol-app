@@ -40,7 +40,7 @@ const AREA: Record<string, string> = {
 // 9 Sep (Marnus + Morné): ONE folder for Sections 4 and 5, mirroring COLAB's tree exactly.
 // Folder names below are COLAB's own (Site Wide has eight standards folders; no mechanical one,
 // so site-wide M/P documents file under Underground Services).
-const SECTION_4_5 = '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'
+const SECTION_4_5 = '05 PART 3 - Sections 4 & 5 - Specifications, Plans & Drawings (EDL)'
 const DISC: Record<string, string> = { C: '2. Civil and Structural', S: '2. Civil and Structural', W: '2. Civil and Structural', E: '3. Electrical', F: '1. Automation', A: '1. Automation', I: '4. Instrumentation', M: '5. Mechanical and Piping', P: '5. Mechanical and Piping' }
 const SITEWIDE: Record<string, string> = { C: '2. Civil and Structural General Standards and Specs', S: '2. Civil and Structural General Standards and Specs', W: '2. Civil and Structural General Standards and Specs', E: '5. Electrical General Standards and Specs', F: '1. Control & Automation General Standards and Specs', A: '1. Control & Automation General Standards and Specs', I: '6. Instrumentation General Standards and Specs', M: '4. Mechanical General Standards and Specs', P: '4. Mechanical General Standards and Specs' }
 

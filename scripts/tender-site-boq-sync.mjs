@@ -20,7 +20,7 @@ const WRITE = process.argv.includes('--write')
 //   --include-boq   copies GBOM files too (only if the repaired structure is to be discarded)
 const INCLUDE_BOQ = process.argv.includes('--include-boq')
 const SRC_ROOT = 'PLANT WIDE SUBSTATIONS (PPE Working Folder)/Document Register'
-const ROOT = 'K480 SWP-006 Power and Balance of Plant', F03 = `${ROOT}/03 Section 2 - Schedule A2 - Unit Prices and BoQ`
+const ROOT = 'K480 SWP-006 Power and Balance of Plant', F03 = `${ROOT}/03 PART 3 - Section 2 - Schedule A - Pricing Schedules`
 const DEST = { GBOM: `${F03}/Bills of Quantities`, ESCH: `${F03}/Cable Schedules and MTO` }
 const stemOf = (s) => (s.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1]?.replace(/-(\d{4})-([A-Z])-([A-Z0-9]{3})-/i, '-$1-$2$3-') ?? '').toUpperCase()
 
@@ -34,8 +34,10 @@ const k138 = await g('/sites/ppetechcoza.sharepoint.com:/sites/K138-BalanceofPla
 const packSite = await g('/sites/ppetechcoza.sharepoint.com:/sites/K480SWP-006TenderPack'); const pd = (await g(`/sites/${packSite.id}/drives?$select=id,name`)).value.find(x => x.name === 'Documents').id
 
 // the source: one GBOM and one ESCH workbook per substation, xlsx/xlsm only
-const src = (await walk(colab, SRC_ROOT)).filter(f => /BOQ & Cable Schedule/i.test(f.path) && /\.(xlsx|xlsm)$/i.test(f.name) && /-(GBOM|ESCH)-\d{4}/i.test(f.name) && (INCLUDE_BOQ || !/-GBOM-/i.test(f.name)))
-if (!INCLUDE_BOQ) console.log('GBOM Bills skipped — structure-mastered in the pack since 10 Sep (values merge instead); --include-boq to override')
+// 10 Sep 14:00: Marnus replaced the Excel cable schedules in the pack with issued PDFs (the ESCH PDFs
+// go through the review tool like any drawing). Nothing syncs as a whole file any more unless --include-boq.
+const src = (await walk(colab, SRC_ROOT)).filter(f => /BOQ & Cable Schedule/i.test(f.path) && /\.(xlsx|xlsm)$/i.test(f.name) && /-(GBOM|ESCH)-\d{4}/i.test(f.name) && INCLUDE_BOQ)
+if (!INCLUDE_BOQ) console.log('Nothing syncs as a whole file: GBOM Bills are structure-mastered in the pack (values merge instead) and the ESCH cable schedules are issued PDFs since 10 Sep; --include-boq to override')
 const pack = (await walk(pd, F03)).filter(f => /\.(xlsx|xlsm)$/i.test(f.name))
 const byStem = new Map(); for (const f of pack) { const s = stemOf(f.name); if (s) { if (!byStem.has(s)) byStem.set(s, []); byStem.get(s).push(f) } }
 const STATE = 'C:/Users/mornec/AppData/Local/Temp/claude/k480/boq-sync-state.json'

@@ -12,7 +12,7 @@ const g = async u => { const r = await fetch(G + u, { headers: H }); if (!r.ok) 
 const enc = p => p.split('/').map(encodeURIComponent).join('/')
 const stemOf = (s) => (s.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1] ?? '').toUpperCase()
 const site = await g('/sites/ppetechcoza.sharepoint.com:/sites/K480SWP-006TenderPack'); const pd = (await g(`/sites/${site.id}/drives?$select=id,name`)).value.find(x => x.name === 'Documents').id
-const F = 'K480 SWP-006 Power and Balance of Plant/03 Section 2 - Schedule A2 - Unit Prices and BoQ/Bills of Quantities'
+const F = 'K480 SWP-006 Power and Balance of Plant/03 PART 3 - Section 2 - Schedule A - Pricing Schedules/Bills of Quantities'
 const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-'), BK = `C:/Users/mornec/AppData/Local/Temp/claude/k480/boq-backup/${stamp}-pack-before-place/`
 const pack = (await g(`/drives/${pd}/root:/${enc(F)}:/children?$select=id,name,size,lastModifiedDateTime,lastModifiedBy`)).value
 for (const fn of fs.readdirSync(REP).filter(f => f.endsWith('.xlsx'))) {
