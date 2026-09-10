@@ -10,7 +10,6 @@ import { execFileSync } from 'node:child_process'
 for (const line of fs.readFileSync('.env.local', 'utf8').split(/\r?\n/)) { const t = line.trim(); if (!t || t.startsWith('#') || !t.includes('=')) continue; const i = t.indexOf('='); const k = t.slice(0, i).trim(); if (!(k in process.env)) process.env[k] = t.slice(i + 1).trim().replace(/^["']|["']$/g, '') }
 const WRITE = process.argv.includes('--write')
 const JSON_PATH = 'C:/Users/mornec/Claude/Projects/Coreflow/corereports-app/src/data/swp006-pack-titles.json'
-const EXPORT = 'https://reports.coreflow.build/api/export-swp006-edl?token=f6c68725d7673c6a090acc40442ff6d2b33b032f&format=ppe'
 const T = 'C:/Users/mornec/AppData/Local/Temp/claude/k480/pack-titles/'; fs.mkdirSync(T, { recursive: true })
 const stemOf = (s) => (s.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1]?.replace(/-(\d{4})-([A-Z])-([A-Z0-9]{3})-/i, '-$1-$2$3-') ?? '').toUpperCase()
 const titles = fs.existsSync(JSON_PATH) ? JSON.parse(fs.readFileSync(JSON_PATH, 'utf8')) : {}
@@ -23,10 +22,12 @@ const site = await g('/sites/ppetechcoza.sharepoint.com:/sites/K480SWP-006Tender
 const files = []
 async function walk(p) { let u = `/drives/${pd}/root:/${enc(p)}:/children?$select=id,name,folder&$top=999`; while (u) { const j = await g(u); for (const k of j.value ?? []) { if (k.folder) await walk(`${p}/${k.name}`); else files.push({ id: k.id, name: k.name, path: `${p}/${k.name}` }) } u = j['@odata.nextLink'] } }
 await walk('K480 SWP-006 Power and Balance of Plant')
-// which pack documents does the register NOT know? read the live export's document numbers and
-// treat everything else in the pack as register-less
-const edlBuf = Buffer.from(await (await fetch(EXPORT)).arrayBuffer()); fs.writeFileSync(T + 'edl.xlsx', edlBuf)
-const edlNos = new Set(execFileSync('python', ['-c', `import openpyxl,warnings;warnings.filterwarnings('ignore');ws=openpyxl.load_workbook(r'${T}edl.xlsx',read_only=True).active\nfor r in ws.iter_rows(values_only=True):\n  v=r[4] if len(r)>4 else None\n  if v and str(v).startswith('6105A') and str(r[10] or '') != 'Issued for tender - in the pack, not on the CDDL': print(str(v).strip().upper())`]).toString().split(/\r?\n/).filter(Boolean))
+// which pack documents does the CDDL not carry? Read the live CDDL workbook (column E, RDMC
+// Document Number) — the export no longer prints a status column to tell them apart (10 Sep).
+const CDDL_LINK = 'https://ppetechcoza.sharepoint.com/:x:/s/K138-BalanceofPlant/IQDpZ48of4QlTJ4rjD8WmQlPAbm_PpNSnr7gcLcC9ogWbBo?e=xQKwIc'
+const cddlShare = 'u!' + Buffer.from(CDDL_LINK, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+fs.writeFileSync(T + 'cddl.xlsx', Buffer.from(await (await fetch(`${G}/shares/${cddlShare}/driveItem/content`, { headers: H })).arrayBuffer()))
+const edlNos = new Set(execFileSync('python', ['-c', `import openpyxl,warnings;warnings.filterwarnings('ignore');ws=openpyxl.load_workbook(r'${T}cddl.xlsx',read_only=True)['Construct Doc Register']\nfor r in ws.iter_rows(min_row=2,values_only=True):\n  v=r[4] if len(r)>4 else None\n  if v and str(v).strip().upper().startswith('6105A'): print(str(v).strip().upper())`]).toString().split(/\r?\n/).filter(Boolean))
 const packOnly = new Map()
 for (const f of files) { const s = stemOf(f.name); if (s && /\.pdf$/i.test(f.name) && !edlNos.has(s) && !f.path.includes('/90 Reference')) packOnly.set(s, f) }
 const missing = [...packOnly.keys()].filter(s => !titles[s])
