@@ -79,6 +79,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             + `Not usable: ${unmapped.map((s: any) => `"${s.role || '(blank)'}" (${s.email})`).join(', ')}.`,
         }, { status: 400 })
       }
+      // Two signatories on ONE row sign on top of each other: every role that maps to a column
+      // gets the same box there. EGAD-0003/0004 (2026-09-10) were sent with Reinette AND Ian as
+      // "Checked" — the drawing names Ian on DISCIPLINE LEAD, a row no role maps to — so both
+      // would have stamped the CHECKED BY cell. No chain on record had done this, so the
+      // refusal changes nothing that has worked.
+      const byRow = new Map<string, any[]>()
+      for (const s of signatories as any[]) {
+        const k = roleColumnKey(s.role)
+        if (k) byRow.set(k, [...(byRow.get(k) ?? []), s])
+      }
+      const shared = [...byRow.entries()].filter(([, ss]) => ss.length > 1)
+      if (shared.length) {
+        return NextResponse.json({
+          error: `Each role signs its own row of the title block, and ${shared.map(([k, ss]) =>
+            `${ss.map((s: any) => `${s.email} ("${s.role}")`).join(' and ')} would both sign the ${k} row`).join('; ')}. `
+            + `Give each signatory a different role, or leave one of them off this chain.`,
+        }, { status: 400 })
+      }
       // A role mapping to a column NAME is not enough — that column has to be FOUND on this
       // document. The check above passed 6105AK124-6241-ELAY-0001 (support ticket 647b4156,
       // 2026-09-10): detection found CHECKED only, so the chain started and at sign time Prepared

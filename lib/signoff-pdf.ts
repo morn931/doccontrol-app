@@ -179,7 +179,9 @@ export async function stampSignature(
 
 // `frame` is present ONLY on a rotated page, and then x/y are in DISPLAY space. An upright
 // page's columns are exactly what they always were: stored-space x/y/w and nothing else.
-type Col = { x: number; y: number; w: number; frame?: PageFrame }
+// `cell` is present ONLY for a STACKED title block (see findStackedCells): the empty signature
+// cell beside the role's row, read off the drawing's own lines, in the same space as x/y.
+type Col = { x: number; y: number; w: number; frame?: PageFrame; cell?: Rect }
 
 async function pageOneWords(pdfBytes: ArrayBuffer | Uint8Array): Promise<{ words: { str: string; x: number; y: number; w: number }[]; frame: PageFrame }> {
   const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs')
@@ -233,6 +235,118 @@ export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array):
         .sort((a, b) => a.y - b.y)[0]
     }
     if (m) cols[kw] = frame.rot === 0 ? { x: m.x, y: m.y, w: m.w } : { x: m.x, y: m.y, w: m.w, frame }
+  }
+  // A STACKED title block replaces the column reading outright — mixing the two would put one
+  // role above a label and another in a cell.
+  const stacked = await findStackedCells(pdfBytes, words, frame)
+  if (stacked) return stacked
+  return Object.keys(cols).length ? cols : null
+}
+
+// ── Stacked title blocks ─────────────────────────────────────────────────────
+// Not every drawing carries PREPARED BY / CHECKED BY / APPROVED BY side by side with the names
+// above. The CAD template on 6105AK124-6241-ELAY-0001 and -6200-EGAD-0003/4 stacks its roles
+// DOWN one column — DRAWN BY · DESIGNED BY · CHECKED BY · DISCIPLINE LEAD · ENGINEERING
+// MANAGER · CLIENT — each label with its name underneath, and an EMPTY cell to the right of
+// each row for the signature. "Sign above the label" lands in the row above there (on ELAY it
+// put Ian Steynberg's signature over T DE KLERK), so this layout gets its own reading.
+//
+// Which row each role signs (the chain's roles are Prepared / Checked / Approved):
+//   PREPARED → DRAWN BY ONLY — ruled by Morné 2026-09-10 and taught in cw_fact: never DESIGNED
+//              BY, even where the same person is named on both.
+//   CHECKED  → CHECKED BY.
+//   APPROVED → ENGINEERING MANAGER — read off the drawing (M. Meyer is named there and signs
+//              Approved on ELAY), not separately ruled. Confirm before extending it.
+const STACKED_ROWS: [string, RegExp][] = [
+  ['PREPARED', /^DRAWN BY$/i],
+  ['CHECKED', /^CHECKED BY$/i],
+  ['APPROVED', /^ENGINEERING MANAGER$/i],
+]
+
+type Seg = [number, number, number, number]   // x1, y1, x2, y2 — straight lines only
+
+/** Every straight line on page 1, in the same space as pageOneWords' words (stored on an
+ *  upright page, display on a rotated one). Read only when a stacked block has been seen —
+ *  a large drawing carries tens of thousands of segments, and a datasheet never needs them. */
+async function pageOneSegments(pdfBytes: ArrayBuffer | Uint8Array, frame: PageFrame): Promise<Seg[]> {
+  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  const src = pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes)
+  const { OPS } = pdfjs
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(src), isEvalSupported: false, verbosity: 0, useSystemFonts: false, disableFontFace: true }).promise
+  try {
+    const ol = await (await doc.getPage(1)).getOperatorList()
+    const mul = (m: number[], n: number[]) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]]
+    const out = (m: number[], x: number, y: number) => {
+      const sx = m[0] * x + m[2] * y + m[4], sy = m[1] * x + m[3] * y + m[5]
+      if (frame.rot === 0) return [sx, sy]
+      const d = toDisplay(frame, sx, sy); return [d.x, d.y]
+    }
+    let ctm = [1, 0, 0, 1, 0, 0]; const stack: number[][] = []; const segs: Seg[] = []
+    for (let i = 0; i < ol.fnArray.length; i++) {
+      const fn = ol.fnArray[i], a = ol.argsArray[i]
+      if (fn === OPS.save) stack.push(ctm)
+      else if (fn === OPS.restore) ctm = stack.pop() ?? [1, 0, 0, 1, 0, 0]
+      else if (fn === OPS.transform) ctm = mul(ctm, a)
+      else if (fn === OPS.constructPath) {
+        const [ops, args] = a as [number[], number[]]
+        let k = 0, cur: number[] | null = null, start: number[] | null = null
+        for (const op of ops) {
+          if (op === OPS.moveTo) { cur = out(ctm, args[k], args[k + 1]); start = cur; k += 2 }
+          else if (op === OPS.lineTo) { const p = out(ctm, args[k], args[k + 1]); k += 2; if (cur) segs.push([cur[0], cur[1], p[0], p[1]]); cur = p }
+          else if (op === OPS.rectangle) {
+            const [x, y, w, h] = args.slice(k, k + 4); k += 4
+            const c = [[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]].map(([px, py]) => out(ctm, px, py))
+            for (let j = 0; j < 4; j++) segs.push([c[j][0], c[j][1], c[j + 1][0], c[j + 1][1]])
+          }
+          else if (op === OPS.curveTo) k += 6
+          else if (op === OPS.curveTo2 || op === OPS.curveTo3) k += 4
+          else if (op === OPS.closePath) { if (cur && start) segs.push([cur[0], cur[1], start[0], start[1]]); cur = start }
+        }
+      }
+    }
+    return segs
+  } finally { await doc.destroy() }
+}
+
+/** The empty cell to the right of a stacked row: bounded by the drawing's own lines — the first
+ *  vertical past the label's text and the next one after it, and the nearest horizontals above
+ *  and below the label. Null when the lines are not there to read (then the role gets NO column,
+ *  and the start guard or the appended sheet takes over — never a guessed box). */
+function cellBeside(label: { x: number; y: number; w: number }, segs: Seg[]): Rect | null {
+  const verts = segs.filter(s => Math.abs(s[0] - s[2]) < 0.6)
+    .map(s => ({ x: (s[0] + s[2]) / 2, lo: Math.min(s[1], s[3]), hi: Math.max(s[1], s[3]) }))
+    .filter(v => v.lo <= label.y + 1 && v.hi >= label.y - 1)            // crosses the label's row
+  const xs = [...new Set(verts.map(v => Math.round(v.x * 10) / 10))].sort((a, b) => a - b)
+  const left = xs.find(x => x > label.x + label.w + 1)
+  const right = left != null ? xs.find(x => x > left + 20) : undefined
+  if (left == null || right == null) return null
+  const horiz = segs.filter(s => Math.abs(s[1] - s[3]) < 0.6)
+    .map(s => ({ y: (s[1] + s[3]) / 2, lo: Math.min(s[0], s[2]), hi: Math.max(s[0], s[2]) }))
+    .filter(h => h.lo <= left + 2 && h.hi >= right - 2)                  // spans the whole cell
+  const below = horiz.filter(h => h.y < label.y).sort((a, b) => b.y - a.y)[0]
+  const above = horiz.filter(h => h.y > label.y).sort((a, b) => a.y - b.y)[0]
+  if (!below || !above) return null
+  const cell = { x: left, y: below.y, w: right - left, h: above.y - below.y }
+  return cell.w >= 40 && cell.w <= 400 && cell.h >= 12 && cell.h <= 80 ? cell : null
+}
+
+async function findStackedCells(
+  pdfBytes: ArrayBuffer | Uint8Array, words: { str: string; x: number; y: number; w: number }[], frame: PageFrame,
+): Promise<Record<string, Col> | null> {
+  const find = (re: RegExp) => words.find(w => re.test(w.str.trim()))
+  const labels = STACKED_ROWS.map(([key, re]) => [key, find(re)] as const)
+  const checked = labels.find(([k]) => k === 'CHECKED')?.[1]
+  // It is a stacked block only when DRAWN BY, CHECKED BY and ENGINEERING MANAGER all sit in
+  // ONE column (same x) within a title block's height. A datasheet's side-by-side labels share
+  // a y, not an x, and never carry DRAWN BY or ENGINEERING MANAGER — so they cannot match.
+  if (!checked || labels.some(([, w]) => !w || Math.abs(w.x - checked.x) > 3 || Math.abs(w.y - checked.y) > 150)) return null
+  let segs: Seg[]
+  try { segs = await pageOneSegments(pdfBytes, frame) } catch { return null }
+  const cols: Record<string, Col> = {}
+  for (const [key, w] of labels) {
+    const cell = cellBeside(w!, segs)
+    if (!cell) continue
+    cols[key] = frame.rot === 0 ? { x: w!.x, y: w!.y, w: w!.w, cell } : { x: w!.x, y: w!.y, w: w!.w, frame, cell }
   }
   return Object.keys(cols).length ? cols : null
 }
@@ -309,6 +423,20 @@ export function pngFromDataUrl(image: string | null | undefined): Uint8Array | n
 // moving a signature never stacks or smears earlier stamps.
 
 export type Placement = { page: number; x: number; y: number; w: number; h: number }
+/** A placement as first decided at signing. `date` is set only where the layout fixes the date's
+ *  spot (a stacked title block); the caller saves it as place_date_x/y, so it is decided ONCE
+ *  and every rebuild and the nudge route read the same stored point. Absent everywhere else,
+ *  where the date keeps following defaultDatePos exactly as before. */
+export type DefaultPlacement = Placement & { date?: { x: number; y: number } }
+
+/** Text size for a stamped date (and the typed-name fallback) in a box of this height, AS SEEN.
+ *  Every placement made before stacked title blocks is 40pt or 55pt tall, which gives exactly
+ *  the 8pt / 10pt that were hard-coded — so nothing already signed changes size. Only a small
+ *  cell (EGAD's 15pt rows) scales down, never below 5pt. */
+export function dateSizeFor(boxH: number): number { return Math.max(5, Math.min(8, boxH * 0.45)) }
+function nameSizeFor(boxH: number): number { return Math.max(5, Math.min(10, boxH * 0.6)) }
+/** "YYYY-MM-DD" in Helvetica is 8 digits (0.556 em) and 2 hyphens (0.333 em) ≈ 5.11 em wide. */
+const DATE_EM_WIDTH = 5.2
 export type StampSpec = Placement & {
   png?: Uint8Array | null; typedName?: string; dateStr?: string | null
   // Absolute PDF-point position for the date. Optional — when absent, falls back to the
@@ -324,9 +452,23 @@ export function defaultPlacement(
   blockRow: number,
   cols: Record<string, Col> | null,
   basePageCount: number,
-): Placement {
+): DefaultPlacement {
   const key = roleColumnKey(roleLabel)
   const col = key && cols ? cols[key] : null
+  if (col?.cell) {
+    // Stacked title block: the whole row's empty cell is the signing space — signature on the
+    // left, date to its right on the row's centre line (a stacked row is 15–29pt tall, too short
+    // to put the date underneath). The DATE is sized first, from the row height, and the
+    // signature takes what is left, so both stay inside the cell's lines on an A1 sheet
+    // (ELAY, 130 × 29pt cells) and an A3 one (EGAD, 68 × 15pt) alike.
+    const c = col.cell, pad = 2, gap = 4
+    const size = dateSizeFor(c.h - 2 * pad)
+    const dateW = size * DATE_EM_WIDTH
+    const box = { x: c.x + pad, y: c.y + pad, w: Math.max(10, c.w - dateW - 2 * pad - gap), h: c.h - 2 * pad }
+    const date = { x: box.x + box.w + gap, y: c.y + c.h / 2 - size * 0.36 }
+    if (col.frame) return { page: 1, ...rectToStored(col.frame, box), date: toStored(col.frame, date.x, date.y) }
+    return { page: 1, ...box, date }
+  }
   if (col) {
     const w = 104, h = 40   // signature box — sits in the title-block column above the name
     const box = { x: col.x + col.w / 2 - w / 2, y: col.y + 26, w, h }
@@ -418,16 +560,16 @@ export async function rebuildSignedPdf(
         const w = img.width * scale, h = img.height * scale
         page.drawImage(img, { x: s.x + (s.w - w) / 2, y: s.y + (s.h - h) / 2, width: w, height: h })
       } catch {
-        if (s.typedName) page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - 5, size: 10, font, color: ink })
+        if (s.typedName) page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - nameSizeFor(s.h) / 2, size: nameSizeFor(s.h), font, color: ink })
       }
     } else if (s.typedName) {
-      page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - 5, size: 10, font, color: ink })
+      page.drawText(s.typedName, { x: s.x + 4, y: s.y + s.h / 2 - nameSizeFor(s.h) / 2, size: nameSizeFor(s.h), font, color: ink })
     }
     // Independent position if the signatory has nudged their date; else the same relative
     // offset every placement used before dates could be moved on their own (see defaultDatePos).
     if (s.dateStr) {
       const dp = s.dateX != null && s.dateY != null ? { x: s.dateX, y: s.dateY } : defaultDatePos(s)
-      page.drawText(s.dateStr, { x: dp.x, y: dp.y, size: 8, font, color: ink })
+      page.drawText(s.dateStr, { x: dp.x, y: dp.y, size: dateSizeFor(s.h), font, color: ink })
     }
   }
   return doc.save()
@@ -447,8 +589,9 @@ async function drawRotatedStamp(
   const at = (X: number, Y: number) => toStored(frame, X, Y)
   const typed = () => {
     if (!s.typedName) return
-    const o = at(d.x + 4, d.y + d.h / 2 - 5)
-    page.drawText(s.typedName, { x: o.x, y: o.y, size: 10, font, color: ink, rotate: turn })
+    const size = nameSizeFor(d.h)
+    const o = at(d.x + 4, d.y + d.h / 2 - size / 2)
+    page.drawText(s.typedName, { x: o.x, y: o.y, size, font, color: ink, rotate: turn })
   }
   if (s.png?.byteLength) {
     try {
@@ -463,7 +606,7 @@ async function drawRotatedStamp(
     // A saved date position is stored-space like every placement; the default is "16pt below
     // the box as seen" (defaultDatePos with the frame), never below it in stored space.
     const dp = s.dateX != null && s.dateY != null ? { x: s.dateX, y: s.dateY } : defaultDatePos(s, frame)
-    page.drawText(s.dateStr, { x: dp.x, y: dp.y, size: 8, font, color: ink, rotate: turn })
+    page.drawText(s.dateStr, { x: dp.x, y: dp.y, size: dateSizeFor(d.h), font, color: ink, rotate: turn })
   }
 }
 

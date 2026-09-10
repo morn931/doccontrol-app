@@ -69,6 +69,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ taskId
     await db.from('signoff_tasks').update({
       status: 'signed', signed_at: now, updated_at: now, signature_data: img ?? null,
       place_page: pl.page, place_x: pl.x, place_y: pl.y, place_w: pl.w, place_h: pl.h,
+      // A stacked title block fixes the date's spot in the signing cell; saved once here so
+      // every rebuild and the nudge route read the same point. Null elsewhere, as it always was.
+      place_date_x: pl.date?.x ?? null, place_date_y: pl.date?.y ?? null,
     }).eq('id', taskId)
     const rb = await rebuildBatchSignedPdf(db, t.batch_id, { justSignedTaskId: taskId })
     // The task is marked signed BEFORE the rebuild (the rebuild reads it back out of the

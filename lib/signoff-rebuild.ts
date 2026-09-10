@@ -55,16 +55,18 @@ export async function rebuildBatchSignedPdf(
   const stamps: StampSpec[] = all
     .filter((t) => t.status === 'signed')
     .map((t) => {
-      const pl = (t.place_x != null && t.place_page != null)
-        ? { page: t.place_page, x: t.place_x, y: t.place_y, w: t.place_w, h: t.place_h }
-        : defaultPlacement(t.role_label, t.block_row ?? (t.sequence_number - 1), cols, basePageCount)
+      const stored = t.place_x != null && t.place_page != null
+      const dp = stored ? null : defaultPlacement(t.role_label, t.block_row ?? (t.sequence_number - 1), cols, basePageCount)
+      const pl = stored ? { page: t.place_page, x: t.place_x, y: t.place_y, w: t.place_w, h: t.place_h } : { page: dp!.page, x: dp!.x, y: dp!.y, w: dp!.w, h: dp!.h }
       return {
         ...pl,
         png: pngFromDataUrl(t.signature_data),
         typedName: t.signatory_name ?? undefined,
         dateStr: t.signed_at ? String(t.signed_at).slice(0, 10) : null,
-        dateX: t.place_date_x ?? undefined,
-        dateY: t.place_date_y ?? undefined,
+        // A saved date wins; a legacy row with no saved placement takes the layout's fixed date
+        // spot where it has one (a stacked title block), else defaultDatePos as before.
+        dateX: t.place_date_x ?? dp?.date?.x ?? undefined,
+        dateY: t.place_date_y ?? dp?.date?.y ?? undefined,
       }
     })
 
