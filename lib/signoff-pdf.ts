@@ -251,11 +251,27 @@ export function defaultPlacement(
   return { page: basePageCount + 1, x: g.sigX, y: g.sigY, w: g.sigW, h: g.sigH }
 }
 
+/** True when a placement is still sitting in its untouched appended-approval-sheet row (the box
+ *  appendSignoffBlock drew for it) rather than in a title-block column or somewhere nudged. */
+function isAppendedRowBox(p: Placement): boolean {
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.5
+  return near(p.x, COL.sig) && near(p.w, SIG_W) && near(p.h, SIG_H)
+}
+
 /** Where the date sits by default, relative to a signature placement — same spot it's always
  *  rendered at when no independent date position has been saved yet. Used as the starting point
  *  the first time a signatory nudges their date (so it starts exactly where it's currently
  *  showing, not somewhere new). */
 export function defaultDatePos(p: Placement): { x: number; y: number } {
+  // On the appended approval sheet the date belongs in that sheet's OWN "Date" column — it prints
+  // a Date header and a date rule at COL.date, and the pre-movable stampSignature filled it in
+  // there. The relative offset below the box (added when dates became movable) left the Date
+  // column empty and the date floating under the signature. A signature nudged out of its row
+  // (or one in a title-block column) keeps the relative offset, so its date travels with it.
+  if (isAppendedRowBox(p)) {
+    // rowGeom: sigY = top - SIG_H - 10 and textY = top - 22, i.e. the row's text baseline.
+    return { x: COL.date, y: p.y + SIG_H + 10 - 22 }
+  }
   return { x: p.x, y: p.y - 16 }
 }
 
