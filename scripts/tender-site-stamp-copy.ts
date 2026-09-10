@@ -31,7 +31,7 @@ const DRAWING = /^(LAY|GAD|SEC|DIA|DTL|PFD|FND|PLN|SLD)$/
 // 6243 is Siemens' third 220 kV substation and is filed with Plant Main, as 6253/6256 are;
 // 6260 sits in the 626x Plant Main run, 6290 beside 6292 Solar PV).
 const AREA: Record<string, string> = {
-  '0000': '1. Substations BOP Project Site Wide', '9134': '1. Substations BOP Project Site Wide',
+  '0000': '1. General Standards and Specifications', '9134': '1. General Standards and Specifications',
   '6200': '2. Plant Main Substation', '6212': '2. Plant Main Substation', '6260': '2. Plant Main Substation', '6243': '2. Plant Main Substation', '6253': '2. Plant Main Substation', '6254': '2. Plant Main Substation', '6256': '2. Plant Main Substation', '6262': '2. Plant Main Substation', '6263': '2. Plant Main Substation', '6264': '2. Plant Main Substation',
   '6286': '3. Mining Substation',
   '6242': '4. Power Station Substation', '6251': '4. Power Station Substation',
@@ -42,7 +42,7 @@ const AREA: Record<string, string> = {
 // so site-wide M/P documents file under Underground Services).
 const SECTION_4_5 = '06 Section 4 and 5 - Specifications, Plans and Drawings (EDL)'
 const DISC: Record<string, string> = { C: '2. Civil and Structural', S: '2. Civil and Structural', W: '2. Civil and Structural', E: '3. Electrical', F: '1. Automation', A: '1. Automation', I: '4. Instrumentation', M: '5. Mechanical and Piping', P: '5. Mechanical and Piping' }
-const SITEWIDE: Record<string, string> = { C: '2. Civil and Structural General Standards and Specs', S: '2. Civil and Structural General Standards and Specs', W: '2. Civil and Structural General Standards and Specs', E: '5. Electrical General Standards and Specs', F: '1. Automation General Standards and Specs', A: '1. Automation General Standards and Specs', I: '6. Instrumentation General Standards and Specs', M: '8. Underground Services General Standards and Specs', P: '8. Underground Services General Standards and Specs' }
+const SITEWIDE: Record<string, string> = { C: '2. Civil and Structural General Standards and Specs', S: '2. Civil and Structural General Standards and Specs', W: '2. Civil and Structural General Standards and Specs', E: '5. Electrical General Standards and Specs', F: '1. Control & Automation General Standards and Specs', A: '1. Control & Automation General Standards and Specs', I: '6. Instrumentation General Standards and Specs', M: '4. Mechanical General Standards and Specs', P: '4. Mechanical General Standards and Specs' }
 
 type Doc = { docNo: string; originator: string; vendor: string; package: string; area: string; discipline: string; type: string; title: string; inSite: boolean; kind: string; fileLink: string | null; revision: string | null; altSource: { kind: string; path?: string } | null }
 // Vendor files write the type code with a hyphen after the discipline letter ("E-DIA-0001"
@@ -55,8 +55,8 @@ function placement(d: Doc): { folder: string; section: 4 | 5; note?: string } {
   const section: 4 | 5 = DRAWING.test(type) ? 5 : 4 // kept for the log; the folder no longer splits on it
   const base = SECTION_4_5
   let area = AREA[code], note: string | undefined
-  if (code === '0100') area = /site ?wide|project/i.test(d.area) || /^6105AK038/i.test(d.docNo) ? '1. Substations BOP Project Site Wide' : '2. Plant Main Substation'
-  if (!area) { area = '1. Substations BOP Project Site Wide'; note = `area code ${code} not in the map — filed Site Wide` }
+  if (code === '0100') area = /site ?wide|project/i.test(d.area) || /^6105AK038/i.test(d.docNo) ? '1. General Standards and Specifications' : '2. Plant Main Substation'
+  if (!area) { area = '1. General Standards and Specifications'; note = `area code ${code} not in the map — filed Site Wide` }
   const disc = area.startsWith('1.') ? (SITEWIDE[letter] ?? SITEWIDE.E) : (DISC[letter] ?? DISC.E)
   return { folder: `${ROOT}/${base}/${area}/${disc}`, section, note }
 }

@@ -58,6 +58,12 @@ async function folderId(path) {
   const j = await call('POST', `/drives/${out}/items/${pid}/children`, { name, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' })
   folderIds.set(path, j.id); console.log(`  created folder       ${path}`); return j.id
 }
+// Marnus re-files documents by hand (10 Sep: the site-wide tree renamed, vendor documents moved
+// under Plant Main Substation). A file that exists ANYWHERE in the pack — by name or by document
+// number — is never copied again, whatever folder the rule would have put it in.
+const stemOf = s => (s.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1]?.replace(/-(\d{4})-([A-Z])-([A-Z0-9]{3})-/i, '-$1-$2$3-') ?? '').toUpperCase()
+const packAll = await walk(out, ROOT)
+const packNames = new Set(packAll.map(f => f.name)), packStems = new Set(packAll.map(f => stemOf(f.name)).filter(Boolean))
 const existing = new Map() // dest folder path -> Map(name -> size)
 async function destListing(path) {
   if (existing.has(path)) return existing.get(path)
@@ -67,6 +73,18 @@ async function destListing(path) {
 }
 
 // ---- the copy queue ----
+// Marnus renamed the site-wide tree in the pack on 10 Sep; COLAB still carries Vossie's names.
+// The pack is what Fluor sees, so the pack's names win. Anything from COLAB's site-wide folders
+// is re-addressed here before it is placed.
+const SITEWIDE_MAP = {
+  '1. Substations BOP Project Site Wide': '1. General Standards and Specifications',
+  '1. Automation General Standards and Specs': '1. Control & Automation General Standards and Specs',
+  '3. E-House General Standards and Specs': '5. Electrical General Standards and Specs',
+  '4. EHS and Fire Protection General Standards': '7. HSE General Standards and Specs',
+  '7. Site Conditions General Standards': '7. HSE General Standards and Specs',
+  '8. Underground Services General Standards and Specs': '4. Mechanical General Standards and Specs',
+}
+const reAddress = (dest) => dest.split('/').map(seg => SITEWIDE_MAP[seg] ?? seg).join('/')
 const queue = [] // { srcDrive, srcId, srcPath, destFolder, name, size }
 const plan = (srcDrive, f, destFolder, name = f.name) => queue.push({ srcDrive, srcId: f.id, srcPath: f.path, destFolder, name, size: f.size })
 
@@ -114,7 +132,9 @@ for (const f of item(2)) if (isTemplate(f)) plan(live, f, REF)
   for (const f of numbered) plan(live, f, `${ROOT}/03 Section 2 - Schedule A2 - Unit Prices and BoQ/${/GBOM/.test(f.name) ? 'Bills of Quantities' : 'Cable Schedules and MTO'}`)
 }
 for (const f of item(4)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/04 Section 3 - Exhibit 3A - Technical Scope of Work`)
-for (const f of item(5)) plan(live, f, isTemplate(f) ? REF : `${ROOT}/05 Section 3 - Exhibit 3B - Company Furnished Material and Equipment`)
+// Marnus removed folder 05 and the DRAFT Exhibit 3B on 10 Sep. Until a final Exhibit 3B exists
+// only the Fluor template goes to Reference; the draft is not carried again.
+for (const f of item(5)) if (isTemplate(f)) plan(live, f, REF)
 // The 2-Sep DRAFT EDL is superseded (9 Sep) by the live export from CoreReports
 // (/api/export-swp006-edl — Fluor's format, vendor rows, PLH for the unreceived, and the
 // pack location column). It is placed in 06 and 07 by scripts/tender-site-edl.mjs; the draft
@@ -128,7 +148,6 @@ for (const f of await walk(live, 'K480 SWP-006 Power and Balance of Plant/03 SOU
 // ---- the 31-Aug supporting snapshot vs the stamped set: report only ----
 // K038 numbers carry digits in the type code (ED01, ID12) — [A-Z0-9]{4}, or they vanish from the report
 const stem = n => n.match(/^(6105A[A-Z0-9]+-\d{4}-[A-Z0-9]{4}-\d{4})/)?.[1] ?? null
-const stemOf = s => (s.match(/(6105A[A-Z0-9]+-\d{4}-[A-Z]-?[A-Z0-9]{3}-\d{4})/i)?.[1]?.replace(/-(\d{4})-([A-Z])-([A-Z0-9]{3})-/i, '-$1-$2$3-') ?? '').toUpperCase()
 const stampedStems = new Set(stamped.map(f => stem(f.name)).filter(Boolean))
 const snapshot = liveFiles.filter(f => f.path.includes('/6 - Section 4') && f.path.includes('/Supporting documents/') && /\.pdf$/i.test(f.name))
 const notStamped = snapshot.filter(f => stem(f.name) && !stampedStems.has(stem(f.name)))
@@ -139,15 +158,16 @@ console.log(`stamped copies in COLAB: ${stamped.length} (${unclassified} without
 console.log(`deliverable files from LIVE DOCUMENTS: ${queue.length - stamped.length}`)
 let copied = 0, skipped = 0, failed = 0
 const doCopy = async (q) => {
+  q.destFolder = reAddress(q.destFolder)
   const listing = await destListing(q.destFolder)
   // Name only: SharePoint re-saves Office files on copy, so their byte size differs from the
   // source and a size test re-copies (and fails on) every xlsx/docx every run. The site is a
   // curated copy — an existing name is the file. Delete it there to force a fresh copy.
-  if (listing.has(q.name)) { skipped++; return }
+  if (listing.has(q.name) || packNames.has(q.name)) { skipped++; return }
   // …and by DOCUMENT NUMBER too: an issued copy taken from CoreDocs/ENG2 may already sit in the
   // folder under a different file name (other revision suffix). One document, one file.
   const qs = stemOf(q.name)
-  if (qs && [...listing.keys()].some(n => stemOf(n) === qs)) { skipped++; return }
+  if (qs && (packStems.has(qs) || [...listing.keys()].some(n => stemOf(n) === qs))) { skipped++; return }
   const pid = await folderId(q.destFolder)
   if (!WRITE) { console.log(`  would copy  ${q.srcPath.slice(0, 90)}\n         →  ${q.destFolder.slice(ROOT.length + 1)}/`); copied++; return }
   try {
