@@ -79,6 +79,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             + `Not usable: ${unmapped.map((s: any) => `"${s.role || '(blank)'}" (${s.email})`).join(', ')}.`,
         }, { status: 400 })
       }
+      // A role mapping to a column NAME is not enough — that column has to be FOUND on this
+      // document. The check above passed 6105AK124-6241-ELAY-0001 (support ticket 647b4156,
+      // 2026-09-10): detection found CHECKED only, so the chain started and at sign time Prepared
+      // and Approved each fell back to an appended A4 sheet while Checked signed in the title
+      // block — one issued drawing with its signatures split across two places. Refuse up front
+      // and say which columns WERE read, so the controller can correct the role or the drawing.
+      // Refuse only the MIXED case. If NO role's column was found, every signature lands on the
+      // appended sheet together — a consistent document, and exactly what happens today for a
+      // drawing with no title block at all — so refusing it would block sign-off outright.
+      const notFound = signatories.filter((s: any) => !hasTitleBlock[roleColumnKey(s.role) as string])
+      if (notFound.length && notFound.length < signatories.length) {
+        const found = Object.keys(hasTitleBlock)
+        return NextResponse.json({
+          error: `This document's title block was only partly read: found ${found.length ? found.join(', ') : 'no columns'}. `
+            + `No column to sign in for ${notFound.map((s: any) => `"${s.role}" (${s.email})`).join(', ')}. `
+            + `Signing now would put those signatures on an extra approval page while the rest sign on the drawing.`,
+        }, { status: 400 })
+      }
       bytes = nativePdf
     } else {
       ({ bytes } = await appendSignoffBlock(nativePdf, signatories.map((s: any) => ({ name: s.name, role: s.role })),
