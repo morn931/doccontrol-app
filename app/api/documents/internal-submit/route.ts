@@ -32,7 +32,9 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://docs.coreflow.build'
 type Rec = { email: string; name: string }
 function parseRecs(raw: unknown): Rec[] {
   try {
-    const arr = JSON.parse(String(raw ?? '[]'))
+    // The body arrives via req.json(), so `raw` is already an array; accept it directly.
+    // Older callers sent a JSON string — keep that path so both shapes work.
+    const arr = Array.isArray(raw) ? raw : JSON.parse(String(raw ?? '[]'))
     if (!Array.isArray(arr)) return []
     const seen = new Set<string>()
     return arr
