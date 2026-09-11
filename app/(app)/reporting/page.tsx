@@ -6,7 +6,7 @@ const REPORTS = [
   {
     href: '/reporting/dashboard',
     title: 'Progress Dashboard',
-    blurb: 'Programme-wide S-curve, planned vs actual & variance',
+    blurb: 'Program-wide S-curve, planned vs actual & variance',
     icon: ICON('dashboard'),
   },
   {

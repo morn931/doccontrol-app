@@ -152,7 +152,7 @@ export default function ReportingDashboard() {
       {data && deferred === 'exclude' && data.deferredExcluded > 0 && (
         <div className="card px-3 py-2 text-xs text-amber-800 bg-amber-50 border-amber-200">
           {data.deferredExcluded.toLocaleString()} deferred document{data.deferredExcluded === 1 ? '' : 's'} excluded
-          (review-period deferrals whose planned dates still reflect the original programme) — switch Basis to
+          (review-period deferrals whose planned dates still reflect the original program) — switch Basis to
           “Original baseline (all)” to include them.
         </div>
       )}
