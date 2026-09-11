@@ -259,8 +259,13 @@ export async function findTitleBlockColumns(pdfBytes: ArrayBuffer | Uint8Array):
 //              Approved on ELAY), not separately ruled. Confirm before extending it.
 //   DISCIPLINE → DISCIPLINE LEAD — a role added by Morné 2026-09-10: EGAD-0003/0004 name Ian
 //              Steynberg on that row, and he had been sent the chain as a second "Checked".
-// The first three are the ANCHORS that identify the layout; DISCIPLINE LEAD is read where the
-// block carries it and never required, so a stacked block without that row is still recognised.
+//   DESIGNED → DESIGNED BY — a role added by Morné 2026-09-11: the designer signs the DESIGNED
+//              BY row, distinct from PREPARED (which stays DRAWN BY ONLY). This does NOT reopen
+//              the 2026-09-10 ruling — Prepared still never lands on DESIGNED BY; a separate
+//              Designed signatory is what fills that row.
+// The first three are the ANCHORS that identify the layout; DISCIPLINE LEAD and DESIGNED BY are
+// read where the block carries them and never required, so a stacked block without either row is
+// still recognised.
 const STACKED_ROWS: [string, RegExp][] = [
   ['PREPARED', /^DRAWN BY$/i],
   ['CHECKED', /^CHECKED BY$/i],
@@ -268,6 +273,7 @@ const STACKED_ROWS: [string, RegExp][] = [
 ]
 const STACKED_OPTIONAL_ROWS: [string, RegExp][] = [
   ['DISCIPLINE', /^DISCIPLINE LEAD$/i],
+  ['DESIGNED', /^DESIGNED BY$/i],
 ]
 
 type Seg = [number, number, number, number]   // x1, y1, x2, y2 — straight lines only
@@ -361,10 +367,11 @@ async function findStackedCells(
 }
 
 // First fragment that the role label contains wins. 'discipline' comes first so "Discipline Lead"
-// is never caught by a later fragment. DISCIPLINE exists only on a stacked title block: on a
-// side-by-side datasheet it has no column, and the start guard refuses the chain with that role
-// named — as it would any role the document has nowhere to sign.
-const ROLE_TO_COL: [string, string][] = [['discipline', 'DISCIPLINE'], ['prepar', 'PREPARED'], ['compil', 'PREPARED'], ['check', 'CHECKED'], ['review', 'CHECKED'], ['approv', 'APPROVED']]
+// is never caught by a later fragment ('design' cannot catch it either — "discipline" has no
+// "design" in it). DISCIPLINE and DESIGNED exist only on a stacked title block: on a side-by-side
+// datasheet they have no column, so a chain naming them there has nowhere to sign — as with any
+// role the document cannot place.
+const ROLE_TO_COL: [string, string][] = [['discipline', 'DISCIPLINE'], ['design', 'DESIGNED'], ['prepar', 'PREPARED'], ['compil', 'PREPARED'], ['check', 'CHECKED'], ['review', 'CHECKED'], ['approv', 'APPROVED']]
 
 /** The title-block column a free-text role label signs in, or null if it maps to none.
  *  A document WITH a title block has nowhere to put an unmapped role, so callers that
@@ -375,7 +382,7 @@ export function roleColumnKey(roleLabel: string | null | undefined): string | nu
 }
 
 /** The role labels a title-block document accepts — shown to the user when one is rejected. */
-export const TITLE_BLOCK_ROLES = ['Prepared', 'Checked', 'Reviewed', 'Discipline Lead', 'Approved'] as const
+export const TITLE_BLOCK_ROLES = ['Prepared', 'Designed', 'Checked', 'Reviewed', 'Discipline Lead', 'Approved'] as const
 
 /** Stamp a signature into the title-block column matching the signatory's role, above the
  *  name. Returns placed:false if the block/column isn't found (caller falls back). */
